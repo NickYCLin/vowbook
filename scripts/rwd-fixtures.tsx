@@ -394,7 +394,6 @@ const surfaces: { name: string; element: ReactNode }[] = [
             attendanceStatus: "UNDECIDED" as const,
             notes: null,
             category: "GUEST" as const,
-            partySizeManaged: index === 3,
           }))}
         />
       </WorkspacePage>
@@ -644,7 +643,6 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
               attendanceStatus: "UNDECIDED" as const,
               notes: null,
               category: "GUEST" as const,
-              partySizeManaged: false,
             },
           ]}
         />

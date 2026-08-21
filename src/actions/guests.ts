@@ -27,8 +27,6 @@ class GuestStaleWriteError extends Error {}
 
 class GuestPartyCapacityError extends Error {}
 
-class ImportedGuestCoreEditError extends Error {}
-
 function isUniqueConstraintError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -165,6 +163,7 @@ export async function updateGuestAction(
     return validationState(error);
   }
 
+  let removedFromTable = false;
   try {
     await runSerializableTransaction(async (transaction) => {
       await requireLockedWorkspaceAccess(
@@ -178,19 +177,7 @@ export async function updateGuestAction(
         select: {
           id: true,
           version: true,
-          name: true,
-          category: true,
-          side: true,
-          attendanceStatus: true,
-          partySize: true,
           seatingTableId: true,
-          importRecords: {
-            select: {
-              sourceManaged: true,
-              sourceLabel: true,
-              managedFields: true,
-            },
-          },
         },
       });
       if (!guest) {
@@ -200,22 +187,10 @@ export async function updateGuestAction(
         throw new GuestStaleWriteError();
       }
 
-      const managedFields = new Set(
-        guest.importRecords.flatMap((record) =>
-          record.sourceManaged ? record.managedFields : [],
-        ),
-      );
-      if (
-        (managedFields.has("NAME") && guest.name !== input.name) ||
-        (managedFields.has("SIDE") && guest.side !== input.side) ||
-        (managedFields.has("ATTENDANCE_STATUS") &&
-          guest.attendanceStatus !== input.attendanceStatus) ||
-        (managedFields.has("PARTY_SIZE") && guest.partySize !== input.partySize)
-      ) {
-        throw new ImportedGuestCoreEditError();
-      }
+      const removesFromTable =
+        input.attendanceStatus === "DECLINED" && guest.seatingTableId !== null;
 
-      if (guest.seatingTableId) {
+      if (guest.seatingTableId && !removesFromTable) {
         const table = await transaction.seatingTable.findUnique({
           where: {
             id_workspaceId: { id: guest.seatingTableId, workspaceId },
@@ -242,9 +217,14 @@ export async function updateGuestAction(
 
       const result = await transaction.guest.updateMany({
         where: { id: guestId, workspaceId, version: expectedVersion },
-        data: { ...input, version: { increment: 1 } },
+        data: {
+          ...input,
+          ...(removesFromTable ? { seatingTableId: null } : {}),
+          version: { increment: 1 },
+        },
       });
       if (result.count !== 1) throw new GuestStaleWriteError();
+      removedFromTable = removesFromTable;
     });
   } catch (error) {
     if (error instanceof WorkspaceAccessDeniedError) {
@@ -259,14 +239,6 @@ export async function updateGuestAction(
         message: "賓客資料已被更新或不存在，請重新整理後再試。",
       };
     }
-    if (error instanceof ImportedGuestCoreEditError) {
-      return {
-        status: "error",
-        message:
-          "由匯入來源維護的賓客姓名、關係、出席狀態與邀請人數只能透過來源更新。",
-      };
-    }
-
     if (error instanceof GuestPartyCapacityError) {
       return {
         status: "error",
@@ -289,7 +261,12 @@ export async function updateGuestAction(
   }
 
   revalidateGuestViews(workspaceId);
-  return { status: "success", message: "已更新賓客。" };
+  return {
+    status: "success",
+    message: removedFromTable
+      ? "已更新賓客；已從桌次移除不出席者。"
+      : "已更新賓客。",
+  };
 }
 
 export async function deleteGuestAction(
