@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import {
   normalizeWeddingTaskDetails,
+  normalizeWeddingTaskSide,
   normalizeWeddingTaskStatus,
   type NormalizedWeddingTaskDetails,
+  type WeddingTaskSideValue,
   type WeddingTaskStatusValue,
   WeddingTaskValidationError,
 } from "@/domain/wedding-task";
@@ -117,12 +119,19 @@ async function authorizeWeddingTaskMutation(
   }
 }
 
-function detailsFromFormData(formData: FormData): NormalizedWeddingTaskDetails {
-  return normalizeWeddingTaskDetails({
-    title: formData.get("title"),
-    description: formData.get("description"),
-    dueDate: formData.get("dueDate"),
-  });
+type NormalizedWeddingTaskInput = NormalizedWeddingTaskDetails & {
+  side: WeddingTaskSideValue;
+};
+
+function detailsFromFormData(formData: FormData): NormalizedWeddingTaskInput {
+  return {
+    ...normalizeWeddingTaskDetails({
+      title: formData.get("title"),
+      description: formData.get("description"),
+      dueDate: formData.get("dueDate"),
+    }),
+    side: normalizeWeddingTaskSide(formData.get("side")),
+  };
 }
 
 function expectedVersionFromFormData(formData: FormData): number {
@@ -160,7 +169,7 @@ export async function createWeddingTaskAction(
     return authorization;
   }
 
-  let details: NormalizedWeddingTaskDetails;
+  let details: NormalizedWeddingTaskInput;
   try {
     details = detailsFromFormData(formData);
   } catch (error) {
@@ -209,7 +218,7 @@ export async function updateWeddingTaskAction(
     return authorization;
   }
 
-  let details: NormalizedWeddingTaskDetails;
+  let details: NormalizedWeddingTaskInput;
   let expectedVersion: number;
   try {
     details = detailsFromFormData(formData);

@@ -53,6 +53,7 @@ function validTaskFormData(expectedVersion = "0") {
   formData.set("title", "  確認   婚宴流程  ");
   formData.set("description", "  與主持人確認  ");
   formData.set("dueDate", "2028-02-29");
+  formData.set("side", "SHARED");
   formData.set("expectedVersion", expectedVersion);
   return formData;
 }
@@ -89,6 +90,7 @@ describe("wedding task server actions", () => {
 
   it("creates TODO only after edit authorization and ignores forged fields", async () => {
     const formData = validTaskFormData();
+    formData.set("side", "PARTNER_A");
     formData.set("workspaceId", "workspace_attacker");
     formData.set("userId", "attacker");
     formData.set("role", "OWNER");
@@ -121,6 +123,7 @@ describe("wedding task server actions", () => {
         title: "確認 婚宴流程",
         description: "與主持人確認",
         dueDate: new Date("2028-02-29T00:00:00.000Z"),
+        side: "PARTNER_A",
         status: "TODO",
         completedAt: null,
       },
@@ -239,6 +242,15 @@ describe("wedding task server actions", () => {
       code: "VALIDATION",
       message: "版本資訊無效，請重新整理後再試。",
     });
+    const invalidSide = validTaskFormData();
+    invalidSide.set("side", "OTHER");
+    await expect(
+      createWeddingTaskAction("workspace_1", idleState, invalidSide),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "請選擇有效的任務歸屬。",
+    });
     expect(requireWorkspaceAccess).toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
     expect(updateMany).not.toHaveBeenCalled();
@@ -261,12 +273,14 @@ describe("wedding task server actions", () => {
   );
 
   it("updates details with id + workspace + version CAS and never overwrites status", async () => {
+    const formData = validTaskFormData("7");
+    formData.set("side", "PARTNER_B");
     await expect(
       updateWeddingTaskAction(
         "workspace_1",
         "task_1",
         idleState,
-        validTaskFormData("7"),
+        formData,
       ),
     ).resolves.toEqual({ status: "success", message: "已更新任務內容。" });
 
@@ -276,6 +290,7 @@ describe("wedding task server actions", () => {
         title: "確認 婚宴流程",
         description: "與主持人確認",
         dueDate: new Date("2028-02-29T00:00:00.000Z"),
+        side: "PARTNER_B",
         version: { increment: 1 },
       },
     });

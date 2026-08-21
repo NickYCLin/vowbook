@@ -417,6 +417,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
             description: index === 0 ? LONG_URL_ISH : null,
             dueDate: index % 2 === 0 ? "2026-09-01" : null,
             status: (["TODO", "IN_PROGRESS", "DONE"] as const)[index % 3],
+            side: (["SHARED", "PARTNER_A", "PARTNER_B"] as const)[index % 3],
             completedAt: index % 3 === 2 ? "2026-08-01" : null,
             version: 1,
           }))}

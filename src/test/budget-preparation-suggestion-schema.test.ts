@@ -22,21 +22,24 @@ describe("budget preparation suggestion identity migration", () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    expect(migrationDirectories).toHaveLength(27);
-    expect(migrationDirectories.at(-5)).toBe(
+    expect(migrationDirectories).toHaveLength(28);
+    expect(migrationDirectories.at(-6)).toBe(
       "20260805120000_budget_engagement_suggestion_key",
     );
-    expect(migrationDirectories.at(-4)).toBe(
+    expect(migrationDirectories.at(-5)).toBe(
       "20260805130000_budget_preparation_suggestion_key",
     );
-    expect(migrationDirectories.at(-3)).toBe(
+    expect(migrationDirectories.at(-4)).toBe(
       "20260813160000_seating_table_floor_plan",
     );
-    expect(migrationDirectories.at(-2)).toBe(
+    expect(migrationDirectories.at(-3)).toBe(
       "20260817120000_seating_table_duplicate_names",
     );
-    expect(migrationDirectories.at(-1)).toBe(
+    expect(migrationDirectories.at(-2)).toBe(
       "20260822120000_guest_roster_categories",
+    );
+    expect(migrationDirectories.at(-1)).toBe(
+      "20260822130000_wedding_task_sides",
     );
 
     const priorMigration = fs.readFileSync(priorMigrationPath, "utf8");

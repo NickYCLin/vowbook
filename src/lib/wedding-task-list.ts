@@ -1,7 +1,10 @@
 import "server-only";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
-import type { WeddingTaskStatusValue } from "@/domain/wedding-task";
+import type {
+  WeddingTaskSideValue,
+  WeddingTaskStatusValue,
+} from "@/domain/wedding-task";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +16,7 @@ type WeddingTaskRecord = {
   description: string | null;
   dueDate: Date | null;
   status: WeddingTaskStatusValue;
+  side: WeddingTaskSideValue;
   completedAt: Date | null;
   version: number;
 };
@@ -36,6 +40,7 @@ export type WeddingTaskListItem = {
   description: string | null;
   dueDate: string | null;
   status: WeddingTaskStatusValue;
+  side: WeddingTaskSideValue;
   completedAt: string | null;
   version: number;
 };
@@ -53,6 +58,7 @@ const taskSelect = {
   description: true,
   dueDate: true,
   status: true,
+  side: true,
   completedAt: true,
   version: true,
 };
@@ -70,6 +76,7 @@ function taskViewModel(task: WeddingTaskRecord): WeddingTaskListItem {
     description: task.description,
     dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null,
     status: task.status,
+    side: task.side,
     completedAt: task.completedAt?.toISOString() ?? null,
     version: task.version,
   };

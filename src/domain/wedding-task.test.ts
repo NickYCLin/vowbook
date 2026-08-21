@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeWeddingTaskDetails,
+  normalizeWeddingTaskSide,
   normalizeWeddingTaskStatus,
   WeddingTaskValidationError,
 } from "./wedding-task";
@@ -103,6 +104,18 @@ describe("wedding task domain contract", () => {
     );
     expect(() => normalizeWeddingTaskStatus("ARCHIVED")).toThrow(
       WeddingTaskValidationError,
+    );
+  });
+
+  it("accepts every task side and rejects unknown values", () => {
+    expect(normalizeWeddingTaskSide("SHARED")).toBe("SHARED");
+    expect(normalizeWeddingTaskSide("PARTNER_A")).toBe("PARTNER_A");
+    expect(normalizeWeddingTaskSide("PARTNER_B")).toBe("PARTNER_B");
+    expect(() => normalizeWeddingTaskSide("shared")).toThrow(
+      WeddingTaskValidationError,
+    );
+    expect(() => normalizeWeddingTaskSide("OTHER")).toThrow(
+      "請選擇有效的任務歸屬",
     );
   });
 });
