@@ -21,6 +21,7 @@ import {
   createSeatingTableAction,
   deleteSeatingTableAction,
   unassignGuestFromTableAction,
+  swapSeatingTableContentsAction,
   updateSeatingTableLayoutAction,
   updateSeatingTableAction,
 } from "@/actions/seating-tables";
@@ -60,6 +61,18 @@ function layoutForm(
   formData.set("layoutX", layoutX === null ? "" : String(layoutX));
   formData.set("layoutY", layoutY === null ? "" : String(layoutY));
   formData.set("expectedVersion", String(expectedVersion));
+  return formData;
+}
+
+function swapForm(
+  targetTableId: string,
+  expectedVersion: number,
+  targetExpectedVersion: number,
+): FormData {
+  const formData = new FormData();
+  formData.set("targetTableId", targetTableId);
+  formData.set("expectedVersion", String(expectedVersion));
+  formData.set("targetExpectedVersion", String(targetExpectedVersion));
   return formData;
 }
 
@@ -507,6 +520,104 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
     ).resolves.toMatchObject({ layoutX: null, layoutY: null, version: 0 });
   });
 
+  it("keeps fixed table slots while atomically swapping names and assigned guests", async () => {
+    const { workspace } = await createWorkspace("固定桌號內容交換");
+    const originalA = await createTable(workspace.id, "主桌", 10);
+    const originalB = await createTable(workspace.id, "親友桌", 8);
+    const tableA = await prisma.seatingTable.update({
+      where: { id: originalA.id },
+      data: { layoutX: 100, layoutY: 200, notes: "第一桌位置" },
+    });
+    const tableB = await prisma.seatingTable.update({
+      where: { id: originalB.id },
+      data: { layoutX: 800, layoutY: 700, notes: "第二桌位置" },
+    });
+    const guestA = await createGuest(workspace.id, "主桌賓客", 3, tableA.id);
+    const guestB = await createGuest(workspace.id, "親友桌賓客", 2, tableB.id);
+
+    await expect(
+      swapSeatingTableContentsAction(
+        workspace.id,
+        tableA.id,
+        idleState,
+        swapForm(tableB.id, tableA.version, tableB.version),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已交換兩桌的桌名與入座賓客；桌號保持不變。",
+    });
+
+    await expect(
+      prisma.seatingTable.findUniqueOrThrow({ where: { id: tableA.id } }),
+    ).resolves.toMatchObject({
+      id: tableA.id,
+      position: tableA.position,
+      name: "親友桌",
+      capacity: 10,
+      notes: "第一桌位置",
+      layoutX: 100,
+      layoutY: 200,
+      version: tableA.version + 1,
+    });
+    await expect(
+      prisma.seatingTable.findUniqueOrThrow({ where: { id: tableB.id } }),
+    ).resolves.toMatchObject({
+      id: tableB.id,
+      position: tableB.position,
+      name: "主桌",
+      capacity: 8,
+      notes: "第二桌位置",
+      layoutX: 800,
+      layoutY: 700,
+      version: tableB.version + 1,
+    });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guestA.id } }),
+    ).resolves.toMatchObject({
+      seatingTableId: tableB.id,
+      version: guestA.version + 1,
+    });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guestB.id } }),
+    ).resolves.toMatchObject({
+      seatingTableId: tableA.id,
+      version: guestB.version + 1,
+    });
+  });
+
+  it("rejects a content swap atomically when a fixed table would overflow", async () => {
+    const { workspace } = await createWorkspace("固定容量交換");
+    const tableA = await createTable(workspace.id, "小桌", 4);
+    const tableB = await createTable(workspace.id, "大桌", 8);
+    const guestA = await createGuest(workspace.id, "小桌賓客", 2, tableA.id);
+    const guestB = await createGuest(workspace.id, "大桌賓客", 6, tableB.id);
+
+    await expect(
+      swapSeatingTableContentsAction(
+        workspace.id,
+        tableA.id,
+        idleState,
+        swapForm(tableB.id, tableA.version, tableB.version),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "交換後會超過其中一桌的容量，請先調整座位或桌次容量。",
+    });
+
+    await expect(
+      prisma.seatingTable.findUniqueOrThrow({ where: { id: tableA.id } }),
+    ).resolves.toMatchObject({ name: "小桌", version: tableA.version });
+    await expect(
+      prisma.seatingTable.findUniqueOrThrow({ where: { id: tableB.id } }),
+    ).resolves.toMatchObject({ name: "大桌", version: tableB.version });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guestA.id } }),
+    ).resolves.toMatchObject({ seatingTableId: tableA.id, version: guestA.version });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guestB.id } }),
+    ).resolves.toMatchObject({ seatingTableId: tableB.id, version: guestB.version });
+  });
+
   it("keeps stored endpoint coordinates valid through an actual 16 to 15 count reduction", async () => {
     const { workspace } = await createWorkspace("場地密度轉換");
     await expect(
@@ -693,6 +804,37 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       }),
     ).toBe(1);
     await assertCapacityInvariant(workspace.id, table.id);
+  });
+
+  it("keeps capacity valid when a content swap races a new assignment", async () => {
+    const { workspace } = await createWorkspace("交換與排座位競態");
+    const tableA = await createTable(workspace.id, "A 桌", 10);
+    const tableB = await createTable(workspace.id, "B 桌", 10);
+    const seated = await createGuest(workspace.id, "B 桌既有賓客", 8, tableB.id);
+    const candidate = await createGuest(workspace.id, "同時排入賓客", 3);
+
+    const [swapResult, assignmentResult] = await Promise.all([
+      swapSeatingTableContentsAction(
+        workspace.id,
+        tableA.id,
+        idleState,
+        swapForm(tableB.id, tableA.version, tableB.version),
+      ),
+      assignGuestToTableAction(
+        workspace.id,
+        candidate.id,
+        idleState,
+        assignmentForm(tableA.id),
+      ),
+    ]);
+
+    expect(swapResult).toMatchObject({ status: "success" });
+    expect(["success", "error"]).toContain(assignmentResult.status);
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: seated.id } }),
+    ).resolves.toMatchObject({ seatingTableId: tableA.id });
+    await assertCapacityInvariant(workspace.id, tableA.id);
+    await assertCapacityInvariant(workspace.id, tableB.id);
   });
 
   it("keeps capacity valid when assignment races a capacity shrink", async () => {

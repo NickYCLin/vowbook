@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { refresh, updateLayout, swapLayout, resetLayouts } = vi.hoisted(() => ({
+const { refresh, updateLayout, swapContents, resetLayouts } = vi.hoisted(() => ({
   refresh: vi.fn(),
   updateLayout: vi.fn(),
-  swapLayout: vi.fn(),
+  swapContents: vi.fn(),
   resetLayouts: vi.fn(),
 }));
 
@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/actions/seating-tables", () => ({
   updateSeatingTableLayoutAction: updateLayout,
-  swapSeatingTableLayoutAction: swapLayout,
+  swapSeatingTableContentsAction: swapContents,
   resetSeatingTableLayoutsAction: resetLayouts,
 }));
 
@@ -64,9 +64,9 @@ describe("SeatingFloorPlan", () => {
       status: "success",
       message: "已更新場地位置。",
     });
-    swapLayout.mockResolvedValue({
+    swapContents.mockResolvedValue({
       status: "success",
-      message: "已交換 主桌 與 摯友桌 的位置。",
+      message: "已交換兩桌的桌名與入座賓客；桌號保持不變。",
     });
     resetLayouts.mockResolvedValue({
       status: "success",
@@ -390,7 +390,7 @@ describe("SeatingFloorPlan", () => {
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 
-  it("swaps two tables when a drag is dropped onto another table", async () => {
+  it("swaps table names and guests while fixed numbers stay in place", async () => {
     render(
       <SeatingFloorPlan
         workspaceId="workspace_internal"
@@ -436,13 +436,17 @@ describe("SeatingFloorPlan", () => {
 
     // 壓住的期間要標示出「放開會跟它換」。
     expect(friendsCard).toHaveAttribute("data-swap-target", "true");
-    // 而且還沒放開就先把兩張圓桌滑到交換後的位置，看得出放開會變成怎樣。
-    expect(mainCard).toHaveAttribute("data-layout-x", "240");
-    expect(mainCard).toHaveAttribute("data-layout-y", "720");
-    expect(friendsCard).toHaveAttribute("data-layout-x", "500");
-    expect(friendsCard).toHaveAttribute("data-layout-y", "220");
-    // 預覽的位移要補間，直接跳位看不出兩張桌子換了過去。
-    expect(friendsCard.className).toContain("transition-[box-shadow,left,top]");
+    // 桌號與場地位置固定，預覽只交換桌名與入座賓客。
+    expect(mainCard).toHaveAttribute("data-layout-x", "500");
+    expect(mainCard).toHaveAttribute("data-layout-y", "220");
+    expect(friendsCard).toHaveAttribute("data-layout-x", "240");
+    expect(friendsCard).toHaveAttribute("data-layout-y", "720");
+    expect(mainCard).toHaveAccessibleName(
+      "1 號桌 摯友桌，已安排 0 / 10 位",
+    );
+    expect(friendsCard).toHaveAccessibleName(
+      "2 號桌 主桌，男方親友，已安排 3 / 8 位",
+    );
     expect(updateLayout).not.toHaveBeenCalled();
 
     fireEvent.pointerUp(handle, {
@@ -451,14 +455,14 @@ describe("SeatingFloorPlan", () => {
       clientY: 759.36,
     });
 
-    await waitFor(() => expect(swapLayout).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(swapContents).toHaveBeenCalledTimes(1));
     expect(updateLayout).not.toHaveBeenCalled();
-    expect(swapLayout.mock.calls[0].slice(0, 3)).toEqual([
+    expect(swapContents.mock.calls[0].slice(0, 3)).toEqual([
       "workspace_internal",
       "table_internal_main",
       { status: "idle" },
     ]);
-    const formData = swapLayout.mock.calls[0][3] as FormData;
+    const formData = swapContents.mock.calls[0][3] as FormData;
     expect(formData.get("targetTableId")).toBe("table_internal_friends");
     expect(formData.get("expectedVersion")).toBe("3");
     expect(formData.get("targetExpectedVersion")).toBe("4");
@@ -466,13 +470,13 @@ describe("SeatingFloorPlan", () => {
     expect(formData.get("layoutX")).toBeNull();
     expect(formData.get("layoutY")).toBeNull();
 
-    // 樂觀預覽先把兩張桌子對調。
+    // 樂觀預覽保留固定座標，並維持交換後的桌名與賓客。
     await waitFor(() =>
       expect(
-        screen.getByRole("article", { name: "1 號桌 主桌，男方親友，已安排 3 / 10 位" }),
-      ).toHaveAttribute("data-layout-x", "240"),
+        screen.getByRole("article", { name: "1 號桌 摯友桌，已安排 0 / 10 位" }),
+      ).toHaveAttribute("data-layout-x", "500"),
     );
-    expect(friendsCard).toHaveAttribute("data-layout-x", "500");
+    expect(friendsCard).toHaveAttribute("data-layout-x", "240");
     expect(friendsCard).not.toHaveAttribute("data-swap-target");
   });
 
@@ -489,17 +493,17 @@ describe("SeatingFloorPlan", () => {
 
     const controls = screen.getByRole("group", { name: "1 號桌 主桌位置調整" });
     fireEvent.change(
-      within(controls).getByLabelText("與其他桌交換位置"),
+      within(controls).getByLabelText("與其他桌交換桌名與賓客"),
       { target: { value: "table_internal_friends" } },
     );
     await fireEvent.click(
       within(controls).getByRole("button", {
-        name: "交換 1 號桌 主桌 與所選桌次的位置",
+        name: "交換 1 號桌 主桌 與所選桌次的桌名與入座賓客",
       }),
     );
 
-    await waitFor(() => expect(swapLayout).toHaveBeenCalledTimes(1));
-    const formData = swapLayout.mock.calls[0][3] as FormData;
+    await waitFor(() => expect(swapContents).toHaveBeenCalledTimes(1));
+    const formData = swapContents.mock.calls[0][3] as FormData;
     expect(formData.get("targetTableId")).toBe("table_internal_friends");
     expect(formData.get("expectedVersion")).toBe("3");
     expect(formData.get("targetExpectedVersion")).toBe("4");
