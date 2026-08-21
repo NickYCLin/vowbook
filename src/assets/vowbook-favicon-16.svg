@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-labelledby="title description">
+  <title id="title">誓約簿 VowBook 16px</title>
+  <desc id="description">針對瀏覽器分頁像素對齊的暖紙心印與 V 形書頁</desc>
+
+  <rect x="1.5" y="1.5" width="13" height="13" rx="3.5" fill="#F7EFE5" stroke="#B48A67"/>
+  <path d="M8 3.5C7.3 2.7 6.1 3.1 6.2 4.1C6.3 4.9 8 5.9 8 5.9C8 5.9 9.7 4.9 9.8 4.1C9.9 3.1 8.7 2.7 8 3.5Z" fill="#A65E57"/>
+  <path d="M3 7.2C4.9 6.4 6.7 6.7 8 8.3V13C6.5 11.8 4.7 11.5 3 12V7.2Z" fill="#FFF9F1" stroke="#744C32" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M13 7.2C11.1 6.4 9.3 6.7 8 8.3V13C9.5 11.8 11.3 11.5 13 12V7.2Z" fill="#FFF9F1" stroke="#744C32" stroke-width="1" stroke-linejoin="round"/>
+</svg>

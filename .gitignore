@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.npm-cache/
+
+# Next.js output
+.next/
+out/
+
+# Tests and tooling
+coverage/
+playwright-report/
+test-results/
+.playwright-browsers/
+.rwd-audit/
+*.tsbuildinfo
+
+# Local environment files (keep the documented template)
+.env*
+!.env.example
+
+# Logs and editor files
+*.log
+.loops/
+handover.md
+AGENTS.md
+docs/internal/
+backups/
+*.dump
+.DS_Store
+.idea/
+.vscode/

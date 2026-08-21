@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.git/
+.env*
+.npm-cache/
+.playwright-browsers/
+coverage/
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo
+.loops/
+handover.md
+AGENTS.md
+docs/internal/
+backups/
+*.dump

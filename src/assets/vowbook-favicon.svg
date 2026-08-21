@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">誓約簿 VowBook</title>
+  <desc id="description">暖紙色徽章上的心印與 V 形打開書頁</desc>
+
+  <rect x="4.5" y="4.5" width="55" height="55" rx="15" fill="#F7EFE5" stroke="#B48A67" stroke-width="3"/>
+
+  <path d="M32 12.8C29.5 10.2 25.8 11.6 26.1 14.8C26.4 17.5 32 21 32 21C32 21 37.6 17.5 37.9 14.8C38.2 11.6 34.5 10.2 32 12.8Z" fill="#A65E57"/>
+
+  <path d="M12.5 27C19.9 24.2 26.5 25.1 32 30.5V50C26.1 46.2 19.5 45.1 12.5 47V27Z" fill="#FFF9F1" stroke="#744C32" stroke-width="3.2" stroke-linejoin="round"/>
+  <path d="M51.5 27C44.1 24.2 37.5 25.1 32 30.5V50C37.9 46.2 44.5 45.1 51.5 47V27Z" fill="#FFF9F1" stroke="#744C32" stroke-width="3.2" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,2 @@
+# Loop command logs are generated verification evidence and may contain terminal progress control characters.
+.loops/runs/**/artifacts/command-logs/*.log -diff linguist-generated=true

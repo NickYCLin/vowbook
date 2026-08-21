@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+/*
+ * VowBook 設計系統
+ * -----------------------------------------------------------------
+ * 色票、字級、圓角、陰影一律走這裡定義的 token，元件中不再寫死 hex。
+ * Tailwind 4 會把 @theme 內的變數編成 utility：
+ *   --color-clay      → bg-clay / text-clay / border-clay
+ *   --text-title      → text-title
+ *   --radius-card     → rounded-card
+ *   --shadow-card     → shadow-card
+ */
+@theme {
+  /* 表面：紙張由淺到深 */
+  --color-paper: #f7f2ea;
+  --color-paper-deep: #efe6d9;
+  --color-surface: #fffdf9;
+  --color-surface-sunken: #f4ece1;
+
+  /* 墨色：文字三階 */
+  --color-ink: #2b2521;
+  --color-ink-soft: #675c54;
+  --color-ink-faint: #948a80;
+
+  /* 線條兩階 */
+  --color-line: #e4d9ca;
+  --color-line-strong: #cdbca7;
+
+  /* 主色：陶土棕 */
+  --color-clay: #8a5d42;
+  --color-clay-strong: #6d4530;
+  --color-clay-soft: #f2e5d8;
+
+  /* 輔色：鼠尾草綠 */
+  --color-sage: #53645a;
+  --color-sage-soft: #e7ede8;
+
+  /* 語意色：維持紙感的低彩度版本 */
+  --color-positive: #46654e;
+  --color-positive-soft: #e6efe7;
+  --color-caution: #8a6722;
+  --color-caution-soft: #f7ecd5;
+  --color-danger: #8f4438;
+  --color-danger-soft: #f8e7e3;
+
+  /* 字體 */
+  --font-sans:
+    "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-serif:
+    "Noto Serif TC", "Source Han Serif TC", "Songti TC", "PMingLiU", Georgia,
+    serif;
+
+  /* 字級：四階 + 一個 eyebrow 小標 */
+  --text-display: clamp(2rem, 4.5vw, 2.75rem);
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.02em;
+  --text-title: 1.375rem;
+  --text-title--line-height: 1.45;
+  --text-body: 1rem;
+  --text-body--line-height: 1.75;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.6;
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.16em;
+
+  /* 圓角 */
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
+
+  /* 陰影：紙張浮起來的柔和投影，色調帶棕 */
+  --shadow-card:
+    0 1px 2px rgba(83, 62, 45, 0.05), 0 10px 28px -18px rgba(83, 62, 45, 0.35);
+  --shadow-raise:
+    0 2px 4px rgba(83, 62, 45, 0.06), 0 18px 40px -20px rgba(83, 62, 45, 0.4);
+  --shadow-overlay: 0 24px 70px -20px rgba(58, 42, 30, 0.45);
+}
+
+/* 間距節奏：頁面區塊之間的標準留白 */
+@theme {
+  --spacing-gutter: 1.25rem;
+  --spacing-section: 2.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /*
+   * Structural widths and breakpoints use rem, while the seating board keeps
+   * a collision-safe pixel minimum. Pin the rem baseline so a browser profile
+   * with a 12px default font cannot shrink the app frame below that board.
+   * Browser page zoom remains available for user-controlled magnification.
+   */
+  font-size: 16px;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  background: var(--color-paper);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  /* 紙張的橫線紋理：淡到只在大面積留白處才感覺得到 */
+  background:
+    linear-gradient(rgba(112, 89, 70, 0.028) 1px, transparent 1px),
+    var(--color-paper);
+  background-size: 100% 2rem;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button:not(:disabled),
+a,
+summary {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(138, 93, 66, 0.32);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 原生 date/time 輸入的日曆圖示配合墨色 */
+::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+}
+
+/* Dialog 背景遮罩 */
+dialog::backdrop {
+  background: rgba(48, 36, 27, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+dialog[open] {
+  animation: vowbook-dialog-in 160ms ease-out;
+}
+
+@keyframes vowbook-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog[open] {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::selection {
+  background: #dec5b0;
+}
