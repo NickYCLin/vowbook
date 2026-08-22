@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { WorkspacePageHeader } from "./workspace-shell";
 
@@ -44,6 +44,7 @@ describe("WorkspacePageHeader", () => {
       expect(link).toHaveAttribute("href", href);
       expect(link).toHaveClass("min-h-11");
       expect(link).toHaveClass("shrink-0");
+      expect(link).toHaveAttribute("data-workspace-prefetch", "full");
       expect(link).not.toHaveAttribute(
         "href",
         expect.stringContaining("/VowBook/VowBook"),
@@ -69,6 +70,42 @@ describe("WorkspacePageHeader", () => {
     for (const hint of navigationHints) {
       expect(hint).toHaveClass("size-1.5", "opacity-0");
     }
+  });
+
+  it("marks the requested tab immediately while its prefetched route is loading", () => {
+    const props = {
+      workspaceId: "workspace_synthetic",
+      workspaceName: "合成婚宴",
+      sectionTitle: "賓客名單",
+      description: "合成頁面說明",
+    } as const;
+    const { rerender } = render(
+      <WorkspacePageHeader {...props} activeSection="guests" />,
+    );
+    const navigation = screen.getByRole("navigation", {
+      name: "工作區功能",
+    });
+    const guestsLink = within(navigation).getByRole("link", { name: "賓客" });
+    const tablesLink = within(navigation).getByRole("link", { name: "桌次" });
+    tablesLink.addEventListener("click", (event) => event.preventDefault());
+
+    fireEvent.click(tablesLink, { button: 0 });
+
+    expect(navigation).toHaveAttribute("aria-busy", "true");
+    expect(tablesLink).toHaveAttribute("aria-current", "page");
+    expect(tablesLink).toHaveAttribute("data-workspace-pending", "true");
+    expect(guestsLink).not.toHaveAttribute("aria-current");
+
+    rerender(
+      <WorkspacePageHeader
+        {...props}
+        sectionTitle="桌次安排"
+        activeSection="tables"
+      />,
+    );
+
+    expect(navigation).toHaveAttribute("aria-busy", "false");
+    expect(tablesLink).not.toHaveAttribute("data-workspace-pending");
   });
 
   it("brings the active tab into the horizontal viewport after route changes", () => {
