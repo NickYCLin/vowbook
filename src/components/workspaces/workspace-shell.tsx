@@ -1,7 +1,7 @@
 "use client";
 
 import Link, { useLinkStatus } from "next/link";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
 
 export type WorkspaceSection =
@@ -48,6 +48,9 @@ export function WorkspaceNavigation({
 }) {
   const navigationRef = useRef<HTMLElement>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
+  const [pendingSection, setPendingSection] = useState<WorkspaceSection | null>(null);
+  const effectivePendingSection =
+    pendingSection === activeSection ? null : pendingSection;
 
   useLayoutEffect(() => {
     const navigation = navigationRef.current;
@@ -61,20 +64,39 @@ export function WorkspaceNavigation({
     <nav
       ref={navigationRef}
       aria-label="工作區功能"
-      className="mt-3 min-w-0 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      aria-busy={effectivePendingSection ? "true" : "false"}
+      className="relative mt-3 min-w-0 overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <div className="flex w-max min-w-full flex-nowrap gap-x-1">
         {workspaceSections.map((section) => {
           const isCurrent = activeSection === section.key;
+          const isDisplayedCurrent =
+            (effectivePendingSection ?? activeSection) === section.key;
+          const isPending = effectivePendingSection === section.key;
 
           return (
             <Link
               ref={isCurrent ? activeLinkRef : undefined}
               key={section.key}
               href={`/workspaces/${workspaceId}/${section.segment}`}
-              aria-current={isCurrent ? "page" : undefined}
+              prefetch={true}
+              data-workspace-prefetch="full"
+              data-workspace-pending={isPending ? "true" : undefined}
+              onClick={(event) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                setPendingSection(isCurrent ? null : section.key);
+              }}
+              aria-current={isDisplayedCurrent ? "page" : undefined}
               className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-t-control px-3.5 text-sm whitespace-nowrap transition ${
-                isCurrent
+                isDisplayedCurrent
                   ? // 目前分頁不只靠顏色區分，另外用底線加粗表示
                     "-mb-px border-b-2 border-clay font-semibold text-clay-strong"
                   : "-mb-px border-b-2 border-transparent font-medium text-ink-soft hover:bg-clay-soft/60 hover:text-ink"
@@ -86,6 +108,13 @@ export function WorkspaceNavigation({
           );
         })}
       </div>
+      {effectivePendingSection ? (
+        <span
+          data-workspace-navigation-progress
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-clay motion-safe:animate-pulse"
+        />
+      ) : null}
     </nav>
   );
 }
