@@ -93,9 +93,6 @@ describe("getSeatingPlan", () => {
         side: true,
         attendanceStatus: true,
         notes: true,
-        importRecords: {
-          select: { sourceManaged: true, managedFields: true },
-        },
       },
     });
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
@@ -165,64 +162,6 @@ describe("getSeatingPlan", () => {
     expect(plan.tables.map((table) => table.number)).toEqual([
       1, 2, 3, 5, 6, 7,
     ]);
-  });
-
-  it("flags source-managed party sizes without leaking the import records", async () => {
-    findGuests.mockResolvedValueOnce([
-      {
-        id: "guest_managed",
-        name: "匯入賓客",
-        category: "GUEST",
-        partySize: 4,
-        version: 2,
-        side: "SHARED",
-        attendanceStatus: "ATTENDING",
-        notes: null,
-        importRecords: [
-          { sourceManaged: true, managedFields: ["NAME", "PARTY_SIZE"] },
-        ],
-      },
-      {
-        id: "guest_unmanaged",
-        name: "手動賓客",
-        category: "GUEST",
-        partySize: 2,
-        version: 1,
-        side: "PARTNER_A",
-        attendanceStatus: "UNDECIDED",
-        notes: "臨時加人",
-        // 有匯入紀錄但來源沒有接管人數，仍然可以就地編輯。
-        importRecords: [{ sourceManaged: false, managedFields: ["PARTY_SIZE"] }],
-      },
-    ]);
-
-    const { unassignedGuests } = await getSeatingPlan("workspace_1");
-
-    expect(unassignedGuests).toEqual([
-      {
-        id: "guest_managed",
-        name: "匯入賓客",
-        category: "GUEST",
-        partySize: 4,
-        version: 2,
-        side: "SHARED",
-        attendanceStatus: "ATTENDING",
-        notes: null,
-        partySizeManaged: true,
-      },
-      {
-        id: "guest_unmanaged",
-        name: "手動賓客",
-        category: "GUEST",
-        partySize: 2,
-        version: 1,
-        side: "PARTNER_A",
-        attendanceStatus: "UNDECIDED",
-        notes: "臨時加人",
-        partySizeManaged: false,
-      },
-    ]);
-    expect(unassignedGuests[0]).not.toHaveProperty("importRecords");
   });
 
   it("preserves access denial for the page to translate to 404", async () => {

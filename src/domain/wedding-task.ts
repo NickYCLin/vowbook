@@ -6,6 +6,20 @@ export const WEDDING_TASK_STATUSES = [
 
 export type WeddingTaskStatusValue = (typeof WEDDING_TASK_STATUSES)[number];
 
+export const WEDDING_TASK_SIDES = [
+  "SHARED",
+  "PARTNER_A",
+  "PARTNER_B",
+] as const;
+
+export type WeddingTaskSideValue = (typeof WEDDING_TASK_SIDES)[number];
+
+export const WEDDING_TASK_SIDE_LABELS: Record<WeddingTaskSideValue, string> = {
+  SHARED: "共同任務",
+  PARTNER_A: "男方任務",
+  PARTNER_B: "女方任務",
+};
+
 export type WeddingTaskDetailsInput = {
   title: unknown;
   description: unknown;
@@ -82,6 +96,19 @@ export function normalizeWeddingTaskDetails(
     description: normalizeDescription(input.description),
     dueDate: normalizeDueDate(input.dueDate),
   };
+}
+
+export function normalizeWeddingTaskSide(
+  value: unknown,
+): WeddingTaskSideValue {
+  if (
+    typeof value !== "string" ||
+    !(WEDDING_TASK_SIDES as readonly string[]).includes(value)
+  ) {
+    throw new WeddingTaskValidationError("請選擇有效的任務歸屬。");
+  }
+
+  return value as WeddingTaskSideValue;
 }
 
 export function normalizeWeddingTaskStatus(

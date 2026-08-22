@@ -28,17 +28,20 @@ function detailsForm({
   title = "確認婚宴流程",
   description = "真 PostgreSQL integration",
   dueDate = "2028-02-29",
+  side = "SHARED",
   expectedVersion,
 }: {
   title?: string;
   description?: string;
   dueDate?: string;
+  side?: "SHARED" | "PARTNER_A" | "PARTNER_B";
   expectedVersion?: number;
 } = {}): FormData {
   const formData = new FormData();
   formData.set("title", title);
   formData.set("description", description);
   formData.set("dueDate", dueDate);
+  formData.set("side", side);
   if (expectedVersion !== undefined) {
     formData.set("expectedVersion", String(expectedVersion));
   }
@@ -100,6 +103,16 @@ describeDatabase.sequential("PostgreSQL wedding-task invariants", () => {
       Array<{ data_type: string; udt_name: string }>
     >`SELECT data_type, udt_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'wedding_tasks' AND column_name = 'due_date'`;
     expect(dueDateColumn).toEqual([{ data_type: "date", udt_name: "date" }]);
+    const sideColumn = await prisma.$queryRaw<
+      Array<{ column_default: string; is_nullable: string; udt_name: string }>
+    >`SELECT column_default, is_nullable, udt_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'wedding_tasks' AND column_name = 'side'`;
+    expect(sideColumn).toEqual([
+      {
+        column_default: "'SHARED'::\"WeddingTaskSide\"",
+        is_nullable: "NO",
+        udt_name: "WeddingTaskSide",
+      },
+    ]);
 
     const constraints = await prisma.$queryRaw<Array<{ conname: string }>>`
       SELECT conname
@@ -135,6 +148,7 @@ describeDatabase.sequential("PostgreSQL wedding-task invariants", () => {
       },
     });
     expect(valid.dueDate?.toISOString().slice(0, 10)).toBe("2028-02-29");
+    expect(valid.side).toBe("SHARED");
 
     await expect(
       prisma.weddingTask.create({
@@ -182,6 +196,18 @@ describeDatabase.sequential("PostgreSQL wedding-task invariants", () => {
     await expect(
       createWeddingTaskAction(owner.workspace.id, idleState, detailsForm()),
     ).resolves.toMatchObject({ status: "success" });
+    await expect(
+      createWeddingTaskAction(
+        owner.workspace.id,
+        idleState,
+        detailsForm({ title: "男方待辦", side: "PARTNER_A" }),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(
+      await prisma.weddingTask.findFirstOrThrow({
+        where: { workspaceId: owner.workspace.id, title: "男方待辦" },
+      }),
+    ).toMatchObject({ side: "PARTNER_A" });
 
     const foreignTask = await prisma.weddingTask.create({
       data: { workspaceId: secondWorkspace.id, title: "第二工作區任務" },

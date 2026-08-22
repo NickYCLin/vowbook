@@ -81,6 +81,7 @@ describe("budget schema, migration, and PostgreSQL runner contract", () => {
       "20260813160000_seating_table_floor_plan",
       "20260817120000_seating_table_duplicate_names",
       "20260822120000_guest_roster_categories",
+      "20260822130000_wedding_task_sides",
     ]);
     expect(fs.existsSync(migrationPath)).toBe(true);
     expect(fs.existsSync(consistencyMigrationPath)).toBe(true);

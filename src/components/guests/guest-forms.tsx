@@ -55,19 +55,15 @@ function GuestFields({
     initialValues?.side ?? "SHARED",
   );
   const sideOptions = category === "GUEST" ? GUEST_SIDES : GUEST_SIDES.slice(0, 2);
-  const managed = new Set(managedFields);
-  const managedHint = (field: GuestManagedField) =>
-    managed.has(field) ? (
-      <p
-        id={`${idPrefix}-${field.toLowerCase()}-managed-hint`}
-        className="mt-1.5 text-caption text-ink-faint"
-      >
-        此欄位由匯入來源維護。
-      </p>
-    ) : null;
+  const hasImportedFields = managedFields.length > 0;
 
   return (
     <div className="min-w-0 space-y-5">
+      {hasImportedFields ? (
+        <p className="rounded-control border border-line bg-surface-sunken px-4 py-3 text-caption leading-6 text-ink-soft">
+          這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。
+        </p>
+      ) : null}
       <div className="min-w-0">
         <Field htmlFor={`${idPrefix}-name`} label="姓名或稱呼">
           <Input
@@ -78,13 +74,8 @@ function GuestFields({
             minLength={1}
             autoComplete="off"
             defaultValue={initialValues?.name}
-            readOnly={managed.has("NAME")}
-            aria-describedby={
-              managed.has("NAME") ? `${idPrefix}-name-managed-hint` : undefined
-            }
           />
         </Field>
-        {managedHint("NAME")}
       </div>
 
       <div className="min-w-0">
@@ -107,15 +98,7 @@ function GuestFields({
             }}
           >
             {GUEST_CATEGORIES.map((value) => (
-              <option
-                key={value}
-                value={value}
-                disabled={
-                  value !== "GUEST" &&
-                  managed.has("SIDE") &&
-                  initialValues?.side === "SHARED"
-                }
-              >
+              <option key={value} value={value}>
                 {GUEST_CATEGORY_LABELS[value]}
               </option>
             ))}
@@ -130,10 +113,6 @@ function GuestFields({
               id={`${idPrefix}-side`}
               name="side"
               required
-              disabled={managed.has("SIDE")}
-              aria-describedby={
-                managed.has("SIDE") ? `${idPrefix}-side-managed-hint` : undefined
-              }
               value={side}
               onChange={(event) => setSide(event.target.value as GuestSideValue)}
             >
@@ -144,10 +123,6 @@ function GuestFields({
               ))}
             </Select>
           </Field>
-          {managed.has("SIDE") && initialValues ? (
-            <input type="hidden" name="side" value={side} />
-          ) : null}
-          {managedHint("SIDE")}
         </div>
 
         <div className="min-w-0">
@@ -156,12 +131,6 @@ function GuestFields({
               id={`${idPrefix}-attendance`}
               name="attendanceStatus"
               required
-              disabled={managed.has("ATTENDANCE_STATUS")}
-              aria-describedby={
-                managed.has("ATTENDANCE_STATUS")
-                  ? `${idPrefix}-attendance_status-managed-hint`
-                  : undefined
-              }
               defaultValue={initialValues?.attendanceStatus ?? "UNDECIDED"}
             >
               <option value="UNDECIDED">尚未確認</option>
@@ -169,14 +138,6 @@ function GuestFields({
               <option value="DECLINED">不出席</option>
             </Select>
           </Field>
-          {managed.has("ATTENDANCE_STATUS") && initialValues ? (
-            <input
-              type="hidden"
-              name="attendanceStatus"
-              value={initialValues.attendanceStatus}
-            />
-          ) : null}
-          {managedHint("ATTENDANCE_STATUS")}
         </div>
       </div>
 
@@ -197,16 +158,9 @@ function GuestFields({
               step={1}
               inputMode="numeric"
               defaultValue={initialValues?.partySize ?? 1}
-              readOnly={managed.has("PARTY_SIZE")}
-              aria-describedby={
-                managed.has("PARTY_SIZE")
-                  ? idPrefix + "-party_size-managed-hint"
-                  : undefined
-              }
               className="sm:max-w-40"
             />
           </Field>
-          {managedHint("PARTY_SIZE")}
         </div>
       ) : (
         <div className="rounded-control border border-line bg-surface-sunken px-4 py-3">

@@ -8,11 +8,16 @@ import {
   type WeddingTaskMutationState,
   updateWeddingTaskAction,
 } from "@/actions/wedding-tasks";
-import type { WeddingTaskStatusValue } from "@/domain/wedding-task";
+import {
+  WEDDING_TASK_SIDES,
+  WEDDING_TASK_SIDE_LABELS,
+  type WeddingTaskSideValue,
+  type WeddingTaskStatusValue,
+} from "@/domain/wedding-task";
 import { ActionFeedback } from "@/components/ui/action-feedback";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogFooter, useModalDialog } from "@/components/ui/dialog";
-import { Field, Input, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
 
 const initialState: WeddingTaskMutationState = { status: "idle" };
 
@@ -20,12 +25,14 @@ type TaskFieldValues = {
   title: string;
   description: string;
   dueDate: string;
+  side: WeddingTaskSideValue;
 };
 
 const emptyTaskFields: TaskFieldValues = {
   title: "",
   description: "",
   dueDate: "",
+  side: "SHARED",
 };
 
 function TaskFields({
@@ -35,7 +42,10 @@ function TaskFields({
 }: {
   idPrefix: string;
   values: TaskFieldValues;
-  onChange: (field: keyof TaskFieldValues, value: string) => void;
+  onChange: <FieldName extends keyof TaskFieldValues>(
+    field: FieldName,
+    value: TaskFieldValues[FieldName],
+  ) => void;
 }) {
   return (
     <div className="min-w-0 space-y-5">
@@ -69,6 +79,26 @@ function TaskFields({
           value={values.description}
           onChange={(event) => onChange("description", event.target.value)}
         />
+      </Field>
+
+      <Field htmlFor={`${idPrefix}-side`} label="任務歸屬">
+        <Select
+          key={values.side}
+          id={`${idPrefix}-side`}
+          name="side"
+          required
+          defaultValue={values.side}
+          onChange={(event) =>
+            onChange("side", event.target.value as WeddingTaskSideValue)
+          }
+          className="sm:max-w-56"
+        >
+          {WEDDING_TASK_SIDES.map((side) => (
+            <option key={side} value={side}>
+              {WEDDING_TASK_SIDE_LABELS[side]}
+            </option>
+          ))}
+        </Select>
       </Field>
 
       <Field htmlFor={`${idPrefix}-due-date`} label="到期日" optional>
@@ -107,12 +137,19 @@ export function CreateWeddingTaskForm({
     initialState,
   );
 
-  function updateField(field: keyof TaskFieldValues, value: string) {
+  function updateField<FieldName extends keyof TaskFieldValues>(
+    field: FieldName,
+    value: TaskFieldValues[FieldName],
+  ) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
   return (
-    <form action={formAction} aria-label="新增任務表單" className="min-w-0">
+    <form
+      action={formAction}
+      aria-label="新增任務表單"
+      className="min-w-0"
+    >
       <div className="min-w-0 space-y-5 px-5 py-6 sm:px-6">
         <TaskFields idPrefix={idPrefix} values={values} onChange={updateField} />
         <ActionFeedback state={state} />
@@ -160,6 +197,7 @@ export function EditWeddingTaskForm({
   title,
   description,
   dueDate,
+  side,
   expectedVersion,
 }: {
   workspaceId: string;
@@ -167,24 +205,29 @@ export function EditWeddingTaskForm({
   title: string;
   description: string | null;
   dueDate: string | null;
+  side: WeddingTaskSideValue;
   expectedVersion: number;
 }) {
   const idPrefix = useId();
   const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
   const updateAction = updateWeddingTaskAction.bind(null, workspaceId, taskId);
-  const [state, formAction, isPending] = useActionState(
-    updateAction,
-    initialState,
-  );
   // 刻意只在掛載時取初始值：伺服器端資料更新時保留使用者已輸入但尚未送出的內容，
   // 只把 expectedVersion 換成最新版本。
   const [values, setValues] = useState<TaskFieldValues>({
     title,
     description: description ?? "",
     dueDate: dueDate ?? "",
+    side,
   });
+  const [state, formAction, isPending] = useActionState(
+    updateAction,
+    initialState,
+  );
 
-  function updateField(field: keyof TaskFieldValues, value: string) {
+  function updateField<FieldName extends keyof TaskFieldValues>(
+    field: FieldName,
+    value: TaskFieldValues[FieldName],
+  ) {
     setValues((current) => ({ ...current, [field]: value }));
   }
 
@@ -209,7 +252,11 @@ export function EditWeddingTaskForm({
         onClose={close}
         onRestoreFocus={restoreFocus}
       >
-        <form action={formAction} aria-label="編輯任務表單" className="min-w-0">
+        <form
+          action={formAction}
+          aria-label="編輯任務表單"
+          className="min-w-0"
+        >
           <div className="min-w-0 space-y-5 px-5 py-6 sm:px-6">
             <input
               type="hidden"

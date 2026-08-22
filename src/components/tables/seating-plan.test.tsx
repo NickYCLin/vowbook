@@ -143,7 +143,6 @@ function unassigned(guest: {
     side: guest.side ?? ("SHARED" as const),
     attendanceStatus: "UNDECIDED" as const,
     notes: null,
-    partySizeManaged: false,
   };
 }
 

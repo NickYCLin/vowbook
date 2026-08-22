@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { WeddingTaskStatusValue } from "@/domain/wedding-task";
+import {
+  WEDDING_TASK_SIDE_LABELS,
+  type WeddingTaskSideValue,
+  type WeddingTaskStatusValue,
+} from "@/domain/wedding-task";
 import { Badge, BadgeDot, type BadgeTone } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +23,7 @@ export type WeddingTaskListItem = {
   description: string | null;
   dueDate: string | null;
   status: WeddingTaskStatusValue;
+  side: WeddingTaskSideValue;
   completedAt: string | null;
   version: number;
 };
@@ -35,7 +40,14 @@ const statusTones: Record<WeddingTaskStatusValue, BadgeTone> = {
   DONE: "positive",
 };
 
+const sideTones: Record<WeddingTaskSideValue, BadgeTone> = {
+  SHARED: "neutral",
+  PARTNER_A: "sage",
+  PARTNER_B: "brand",
+};
+
 type StatusFilter = "ALL" | WeddingTaskStatusValue;
+type SideFilter = "ALL" | WeddingTaskSideValue;
 
 function completedAtLabel(value: string): string {
   return new Intl.DateTimeFormat("zh-TW", {
@@ -112,10 +124,16 @@ function TaskCard({
           <h3 className="min-w-0 flex-1 break-words font-serif text-title font-semibold text-ink">
             {task.title}
           </h3>
-          <Badge tone={statusTones[task.status]}>
-            <BadgeDot />
-            {statusLabels[task.status]}
-          </Badge>
+          <div className="flex min-w-0 flex-wrap justify-end gap-2">
+            <Badge tone={sideTones[task.side]}>
+              <BadgeDot />
+              {WEDDING_TASK_SIDE_LABELS[task.side]}
+            </Badge>
+            <Badge tone={statusTones[task.status]}>
+              <BadgeDot />
+              {statusLabels[task.status]}
+            </Badge>
+          </div>
         </div>
 
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-caption">
@@ -154,6 +172,7 @@ function TaskCard({
                 title={task.title}
                 description={task.description}
                 dueDate={task.dueDate}
+                side={task.side}
                 expectedVersion={task.version}
               />
               <DeleteWeddingTaskForm
@@ -183,6 +202,7 @@ export function WeddingTaskList({
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [sideFilter, setSideFilter] = useState<SideFilter>("ALL");
 
   const counts = useMemo(
     () => ({
@@ -194,11 +214,22 @@ export function WeddingTaskList({
     [tasks],
   );
 
+  const sideCounts = useMemo(
+    () => ({
+      ALL: tasks.length,
+      SHARED: tasks.filter((task) => task.side === "SHARED").length,
+      PARTNER_A: tasks.filter((task) => task.side === "PARTNER_A").length,
+      PARTNER_B: tasks.filter((task) => task.side === "PARTNER_B").length,
+    }),
+    [tasks],
+  );
+
   const visibleTasks = useMemo(() => {
     const keyword = query.trim().toLowerCase();
 
     return tasks.filter((task) => {
       if (statusFilter !== "ALL" && task.status !== statusFilter) return false;
+      if (sideFilter !== "ALL" && task.side !== sideFilter) return false;
       if (!keyword) return true;
 
       return (
@@ -206,7 +237,7 @@ export function WeddingTaskList({
         (task.description ?? "").toLowerCase().includes(keyword)
       );
     });
-  }, [tasks, query, statusFilter]);
+  }, [tasks, query, sideFilter, statusFilter]);
 
   if (tasks.length === 0) {
     return (
@@ -253,12 +284,31 @@ export function WeddingTaskList({
             { value: "DONE", label: "已完成", count: counts.DONE },
           ]}
         />
+        <FilterChips<SideFilter>
+          label="依任務歸屬篩選"
+          value={sideFilter}
+          onChange={setSideFilter}
+          options={[
+            { value: "ALL", label: "全部歸屬", count: sideCounts.ALL },
+            { value: "SHARED", label: "共同任務", count: sideCounts.SHARED },
+            {
+              value: "PARTNER_A",
+              label: "男方任務",
+              count: sideCounts.PARTNER_A,
+            },
+            {
+              value: "PARTNER_B",
+              label: "女方任務",
+              count: sideCounts.PARTNER_B,
+            },
+          ]}
+        />
       </Toolbar>
 
       {visibleTasks.length === 0 ? (
         <EmptyState
           title="沒有符合條件的任務。"
-          description="調整搜尋關鍵字或狀態篩選，就能找回其他任務。"
+          description="調整搜尋關鍵字、狀態或任務歸屬篩選，就能找回其他任務。"
         />
       ) : (
         <section aria-label="婚宴任務清單" className="min-w-0">

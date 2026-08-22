@@ -73,6 +73,12 @@ enum WeddingTaskStatus {
   DONE
 }
 
+enum WeddingTaskSide {
+  SHARED
+  PARTNER_A
+  PARTNER_B
+}
+
 enum BudgetItemSource {
   MANUAL
   NOTION
@@ -292,6 +298,7 @@ model WeddingTask {
   description String?
   dueDate     DateTime?         @db.Date @map("due_date")
   status      WeddingTaskStatus @default(TODO)
+  side        WeddingTaskSide   @default(SHARED)
   completedAt DateTime?         @map("completed_at")
   version     Int               @default(0)
   createdAt   DateTime          @default(now()) @map("created_at")

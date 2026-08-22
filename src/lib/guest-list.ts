@@ -145,25 +145,26 @@ export async function listGuestsForWorkspace(workspaceId: string) {
   }
 
   try {
-    const tableNumbers = await seatingTableNumbers(workspaceId);
-
     if (!getWorkspacePermissions(access.role).canEdit) {
-      const guests = await prisma.guest.findMany({
-        where: { workspaceId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: {
-          ...baseGuestSelect,
-          importRecords: {
-            orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-            select: {
-              id: true,
-              source: true,
-              sourceLabel: true,
-              sourceManaged: true,
+      const [tableNumbers, guests] = await Promise.all([
+        seatingTableNumbers(workspaceId),
+        prisma.guest.findMany({
+          where: { workspaceId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            ...baseGuestSelect,
+            importRecords: {
+              orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+              select: {
+                id: true,
+                source: true,
+                sourceLabel: true,
+                sourceManaged: true,
+              },
             },
           },
-        },
-      });
+        }),
+      ]);
 
       const viewerGuests: GuestListItemDto[] = guests.map((guest) => ({
         ...guest,
@@ -180,17 +181,20 @@ export async function listGuestsForWorkspace(workspaceId: string) {
       return { ...access, guests: viewerGuests };
     }
 
-    const guests = await prisma.guest.findMany({
-      where: { workspaceId },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: {
-        ...baseGuestSelect,
-        importRecords: {
-          orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-          select: editorImportRecordSelect,
+    const [tableNumbers, guests] = await Promise.all([
+      seatingTableNumbers(workspaceId),
+      prisma.guest.findMany({
+        where: { workspaceId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          ...baseGuestSelect,
+          importRecords: {
+            orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+            select: editorImportRecordSelect,
+          },
         },
-      },
-    });
+      }),
+    ]);
 
     const editorGuests: GuestListItemDto[] = guests.map((guest) => ({
       ...guest,

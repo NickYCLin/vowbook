@@ -38,6 +38,7 @@ const tasks: WeddingTaskListItem[] = [
     description: "與主持人逐項確認",
     dueDate: "2027-04-01",
     status: "TODO",
+    side: "SHARED",
     completedAt: null,
     version: 1,
   },
@@ -47,6 +48,7 @@ const tasks: WeddingTaskListItem[] = [
     description: null,
     dueDate: null,
     status: "IN_PROGRESS",
+    side: "PARTNER_A",
     completedAt: null,
     version: 2,
   },
@@ -56,6 +58,7 @@ const tasks: WeddingTaskListItem[] = [
     description: "訂金已付款",
     dueDate: "2027-03-01",
     status: "DONE",
+    side: "PARTNER_B",
     completedAt: "2027-02-15T08:09:10.000Z",
     version: 3,
   },
@@ -139,6 +142,32 @@ describe("WeddingTaskList", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "確認婚宴流程" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows and filters task sides independently from status", () => {
+    render(
+      <WeddingTaskList
+        workspaceId="workspace_internal"
+        tasks={tasks}
+        canEdit={false}
+      />,
+    );
+
+    const list = screen.getByRole("region", { name: "婚宴任務清單" });
+    expect(within(list).getByText("共同任務")).toBeInTheDocument();
+    expect(within(list).getByText("男方任務")).toBeInTheDocument();
+    expect(within(list).getByText("女方任務")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: /男方任務/u }));
+    expect(
+      screen.getByRole("heading", { name: "確認場地動線" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "確認婚宴流程" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "預訂場地" }),
     ).not.toBeInTheDocument();
   });
 

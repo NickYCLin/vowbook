@@ -21,16 +21,19 @@ describe("Budget proposal fixed-label migration", () => {
       .map((entry) => entry.name)
       .sort();
 
-    expect(migrationNames).toHaveLength(27);
+    expect(migrationNames).toHaveLength(28);
     expect(migrationNames.at(21)).toBe(migrationName);
-    expect(migrationNames.at(-3)).toBe(
+    expect(migrationNames.at(-4)).toBe(
       "20260813160000_seating_table_floor_plan",
     );
-    expect(migrationNames.at(-2)).toBe(
+    expect(migrationNames.at(-3)).toBe(
       "20260817120000_seating_table_duplicate_names",
     );
-    expect(migrationNames.at(-1)).toBe(
+    expect(migrationNames.at(-2)).toBe(
       "20260822120000_guest_roster_categories",
+    );
+    expect(migrationNames.at(-1)).toBe(
+      "20260822130000_wedding_task_sides",
     );
     expect(fs.existsSync(migrationPath)).toBe(true);
   });

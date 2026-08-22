@@ -25,7 +25,6 @@ export type UnassignedSeatingGuest = {
   side: GuestSideValue;
   attendanceStatus: GuestAttendanceStatusValue;
   notes: string | null;
-  partySizeManaged: boolean;
 };
 
 /**
@@ -59,14 +58,6 @@ export function EditGuestPartySizeForm({
     return (
       <p className="mt-2 text-caption text-ink-faint">
         名單人數 1 位・新人與家人一人一筆
-      </p>
-    );
-  }
-
-  if (guest.partySizeManaged) {
-    return (
-      <p className="mt-2 text-caption text-ink-faint">
-        邀請人數 {guest.partySize} 位・由匯入來源維護
       </p>
     );
   }

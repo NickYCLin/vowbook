@@ -21,7 +21,6 @@ const guest: UnassignedSeatingGuest = {
   side: "PARTNER_A",
   attendanceStatus: "UNDECIDED",
   notes: "素食一位",
-  partySizeManaged: false,
 };
 
 describe("EditGuestPartySizeForm", () => {
@@ -139,18 +138,4 @@ describe("EditGuestPartySizeForm", () => {
     );
   });
 
-  it("shows a source-managed party size as read-only copy", () => {
-    const { container } = render(
-      <EditGuestPartySizeForm
-        workspaceId="workspace_internal"
-        guest={{ ...guest, partySizeManaged: true }}
-      />,
-    );
-
-    expect(
-      screen.getByText("邀請人數 2 位・由匯入來源維護"),
-    ).toBeInTheDocument();
-    expect(container.querySelector("input")).toBeNull();
-    expect(container.querySelector("form")).toBeNull();
-  });
 });

@@ -1053,13 +1053,12 @@ export async function resetSeatingTableLayoutsAction(
 }
 
 /**
- * 對調兩張桌子的場地位置。
+ * 固定桌號與場地位置，只交換兩桌的桌名與入座賓客。
  *
- * 兩邊的座標都由伺服器自己解析目前的版面得出，用戶端只送兩個桌次 id 與
- * 各自的版本號。若讓用戶端指定座標，「交換」就會變成一個可以把桌子放到
- * 任意位置的旁門，繞過這個動作本身的語意。
+ * 桌次 id、position、layout、capacity 與 notes 都代表固定席位；兩張桌與相關
+ * 賓客會在同一個 Serializable transaction 內交換。
  */
-export async function swapSeatingTableLayoutAction(
+export async function swapSeatingTableContentsAction(
   workspaceId: string,
   tableId: string,
   _previousState: SeatingTableMutationState,
@@ -1078,7 +1077,7 @@ export async function swapSeatingTableLayoutAction(
   let targetExpectedVersion: number;
   try {
     if (targetTableId === "" || targetTableId === tableId) {
-      throw new SeatingTableValidationError("請選擇另一張要交換位置的桌次。");
+      throw new SeatingTableValidationError("請選擇另一張要交換內容的桌次。");
     }
     expectedVersion = normalizeSeatingTableVersion(
       formData.get("expectedVersion"),
@@ -1090,7 +1089,6 @@ export async function swapSeatingTableLayoutAction(
     return validationState(error);
   }
 
-  let swappedNames: { from: string; to: string } | null = null;
   try {
     await runSerializableTransaction(async (transaction) => {
       await lockSeatingTableSequence(transaction, workspaceId);
@@ -1100,6 +1098,7 @@ export async function swapSeatingTableLayoutAction(
         "edit",
         transaction,
       );
+      await lockSeatingTableRows(transaction, workspaceId);
       const tables = await seatingSnapshotTables(transaction, workspaceId);
       const table = tables.find((candidate) => candidate.id === tableId);
       const target = tables.find(
@@ -1115,61 +1114,109 @@ export async function swapSeatingTableLayoutAction(
         throw new SeatingTableStaleError();
       }
 
-      // 自動排列的桌次沒有存座標，交換後兩張都會變成固定位置。
-      const resolved = resolveSeatingFloorPlanPositions(tables);
-      const from = resolved.find((position) => position.tableId === tableId);
-      const to = resolved.find(
-        (position) => position.tableId === targetTableId,
+      // position、layout、capacity 與 notes 都屬於固定桌位，不參與交換。
+      // Serializable 的條件讀取加上帶原桌 id 的 CAS 寫入，會讓同時排座位的
+      // 交易安全重試，不會遺漏剛移入任一桌的賓客。
+      const guests = (await transaction.guest.findMany({
+        where: {
+          workspaceId,
+          seatingTableId: { in: [tableId, targetTableId] },
+        },
+        orderBy: [{ id: "asc" }],
+        select: {
+          id: true,
+          version: true,
+          partySize: true,
+          seatingTableId: true,
+        },
+      })) as SeatingSnapshotGuest[];
+      const tableGuests = guests.filter(
+        (guest) => guest.seatingTableId === tableId,
       );
-      if (!from || !to) {
-        throw new SeatingRecordNotFoundError();
+      const targetGuests = guests.filter(
+        (guest) => guest.seatingTableId === targetTableId,
+      );
+      const tablePartySize = tableGuests.reduce(
+        (total, guest) => total + guest.partySize,
+        0,
+      );
+      const targetPartySize = targetGuests.reduce(
+        (total, guest) => total + guest.partySize,
+        0,
+      );
+      if (
+        targetPartySize > table.capacity ||
+        tablePartySize > target.capacity
+      ) {
+        throw new SeatingCapacityError(
+          "交換後會超過其中一桌的容量，請先調整座位或桌次容量。",
+        );
       }
 
-      validateSeatingFloorPlanCandidate(
-        tables.map((candidate) =>
-          candidate.id === tableId
-            ? { ...candidate, layoutX: to.x, layoutY: to.y }
-            : candidate.id === targetTableId
-              ? { ...candidate, layoutX: from.x, layoutY: from.y }
-              : candidate,
-        ),
-      );
-
-      const moved = await transaction.seatingTable.updateMany({
+      const renamed = await transaction.seatingTable.updateMany({
         where: { id: tableId, workspaceId, version: expectedVersion },
-        data: { layoutX: to.x, layoutY: to.y, version: { increment: 1 } },
+        data: { name: target.name, version: { increment: 1 } },
       });
-      if (moved.count !== 1) {
+      if (renamed.count !== 1) {
         throw new SeatingTableStaleError();
       }
-      const displaced = await transaction.seatingTable.updateMany({
+      const targetRenamed = await transaction.seatingTable.updateMany({
         where: {
           id: targetTableId,
           workspaceId,
           version: targetExpectedVersion,
         },
-        data: { layoutX: from.x, layoutY: from.y, version: { increment: 1 } },
+        data: { name: table.name, version: { increment: 1 } },
       });
-      if (displaced.count !== 1) {
+      if (targetRenamed.count !== 1) {
         throw new SeatingTableStaleError();
       }
+
+      if (tableGuests.length > 0) {
+        const moved = await transaction.guest.updateMany({
+          where: {
+            workspaceId,
+            id: { in: tableGuests.map((guest) => guest.id) },
+            seatingTableId: tableId,
+          },
+          data: {
+            seatingTableId: targetTableId,
+            version: { increment: 1 },
+          },
+        });
+        if (moved.count !== tableGuests.length) {
+          throw new SeatingTableStaleError();
+        }
+      }
+      if (targetGuests.length > 0) {
+        const moved = await transaction.guest.updateMany({
+          where: {
+            workspaceId,
+            id: { in: targetGuests.map((guest) => guest.id) },
+            seatingTableId: targetTableId,
+          },
+          data: {
+            seatingTableId: tableId,
+            version: { increment: 1 },
+          },
+        });
+        if (moved.count !== targetGuests.length) {
+          throw new SeatingTableStaleError();
+        }
+      }
       await advanceSeatingTableSequence(transaction, workspaceId);
-      swappedNames = { from: table.name, to: target.name };
     });
   } catch (error) {
     return capacityOrConflictState(
       error,
-      "目前無法交換桌次位置，請稍後再試。",
+      "目前無法交換桌名與入座賓客，請稍後再試。",
     );
   }
 
-  revalidatePath(tablesPath(workspaceId));
-  const names = swappedNames as { from: string; to: string } | null;
+  revalidateSeatingViews(workspaceId);
   return {
     status: "success",
-    message: names
-      ? `已交換 ${names.from} 與 ${names.to} 的位置。`
-      : "已交換桌次位置。",
+    message: "已交換兩桌的桌名與入座賓客；桌號保持不變。",
   };
 }
 

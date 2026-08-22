@@ -13,15 +13,24 @@ describe("wedding task schema and migration contract", () => {
     "20260722184500_wedding_tasks_mvp",
     "migration.sql",
   );
+  const taskSidesMigrationPath = path.join(
+    migrationsPath,
+    "20260822130000_wedding_task_sides",
+    "migration.sql",
+  );
 
   it("defines the enum, workspace relation, tenant selector, and list index", () => {
     expect(schema).toMatch(
       /enum WeddingTaskStatus\s*{[\s\S]*TODO[\s\S]*IN_PROGRESS[\s\S]*DONE/,
     );
+    expect(schema).toMatch(
+      /enum WeddingTaskSide\s*{[\s\S]*SHARED[\s\S]*PARTNER_A[\s\S]*PARTNER_B/,
+    );
     expect(schema).toMatch(/tasks\s+WeddingTask\[\]/);
     expect(schema).toMatch(/model WeddingTask\s*{/);
     expect(schema).toMatch(/dueDate\s+DateTime\?\s+@db\.Date/);
     expect(schema).toMatch(/status\s+WeddingTaskStatus\s+@default\(TODO\)/);
+    expect(schema).toMatch(/side\s+WeddingTaskSide\s+@default\(SHARED\)/);
     expect(schema).toMatch(/completedAt\s+DateTime\?/);
     expect(schema).toMatch(/version\s+Int\s+@default\(0\)/);
     expect(schema).toMatch(
@@ -72,8 +81,18 @@ describe("wedding task schema and migration contract", () => {
       "20260813160000_seating_table_floor_plan",
       "20260817120000_seating_table_duplicate_names",
       "20260822120000_guest_roster_categories",
+      "20260822130000_wedding_task_sides",
     ]);
     expect(fs.existsSync(taskMigrationPath)).toBe(true);
+  });
+
+  it("adds a non-null task side and defaults every existing task to shared", () => {
+    const migration = fs.readFileSync(taskSidesMigrationPath, "utf8");
+
+    expect(migration).toContain('CREATE TYPE "WeddingTaskSide"');
+    expect(migration).toMatch(
+      /ADD COLUMN "side" "WeddingTaskSide" NOT NULL DEFAULT 'SHARED'/,
+    );
   });
 
   it("creates PostgreSQL constraints, cascade FK, composite key, and list index", () => {

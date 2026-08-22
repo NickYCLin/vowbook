@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
 
@@ -26,6 +26,18 @@ const workspaceSections: {
   { key: "timeline", label: "總流程", segment: "timeline" },
   { key: "members", label: "協作者", segment: "members" },
 ];
+
+function WorkspaceNavigationHint() {
+  const { pending } = useLinkStatus();
+
+  return (
+    <span
+      data-workspace-navigation-hint
+      aria-hidden="true"
+      className={`size-1.5 shrink-0 rounded-full bg-current transition-opacity ${pending ? "opacity-70 motion-safe:animate-pulse" : "opacity-0"}`}
+    />
+  );
+}
 
 export function WorkspaceNavigation({
   workspaceId,
@@ -61,14 +73,15 @@ export function WorkspaceNavigation({
               key={section.key}
               href={`/workspaces/${workspaceId}/${section.segment}`}
               aria-current={isCurrent ? "page" : undefined}
-              className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-t-control px-3.5 text-sm whitespace-nowrap transition ${
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-t-control px-3.5 text-sm whitespace-nowrap transition ${
                 isCurrent
                   ? // 目前分頁不只靠顏色區分，另外用底線加粗表示
                     "-mb-px border-b-2 border-clay font-semibold text-clay-strong"
                   : "-mb-px border-b-2 border-transparent font-medium text-ink-soft hover:bg-clay-soft/60 hover:text-ink"
               }`}
             >
-              {section.label}
+              <span>{section.label}</span>
+              <WorkspaceNavigationHint />
             </Link>
           );
         })}

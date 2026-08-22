@@ -99,7 +99,7 @@ import {
   deleteSeatingTableAction,
   unassignGuestFromTableAction,
   resetSeatingTableLayoutsAction,
-  swapSeatingTableLayoutAction,
+  swapSeatingTableContentsAction,
   updateSeatingTableLayoutAction,
   updateSeatingTableAction,
 } from "./seating-tables";
@@ -146,6 +146,8 @@ const layoutTableRows = [
     position: 1,
     version: 0,
     name: "主桌",
+    capacity: 10,
+    notes: "靠近舞台",
     layoutX: null,
     layoutY: null,
   },
@@ -155,6 +157,8 @@ const layoutTableRows = [
     position: 2,
     version: 0,
     name: "親友桌",
+    capacity: 8,
+    notes: "靠近入口",
     layoutX: null,
     layoutY: null,
   },
@@ -1102,11 +1106,15 @@ describe("seating table server actions", () => {
     expect(tableUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("swaps two tables using positions the server resolves itself", async () => {
+  it("keeps table numbers and layout fixed while swapping labels and guests", async () => {
     tableFindMany.mockResolvedValueOnce(layoutTableRows);
+    guestFindMany.mockResolvedValueOnce([
+      { id: "guest_main", version: 2, partySize: 3, seatingTableId: "table_1" },
+      { id: "guest_friends", version: 5, partySize: 2, seatingTableId: "table_2" },
+    ]);
 
     await expect(
-      swapSeatingTableLayoutAction(
+      swapSeatingTableContentsAction(
         "workspace_1",
         "table_1",
         idleState,
@@ -1114,26 +1122,45 @@ describe("seating table server actions", () => {
       ),
     ).resolves.toEqual({
       status: "success",
-      message: "已交換 主桌 與 親友桌 的位置。",
+      message: "已交換兩桌的桌名與入座賓客；桌號保持不變。",
     });
 
-    // 兩張桌次都是自動排列，交換後各自寫入對方原本解析出來的座標。
+    // 桌次 id、position、layout、capacity 與 notes 都不寫；只換桌名。
     expect(tableUpdateMany).toHaveBeenNthCalledWith(1, {
       where: { id: "table_1", workspaceId: "workspace_1", version: 0 },
-      data: { layoutX: 190, layoutY: 220, version: { increment: 1 } },
+      data: { name: "親友桌", version: { increment: 1 } },
     });
     expect(tableUpdateMany).toHaveBeenNthCalledWith(2, {
       where: { id: "table_2", workspaceId: "workspace_1", version: 0 },
-      data: { layoutX: 500, layoutY: 220, version: { increment: 1 } },
+      data: { name: "主桌", version: { increment: 1 } },
+    });
+    expect(guestUpdateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        workspaceId: "workspace_1",
+        id: { in: ["guest_main"] },
+        seatingTableId: "table_1",
+      },
+      data: { seatingTableId: "table_2", version: { increment: 1 } },
+    });
+    expect(guestUpdateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        workspaceId: "workspace_1",
+        id: { in: ["guest_friends"] },
+        seatingTableId: "table_2",
+      },
+      data: { seatingTableId: "table_1", version: { increment: 1 } },
     });
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/tables",
     );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/guests",
+    );
   });
 
-  it("refuses a swap with itself, an unknown table, or a stale version", async () => {
+  it("refuses a content swap with itself, an unknown table, or a stale version", async () => {
     await expect(
-      swapSeatingTableLayoutAction(
+      swapSeatingTableContentsAction(
         "workspace_1",
         "table_1",
         idleState,
@@ -1141,12 +1168,12 @@ describe("seating table server actions", () => {
       ),
     ).resolves.toEqual({
       status: "error",
-      message: "請選擇另一張要交換位置的桌次。",
+      message: "請選擇另一張要交換內容的桌次。",
     });
 
     tableFindMany.mockResolvedValueOnce(layoutTableRows);
     await expect(
-      swapSeatingTableLayoutAction(
+      swapSeatingTableContentsAction(
         "workspace_1",
         "table_1",
         idleState,
@@ -1157,13 +1184,13 @@ describe("seating table server actions", () => {
       message: "桌次不存在或已被移除，請重新整理後再試。",
     });
 
-    // 對方的版本過期也要擋下來，否則會覆寫別人剛搬好的位置。
+    // 對方的版本過期也要擋下來，否則會覆寫別人剛改的桌名或座位。
     tableFindMany.mockResolvedValueOnce([
       layoutTableRows[0],
       { ...layoutTableRows[1], version: 4 },
     ]);
     await expect(
-      swapSeatingTableLayoutAction(
+      swapSeatingTableContentsAction(
         "workspace_1",
         "table_1",
         idleState,
@@ -1175,6 +1202,32 @@ describe("seating table server actions", () => {
     });
 
     expect(tableUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses a content swap when either fixed table capacity would overflow", async () => {
+    tableFindMany.mockResolvedValueOnce([
+      { ...layoutTableRows[0], capacity: 4 },
+      { ...layoutTableRows[1], capacity: 10 },
+    ]);
+    guestFindMany.mockResolvedValueOnce([
+      { id: "guest_main", version: 0, partySize: 2, seatingTableId: "table_1" },
+      { id: "guest_friends", version: 0, partySize: 6, seatingTableId: "table_2" },
+    ]);
+
+    await expect(
+      swapSeatingTableContentsAction(
+        "workspace_1",
+        "table_1",
+        idleState,
+        swapFormData("table_2"),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "交換後會超過其中一桌的容量，請先調整座位或桌次容量。",
+    });
+
+    expect(tableUpdateMany).not.toHaveBeenCalled();
+    expect(guestUpdateMany).not.toHaveBeenCalled();
   });
 
   it("rejects reset before write when another persisted pair keeps the full layout unresolvable", async () => {

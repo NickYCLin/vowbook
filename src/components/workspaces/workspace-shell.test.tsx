@@ -62,6 +62,13 @@ describe("WorkspacePageHeader", () => {
       "w-max",
       "min-w-full",
     );
+    const navigationHints = navigation.querySelectorAll(
+      "[data-workspace-navigation-hint]",
+    );
+    expect(navigationHints).toHaveLength(links.length);
+    for (const hint of navigationHints) {
+      expect(hint).toHaveClass("size-1.5", "opacity-0");
+    }
   });
 
   it("brings the active tab into the horizontal viewport after route changes", () => {

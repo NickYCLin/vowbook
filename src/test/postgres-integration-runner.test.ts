@@ -26,6 +26,8 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-10\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-11\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-12\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-13\)/);
+    expect(runner).toContain("taskSidesMigration");
     expect(runner).toContain("rosterCategoriesMigration");
     expect(runner).toContain("duplicateNamesMigration");
     expect(runner).toContain("floorPlanMigration");
@@ -92,6 +94,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("storedTable?.layoutY !== null");
     expect(runner).toContain("upgradedClient.budgetItem.count");
     expect(runner).toContain("storedTask?.workspaceId !== workspaceId");
+    expect(runner).toContain('storedTask?.side !== "SHARED"');
     expect(runner).toContain("storedRsvp?.workspaceId !== workspaceId");
     expect(runner).toContain("storedRsvp?.id !== guestId");
     expect(runner).toContain('storedRsvp?.source !== "LINEIN"');
@@ -127,10 +130,13 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 27");
+    expect(runner).toContain("migrationEntries.length !== 28");
     expect(runner).toContain("priorHeadPosition !== 16");
     expect(runner).toContain("priorGuestSnapshotSelect");
     expect(runner).toContain("select: priorGuestSnapshotSelect");
+    expect(runner).toContain(
+      'taskSidesMigration !== "20260822130000_wedding_task_sides"',
+    );
     expect(runner).toContain(
       'rosterCategoriesMigration !==\n    "20260822120000_guest_roster_categories"',
     );
@@ -181,8 +187,10 @@ describe("PostgreSQL canonical integration runner", () => {
     );
     expect(runner).toContain("migration_name = ${floorPlanMigration}");
     expect(runner).toContain("migration_name = ${rosterCategoriesMigration}");
+    expect(runner).toContain("migration_name = ${taskSidesMigration}");
     expect(runner).toContain("appliedDuplicateNames");
     expect(runner).toContain("appliedRosterCategories");
+    expect(runner).toContain("appliedTaskSides");
     expect(runner).toContain('storedGuest?.category !== "GUEST"');
     expect(runner).toContain("duplicateNameIndexes");
     expect(runner).toContain("seating_tables_workspace_id_name_key");

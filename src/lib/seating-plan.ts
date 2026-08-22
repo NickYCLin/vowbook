@@ -27,7 +27,6 @@ const unassignedGuestSelect = {
   side: true,
   attendanceStatus: true,
   notes: true,
-  importRecords: { select: { sourceManaged: true, managedFields: true } },
 } as const;
 
 export async function getSeatingPlan(workspaceId: string) {
@@ -85,17 +84,8 @@ export async function getSeatingPlan(workspaceId: string) {
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
 
-    // 匯入來源維護的人數不能在這裡改，只把「能不能改」這個布林值送到前端，
-    // 匯入紀錄本身留在伺服器。
-    const unassignedGuests = unassignedGuestRows.map(
-      ({ importRecords, ...guest }) => ({
-        ...guest,
-        partySizeManaged: importRecords.some(
-          (record) =>
-            record.sourceManaged && record.managedFields.includes("PARTY_SIZE"),
-        ),
-      }),
-    );
+    // 匯入只保留來源追蹤；目前名單的人數在桌次頁也可以直接調整。
+    const unassignedGuests = unassignedGuestRows;
 
     // 桌號在這裡才掛上去：它完全由順位決定，查詢的 orderBy 就是那個順位。
     return {

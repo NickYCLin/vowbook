@@ -11,7 +11,7 @@ vi.mock("@/lib/current-user", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-import { createGuestAction } from "@/actions/guests";
+import { createGuestAction, updateGuestAction } from "@/actions/guests";
 import {
   importLineinRsvpRecords,
   parseNormalizedLineinRsvpJson,
@@ -797,6 +797,86 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
     expect(
       await prisma.guest.count({ where: { workspaceId: owner.workspace.id } }),
     ).toBe(0);
+  });
+
+  it("lets an editor override imported attendance and headcount while preserving provenance", async () => {
+    const { user, workspace } = await createWorkspace("匯入後人工異動");
+    const records = parseNormalizedLineinRsvpJson(
+      JSON.stringify([sourceRecord("manual-override")]),
+    );
+    await importLineinRsvpRecords({
+      client: prisma,
+      workspaceId: workspace.id,
+      records,
+      apply: true,
+    });
+    const importedGuest = await prisma.guest.findFirstOrThrow({
+      where: { workspaceId: workspace.id },
+    });
+    const table = await prisma.seatingTable.create({
+      data: {
+        workspaceId: workspace.id,
+        position: 1,
+        name: "臨時異動桌",
+        capacity: 3,
+      },
+    });
+    await prisma.guest.update({
+      where: {
+        id_workspaceId: { id: importedGuest.id, workspaceId: workspace.id },
+      },
+      data: { seatingTableId: table.id },
+    });
+    const provenanceBefore = await prisma.guestImportRecord.findFirstOrThrow({
+      where: { guestId: importedGuest.id, workspaceId: workspace.id },
+    });
+    authState.userId = user.id;
+
+    const formData = new FormData();
+    formData.set("name", importedGuest.name);
+    formData.set("category", "GUEST");
+    formData.set("side", "PARTNER_A");
+    formData.set("attendanceStatus", "DECLINED");
+    formData.set("partySize", "5");
+    formData.set("notes", "臨時不出席");
+    formData.set("expectedVersion", String(importedGuest.version));
+
+    await expect(
+      updateGuestAction(workspace.id, importedGuest.id, idleState, formData),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已更新賓客；已從桌次移除不出席者。",
+    });
+
+    const storedGuest = await prisma.guest.findUniqueOrThrow({
+      where: {
+        id_workspaceId: { id: importedGuest.id, workspaceId: workspace.id },
+      },
+    });
+    expect(storedGuest).toMatchObject({
+      attendanceStatus: "DECLINED",
+      partySize: 5,
+      notes: "臨時不出席",
+      seatingTableId: null,
+      version: importedGuest.version + 1,
+    });
+    expect(
+      await prisma.guestImportRecord.findFirstOrThrow({
+        where: { guestId: importedGuest.id, workspaceId: workspace.id },
+      }),
+    ).toEqual(provenanceBefore);
+    expect(provenanceBefore).toMatchObject({
+      sourceManaged: true,
+      managedFields: ["NAME", "SIDE", "ATTENDANCE_STATUS"],
+      sourcePartySize: 3,
+      attendanceReply: "會出席",
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/workspaces/${workspace.id}/guests`,
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      `/workspaces/${workspace.id}/tables`,
+    );
   });
 
   it("attaches multiple sources to one canonical Guest without duplicating it", async () => {

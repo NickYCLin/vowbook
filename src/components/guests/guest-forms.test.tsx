@@ -145,7 +145,7 @@ describe("guest forms", () => {
     ).not.toHaveAttribute("novalidate");
   });
 
-  it("keeps LINEIN party size editable while locking its other managed fields", () => {
+  it("keeps every operational field editable for an imported guest", () => {
     const { container } = render(
       <EditGuestForm
         workspaceId="workspace_internal"
@@ -162,27 +162,31 @@ describe("guest forms", () => {
     );
     openRecordDialogs();
 
-    expect(screen.getByLabelText("姓名或稱呼")).toHaveAttribute("readonly");
-    expect(screen.getByLabelText("與新人的關係")).toBeDisabled();
-    expect(screen.getByLabelText("出席狀態")).toBeDisabled();
+    expect(screen.getByLabelText("姓名或稱呼")).not.toHaveAttribute("readonly");
+    expect(screen.getByLabelText("與新人的關係")).toBeEnabled();
+    expect(screen.getByLabelText("出席狀態")).toBeEnabled();
     expect(screen.getByLabelText("邀請人數（含本人）")).not.toHaveAttribute(
       "readonly",
     );
     expect(screen.getByLabelText(/備註/u)).toBeEnabled();
-    expect(screen.getAllByText("此欄位由匯入來源維護。")).toHaveLength(3);
+    expect(
+      screen.getByText(
+        "這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。",
+      ),
+    ).toBeInTheDocument();
     expect(
       container.querySelector(
         'input[type="hidden"][name="side"][value="PARTNER_A"]',
       ),
-    ).toBeInTheDocument();
+    ).toBeNull();
     expect(
       container.querySelector(
         'input[type="hidden"][name="attendanceStatus"][value="ATTENDING"]',
       ),
-    ).toBeInTheDocument();
+    ).toBeNull();
   });
 
-  it("still locks party size for a generic source that explicitly manages it", () => {
+  it("keeps party size editable for a generic imported source", () => {
     render(
       <EditGuestForm
         workspaceId="workspace_internal"
@@ -202,10 +206,14 @@ describe("guest forms", () => {
     expect(screen.getByLabelText("姓名或稱呼")).not.toHaveAttribute("readonly");
     expect(screen.getByLabelText("與新人的關係")).toBeEnabled();
     expect(screen.getByLabelText("出席狀態")).toBeEnabled();
-    expect(screen.getByLabelText("邀請人數（含本人）")).toHaveAttribute(
+    expect(screen.getByLabelText("邀請人數（含本人）")).not.toHaveAttribute(
       "readonly",
     );
-    expect(screen.getAllByText("此欄位由匯入來源維護。")).toHaveLength(1);
+    expect(
+      screen.getByText(
+        "這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("keeps a pristine edit snapshot unchanged when newer props arrive", () => {
@@ -381,7 +389,7 @@ describe("guest forms", () => {
     expect(screen.getByLabelText("出席狀態")).toHaveValue("DECLINED");
     expect(screen.getByLabelText("出席狀態")).toBeEnabled();
     expect(screen.getByLabelText("邀請人數（含本人）")).toHaveValue(6);
-    expect(screen.getByLabelText("邀請人數（含本人）")).toHaveAttribute(
+    expect(screen.getByLabelText("邀請人數（含本人）")).not.toHaveAttribute(
       "readonly",
     );
     expect(screen.getByLabelText(/備註/u)).toHaveValue("最新備註");

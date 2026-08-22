@@ -335,6 +335,32 @@ describe("listGuestsForWorkspace", () => {
     });
   });
 
+  it("loads table numbers and the guest rows concurrently after authorization", async () => {
+    let resolveTables!: (rows: { id: string }[]) => void;
+    let resolveGuests!: (rows: never[]) => void;
+    tableFindMany.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTables = resolve;
+      }),
+    );
+    findMany.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGuests = resolve;
+      }),
+    );
+
+    const result = listGuestsForWorkspace("workspace_1");
+
+    await vi.waitFor(() => {
+      expect(tableFindMany).toHaveBeenCalledOnce();
+      expect(findMany).toHaveBeenCalledOnce();
+    });
+
+    resolveTables([]);
+    resolveGuests([]);
+    await expect(result).resolves.toMatchObject({ guests: [] });
+  });
+
   it("does not query guests when membership authorization fails", async () => {
     requireWorkspaceAccess.mockRejectedValue(new Error("denied"));
 

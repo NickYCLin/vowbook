@@ -289,15 +289,16 @@ describe("guest server actions", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("rejects manual core-field edits when any scoped import source is managed", async () => {
+  it("allows imported guest details to change and unseats a new decline", async () => {
     findUnique.mockResolvedValue({
       id: "guest_1",
       version: 0,
       name: "來源姓名",
+      category: "GUEST",
       side: "PARTNER_A",
       attendanceStatus: "ATTENDING",
       partySize: 2,
-      seatingTableId: null,
+      seatingTableId: "table_1",
       importRecords: [
         {
           sourceManaged: true,
@@ -307,14 +308,16 @@ describe("guest server actions", () => {
       ],
     });
     const formData = validGuestFormData();
-    formData.set("name", "人工竄改姓名");
+    formData.set("name", "臨時更正姓名");
+    formData.set("side", "PARTNER_B");
+    formData.set("attendanceStatus", "DECLINED");
+    formData.set("partySize", "4");
 
     await expect(
       updateGuestAction("workspace_1", "guest_1", idleState, formData),
     ).resolves.toEqual({
-      status: "error",
-      message:
-        "由匯入來源維護的賓客姓名、關係、出席狀態與邀請人數只能透過來源更新。",
+      status: "success",
+      message: "已更新賓客；已從桌次移除不出席者。",
     });
 
     expect(findUnique).toHaveBeenCalledWith({
@@ -322,23 +325,26 @@ describe("guest server actions", () => {
       select: {
         id: true,
         version: true,
-        name: true,
-        category: true,
-        side: true,
-        attendanceStatus: true,
-        partySize: true,
         seatingTableId: true,
-        importRecords: {
-          select: {
-            sourceManaged: true,
-            sourceLabel: true,
-            managedFields: true,
-          },
-        },
       },
     });
-    expect(update).not.toHaveBeenCalled();
-    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(tableFindUnique).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "guest_1", workspaceId: "workspace_1", version: 0 },
+      data: {
+        name: "臨時更正姓名",
+        category: "GUEST",
+        side: "PARTNER_B",
+        attendanceStatus: "DECLINED",
+        partySize: 4,
+        notes: "需要兒童椅",
+        seatingTableId: null,
+        version: { increment: 1 },
+      },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/tables",
+    );
   });
 
   it("allows core edits when every import record is an editable copy", async () => {
@@ -403,7 +409,7 @@ describe("guest server actions", () => {
     );
   });
 
-  it("locks only explicitly managed fields and saves other manual fields", async () => {
+  it("saves changes even when an import source previously managed a field", async () => {
     findUnique.mockResolvedValue({
       id: "guest_1",
       version: 0,
@@ -485,7 +491,7 @@ describe("guest server actions", () => {
     });
   });
 
-  it("rejects party-size edits for a generic source that explicitly manages PARTY_SIZE", async () => {
+  it("allows party-size edits for a generic imported source", async () => {
     findUnique.mockResolvedValue({
       id: "guest_1",
       version: 0,
@@ -509,12 +515,19 @@ describe("guest server actions", () => {
 
     await expect(
       updateGuestAction("workspace_1", "guest_1", idleState, formData),
-    ).resolves.toEqual({
-      status: "error",
-      message:
-        "由匯入來源維護的賓客姓名、關係、出席狀態與邀請人數只能透過來源更新。",
+    ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "guest_1", workspaceId: "workspace_1", version: 0 },
+      data: {
+        name: "王小明 與家人",
+        category: "GUEST",
+        side: "SHARED",
+        attendanceStatus: "ATTENDING",
+        partySize: 4,
+        notes: "需要兒童椅",
+        version: { increment: 1 },
+      },
     });
-    expect(update).not.toHaveBeenCalled();
   });
 
   it("blocks a cross-workspace guest id and sanitizes the database error", async () => {
