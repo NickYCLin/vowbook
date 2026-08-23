@@ -1016,7 +1016,7 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
     }
   });
 
-  it("stores source time as TIMESTAMPTZ(3) and enforces UNKNOWN/PAPER invitation states", async () => {
+  it("stores source time as TIMESTAMPTZ(3) and supports generic invitation details", async () => {
     const { workspace } = await createWorkspace("Invitation constraint 婚宴");
     const unknownGuest = await createGuest(workspace.id, "未填喜帖");
     await expect(
@@ -1031,7 +1031,6 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
     for (const overrides of [
       { invitationDelivery: "UNKNOWN", invitationReply: "不得有回覆" },
       { invitationDelivery: "PAPER", mailingAddress: null, invitationReply: "紙本" },
-      { invitationDelivery: "PAPER", mailingAddress: "地址", invitationReply: null },
     ]) {
       const guest = await createGuest(workspace.id, "無效喜帖狀態");
       await expect(
@@ -1045,6 +1044,27 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
         }),
       ).rejects.toBeDefined();
     }
+
+    const manualGuest = await createGuest(workspace.id, "自行填寫喜帖");
+    await expect(
+      prisma.guestImportRecord.create({
+        data: rsvpData(
+          manualGuest.id,
+          workspace.id,
+          `manual-invitation-${manualGuest.id}`,
+          {
+            source: "MANUAL",
+            sourceInstance: "guest-details",
+            sourceLabel: "自行填寫",
+            sourceManaged: false,
+            managedFields: [],
+            invitationDelivery: "PAPER",
+            mailingAddress: "地址",
+            invitationReply: null,
+          },
+        ),
+      }),
+    ).resolves.toBeDefined();
 
     const columns = await prisma.$queryRaw<
       Array<{ data_type: string; datetime_precision: number | null }>

@@ -69,6 +69,17 @@ describe("guest forms", () => {
     );
     expect(screen.getByLabelText("姓名或稱呼")).not.toHaveAttribute("maxlength");
     expect(screen.getByLabelText(/備註/)).not.toHaveAttribute("maxlength");
+    expect(screen.getByRole("heading", { name: "聯絡與回覆資料" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText(/關係補充/u)).toBeInTheDocument();
+    expect(screen.getByLabelText(/聯絡電話/u)).toHaveAttribute("type", "tel");
+    expect(screen.getByLabelText(/電子信箱/u)).toHaveAttribute("type", "email");
+    expect(screen.getByLabelText(/證婚儀式/u)).toBeInTheDocument();
+    expect(screen.getByLabelText(/兒童座椅/u)).toHaveAttribute("min", "0");
+    expect(screen.getByLabelText(/素食人數/u)).toHaveAttribute("max", "20");
+    expect(screen.getByLabelText(/喜帖方式/u)).toBeInTheDocument();
+    expect(screen.getByLabelText(/寄送地址/u)).toBeInTheDocument();
+    expect(screen.getByLabelText(/賓客留言/u)).toBeInTheDocument();
     expect(container.querySelector("form")).not.toHaveAttribute("novalidate");
     expect(container.querySelector('[name="workspaceId"]')).toBeNull();
     expect(container.querySelector('[name="guestId"]')).toBeNull();
@@ -116,7 +127,7 @@ describe("guest forms", () => {
           guestId="guest_internal"
           expectedVersion={3}
           name="王小明"
-          importSources={[]}
+          hasManagedImportSource={false}
         />
       </>,
     );
@@ -157,6 +168,19 @@ describe("guest forms", () => {
         attendanceStatus="ATTENDING"
         partySize={2}
         notes="人工備註"
+        details={{
+          relationshipLabel: "大學同學",
+          contactPhone: "0900-000-000",
+          contactEmail: "guest@example.test",
+          ceremonyAttendance: false,
+          childSeatCount: 1,
+          vegetarianCount: 0,
+          invitationDelivery: "DIGITAL",
+          mailingAddress: null,
+          guestMessage: "祝福新人",
+          attendanceReply: "會出席",
+          invitationReply: "已傳送",
+        }}
         managedFields={["NAME", "SIDE", "ATTENDANCE_STATUS"]}
       />,
     );
@@ -169,9 +193,17 @@ describe("guest forms", () => {
       "readonly",
     );
     expect(screen.getByLabelText(/備註/u)).toBeEnabled();
+    expect(screen.getByLabelText(/關係補充/u)).toHaveValue("大學同學");
+    expect(screen.getByLabelText(/聯絡電話/u)).toHaveValue("0900-000-000");
+    expect(screen.getByLabelText(/電子信箱/u)).toHaveValue("guest@example.test");
+    expect(screen.getByLabelText(/證婚儀式/u)).toHaveValue("DECLINED");
+    expect(screen.getByLabelText(/兒童座椅/u)).toHaveValue(1);
+    expect(screen.getByLabelText(/素食人數/u)).toHaveValue(0);
+    expect(screen.getByLabelText(/喜帖方式/u)).toHaveValue("DIGITAL");
+    expect(screen.getByLabelText(/賓客留言/u)).toHaveValue("祝福新人");
     expect(
       screen.getByText(
-        "這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。",
+        "這筆資料曾由外部來源建立，仍可依現場狀況修改；原始來源紀錄會保留供後續追蹤。",
       ),
     ).toBeInTheDocument();
     expect(
@@ -211,7 +243,7 @@ describe("guest forms", () => {
     );
     expect(
       screen.getByText(
-        "這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。",
+        "這筆資料曾由外部來源建立，仍可依現場狀況修改；原始來源紀錄會保留供後續追蹤。",
       ),
     ).toBeInTheDocument();
   });
@@ -454,27 +486,23 @@ describe("guest forms", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("uses only managed source labels in the authoritative deletion warning", () => {
+  it("uses a generic authoritative deletion warning for imported guests", () => {
     render(
       <DeleteGuestForm
         workspaceId="workspace_internal"
         guestId="guest_internal"
         expectedVersion={3}
         name="匯入賓客"
-        importSources={[
-          { sourceLabel: "合成表單", sourceManaged: false },
-          { sourceLabel: "拍拍印", sourceManaged: true },
-          { sourceLabel: "賓客系統", sourceManaged: true },
-        ]}
+        hasManagedImportSource
       />,
     );
     openRecordDialogs();
 
     expect(
-      screen.getByText("這筆資料由 拍拍印、賓客系統 來源維護。"),
+      screen.getByText("這筆資料仍連結外部匯入來源。"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("日後再次匯入這些來源時，這筆賓客可能會依來源資料重新建立。"),
+      screen.getByText("日後再次匯入時，這筆賓客可能會依來源資料重新建立。"),
     ).toBeInTheDocument();
     expect(screen.queryByText("此動作無法復原。")).not.toBeInTheDocument();
     expect(

@@ -117,6 +117,13 @@ describe("Guest RSVP schema and migration contract", () => {
     "20260802152000_linein_party_size_fail_closed",
     "migration.sql",
   );
+  const editableGuestDetailsMigrationPath = path.join(
+    process.cwd(),
+    "prisma",
+    "migrations",
+    "20260823155000_guest_details_invitation_reply_optional",
+    "migration.sql",
+  );
   const packageJson = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),
   ) as { scripts?: Record<string, string> };
@@ -369,5 +376,18 @@ describe("Guest RSVP schema and migration contract", () => {
 
   it("does not expose an npm alias that would echo privileged importer arguments", () => {
     expect(packageJson.scripts?.["import:linein-rsvp"]).toBeUndefined();
+  });
+
+  it("lets manually edited invitation choices omit source-specific reply text", () => {
+    expect(fs.existsSync(editableGuestDetailsMigrationPath)).toBe(true);
+    const migration = fs.readFileSync(editableGuestDetailsMigrationPath, "utf8");
+
+    expect(migration).toContain(
+      'DROP CONSTRAINT "guest_rsvps_invitation_state_check"',
+    );
+    expect(migration).toMatch(
+      /ADD CONSTRAINT "guest_rsvps_invitation_state_check" CHECK[\s\S]*"invitation_delivery" = 'PAPER'[\s\S]*"mailing_address" IS NOT NULL[\s\S]*"invitation_delivery" IN \('DIGITAL', 'NONE'\)/u,
+    );
+    expect(migration).not.toMatch(/\b(?:UPDATE|DELETE|INSERT|TRUNCATE)\b/iu);
   });
 });

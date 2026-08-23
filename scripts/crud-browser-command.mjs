@@ -47,6 +47,7 @@ const fixtures = {
     importedGuestId: `crud_e2e_desktop_imported_guest_${runId}`,
     importedGuestName: "桌面匯入測試賓客",
     importedGuestEditedPartySize: 4,
+    importedGuestEditedPhone: "0911-111-111",
     stableTableId: `crud_e2e_desktop_stable_table_${runId}`,
     stableTableName: "桌面既有主桌",
     createdTableName: "桌面可見入口新增空桌",
@@ -92,6 +93,7 @@ const fixtures = {
     importedGuestId: `crud_e2e_mobile_imported_guest_${runId}`,
     importedGuestName: "手機匯入測試賓客",
     importedGuestEditedPartySize: 5,
+    importedGuestEditedPhone: "0922-222-222",
     stableTableId: `crud_e2e_mobile_stable_table_${runId}`,
     stableTableName: "手機既有主桌",
     createdTableName: "手機可見入口新增空桌",
@@ -705,11 +707,19 @@ async function verifyFixture() {
               sourceManaged: true,
               managedFields: true,
               sourcePartySize: true,
+              contactPhone: true,
             },
           },
         },
       });
-      const importedRecord = importedGuest?.importRecords[0];
+      const importedRecord = importedGuest?.importRecords.find(
+        (record) => record.source === "LINEIN",
+      );
+      const manualDetails = importedGuest?.importRecords.find(
+        (record) =>
+          record.source === "MANUAL" &&
+          record.sourceInstance === "guest-details",
+      );
       if (
         importedGuest?.workspaceId !== fixture.workspaceId ||
         importedGuest.name !== fixture.importedGuestName ||
@@ -717,14 +727,16 @@ async function verifyFixture() {
         importedGuest.attendanceStatus !== "ATTENDING" ||
         importedGuest.partySize !== fixture.importedGuestEditedPartySize ||
         importedGuest.version !== 1 ||
-        importedGuest.importRecords.length !== 1 ||
+        importedGuest.importRecords.length !== 2 ||
         importedRecord?.source !== "LINEIN" ||
         importedRecord.sourceInstance !== "default" ||
         importedRecord.sourceManaged !== true ||
         importedRecord.sourcePartySize !== 2 ||
         importedRecord.managedFields.join(",") !==
           "NAME,SIDE,ATTENDANCE_STATUS" ||
-        importedRecord.managedFields.includes("PARTY_SIZE")
+        importedRecord.managedFields.includes("PARTY_SIZE") ||
+        manualDetails?.sourceManaged !== false ||
+        manualDetails.contactPhone !== fixture.importedGuestEditedPhone
       ) {
         throw new Error(
           "CRUD browser verification found an unexpected imported guest party-size state.",

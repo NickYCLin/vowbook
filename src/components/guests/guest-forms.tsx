@@ -21,6 +21,7 @@ import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogFooter, useModalDialog } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/class-names";
+import type { GuestDetailsDto } from "@/lib/guest-list";
 
 const initialState: GuestMutationState = { status: "idle" };
 
@@ -40,6 +41,7 @@ type GuestFieldsProps = {
     attendanceStatus: GuestAttendanceStatusValue;
     partySize: number;
     notes: string | null;
+    details?: GuestDetailsDto | null;
   };
 };
 
@@ -61,7 +63,7 @@ function GuestFields({
     <div className="min-w-0 space-y-5">
       {hasImportedFields ? (
         <p className="rounded-control border border-line bg-surface-sunken px-4 py-3 text-caption leading-6 text-ink-soft">
-          這筆資料來自匯入來源，仍可依現場狀況修改；原始回覆會保留在匯入明細中。
+          這筆資料曾由外部來源建立，仍可依現場狀況修改；原始來源紀錄會保留供後續追蹤。
         </p>
       ) : null}
       <div className="min-w-0">
@@ -180,6 +182,162 @@ function GuestFields({
           defaultValue={initialValues?.notes ?? ""}
         />
       </Field>
+
+      <section className="min-w-0 border-t border-line pt-5">
+        <div>
+          <h3 className="font-serif text-body font-semibold text-ink">
+            聯絡與回覆資料
+          </h3>
+          <p className="mt-1 text-caption leading-6 text-ink-soft">
+            選填；不論名單是手動建立或外部匯入，都可以在這裡補充與修改。
+          </p>
+        </div>
+
+        <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-2">
+          <Field
+            htmlFor={`${idPrefix}-relationship-label`}
+            label="關係補充"
+            optional
+          >
+            <Input
+              id={`${idPrefix}-relationship-label`}
+              name="relationshipLabel"
+              type="text"
+              autoComplete="off"
+              defaultValue={initialValues?.details?.relationshipLabel ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-contact-phone`} label="聯絡電話" optional>
+            <Input
+              id={`${idPrefix}-contact-phone`}
+              name="contactPhone"
+              type="tel"
+              autoComplete="tel"
+              defaultValue={initialValues?.details?.contactPhone ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-contact-email`} label="電子信箱" optional>
+            <Input
+              id={`${idPrefix}-contact-email`}
+              name="contactEmail"
+              type="email"
+              autoComplete="email"
+              defaultValue={initialValues?.details?.contactEmail ?? ""}
+            />
+          </Field>
+
+          <Field
+            htmlFor={`${idPrefix}-ceremony-attendance`}
+            label="證婚儀式"
+            optional
+          >
+            <Select
+              id={`${idPrefix}-ceremony-attendance`}
+              name="ceremonyAttendance"
+              defaultValue={
+                initialValues?.details?.ceremonyAttendance === true
+                  ? "ATTENDING"
+                  : initialValues?.details?.ceremonyAttendance === false
+                    ? "DECLINED"
+                    : ""
+              }
+            >
+              <option value="">尚未填寫</option>
+              <option value="ATTENDING">出席</option>
+              <option value="DECLINED">不出席</option>
+            </Select>
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-child-seat-count`} label="兒童座椅" optional>
+            <Input
+              id={`${idPrefix}-child-seat-count`}
+              name="childSeatCount"
+              type="number"
+              min={0}
+              max={20}
+              step={1}
+              inputMode="numeric"
+              defaultValue={initialValues?.details?.childSeatCount ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-vegetarian-count`} label="素食人數" optional>
+            <Input
+              id={`${idPrefix}-vegetarian-count`}
+              name="vegetarianCount"
+              type="number"
+              min={0}
+              max={20}
+              step={1}
+              inputMode="numeric"
+              defaultValue={initialValues?.details?.vegetarianCount ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-invitation-delivery`} label="喜帖方式" optional>
+            <Select
+              id={`${idPrefix}-invitation-delivery`}
+              name="invitationDelivery"
+              defaultValue={initialValues?.details?.invitationDelivery ?? ""}
+            >
+              <option value="">尚未填寫</option>
+              <option value="UNKNOWN">尚未確認</option>
+              <option value="PAPER">紙本喜帖</option>
+              <option value="DIGITAL">電子喜帖</option>
+              <option value="NONE">不需寄送</option>
+            </Select>
+          </Field>
+
+          <Field
+            htmlFor={`${idPrefix}-invitation-reply`}
+            label="喜帖回覆補充"
+            optional
+          >
+            <Input
+              id={`${idPrefix}-invitation-reply`}
+              name="invitationReply"
+              type="text"
+              autoComplete="off"
+              defaultValue={initialValues?.details?.invitationReply ?? ""}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-5 min-w-0 space-y-5">
+          <Field
+            htmlFor={`${idPrefix}-attendance-reply`}
+            label="出席回覆補充"
+            optional
+          >
+            <Textarea
+              id={`${idPrefix}-attendance-reply`}
+              name="attendanceReply"
+              rows={2}
+              defaultValue={initialValues?.details?.attendanceReply ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-mailing-address`} label="寄送地址" optional>
+            <Textarea
+              id={`${idPrefix}-mailing-address`}
+              name="mailingAddress"
+              rows={2}
+              defaultValue={initialValues?.details?.mailingAddress ?? ""}
+            />
+          </Field>
+
+          <Field htmlFor={`${idPrefix}-guest-message`} label="賓客留言" optional>
+            <Textarea
+              id={`${idPrefix}-guest-message`}
+              name="guestMessage"
+              rows={3}
+              defaultValue={initialValues?.details?.guestMessage ?? ""}
+            />
+          </Field>
+        </div>
+      </section>
     </div>
   );
 }
@@ -277,6 +435,7 @@ export function CreateGuestDialog({ workspaceId }: { workspaceId: string }) {
         closeLabel="關閉新增名單成員"
         onClose={close}
         onRestoreFocus={restoreFocus}
+        size="lg"
       >
         <CreateGuestForm workspaceId={workspaceId} onSuccess={close} />
       </Dialog>
@@ -293,6 +452,7 @@ type EditGuestFormProps = NonNullable<GuestFieldsProps["initialValues"]> & {
 
 type EditGuestSnapshot = EditGuestFormProps & {
   managedFieldsSignature: string;
+  detailsSignature: string;
 };
 
 function managedFieldsSignature(fields: readonly GuestManagedField[]) {
@@ -307,6 +467,8 @@ function createEditGuestSnapshot(
     ...props,
     managedFields: normalizedManagedFields,
     managedFieldsSignature: managedFieldsSignature(normalizedManagedFields),
+    details: props.details ?? null,
+    detailsSignature: JSON.stringify(props.details ?? null),
   };
 }
 
@@ -324,6 +486,7 @@ function isSameEditGuestSnapshot(
     current.attendanceStatus === latest.attendanceStatus &&
     current.partySize === latest.partySize &&
     current.notes === latest.notes &&
+    current.detailsSignature === latest.detailsSignature &&
     current.managedFieldsSignature === latest.managedFieldsSignature
   );
 }
@@ -370,6 +533,7 @@ function EditGuestActionForm({
             attendanceStatus: snapshot.attendanceStatus,
             partySize: snapshot.partySize,
             notes: snapshot.notes,
+            details: snapshot.details,
           }}
           managedFields={snapshot.managedFields}
         />
@@ -431,6 +595,7 @@ export function EditGuestForm(
         closeLabel="關閉編輯賓客"
         onClose={close}
         onRestoreFocus={restoreFocus}
+        size="lg"
       >
         {snapshotIsOutdated ? (
           <div className="mx-5 mt-5 rounded-control border border-caution/30 bg-caution-soft px-4 py-3 text-caption leading-6 text-caution sm:mx-6">
@@ -463,13 +628,13 @@ export function DeleteGuestForm({
   guestId,
   expectedVersion,
   name,
-  importSources,
+  hasManagedImportSource,
 }: {
   workspaceId: string;
   guestId: string;
   expectedVersion: number;
   name: string;
-  importSources: Array<{ sourceLabel: string; sourceManaged: boolean }>;
+  hasManagedImportSource: boolean;
 }) {
   const idPrefix = useId();
   const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
@@ -477,13 +642,6 @@ export function DeleteGuestForm({
   const [state, formAction, isPending] = useActionState(
     deleteAction,
     initialState,
-  );
-  const managedSourceLabels = Array.from(
-    new Set(
-      importSources
-        .filter((source) => source.sourceManaged)
-        .map((source) => source.sourceLabel),
-    ),
   );
 
   return (
@@ -516,13 +674,13 @@ export function DeleteGuestForm({
               name="expectedVersion"
               value={expectedVersion}
             />
-            {managedSourceLabels.length > 0 ? (
+            {hasManagedImportSource ? (
               <>
                 <p className="text-sm font-semibold text-danger">
-                  這筆資料由 {managedSourceLabels.join("、")} 來源維護。
+                  這筆資料仍連結外部匯入來源。
                 </p>
                 <p className="text-caption leading-6 text-ink-soft">
-                  日後再次匯入這些來源時，這筆賓客可能會依來源資料重新建立。
+                  日後再次匯入時，這筆賓客可能會依來源資料重新建立。
                 </p>
               </>
             ) : (

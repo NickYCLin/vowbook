@@ -1,6 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
+import {
+  hasGuestDetails,
+  normalizeGuestDetailsInput,
+  type NormalizedGuestDetailsInput,
+} from "@/domain/guest-details";
 import {
   GuestValidationError,
   normalizeGuestInput,
@@ -26,6 +32,10 @@ class GuestRecordNotFoundError extends Error {}
 class GuestStaleWriteError extends Error {}
 
 class GuestPartyCapacityError extends Error {}
+
+const MANUAL_DETAILS_SOURCE = "MANUAL";
+const MANUAL_DETAILS_SOURCE_INSTANCE = "guest-details";
+const MANUAL_DETAILS_SOURCE_LABEL = "自行填寫";
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -79,6 +89,56 @@ function guestInputFromFormData(formData: FormData): NormalizedGuestInput {
   });
 }
 
+function guestDetailsFromFormData(
+  formData: FormData,
+): NormalizedGuestDetailsInput {
+  return normalizeGuestDetailsInput({
+    relationshipLabel: formData.get("relationshipLabel"),
+    contactPhone: formData.get("contactPhone"),
+    contactEmail: formData.get("contactEmail"),
+    ceremonyAttendance: formData.get("ceremonyAttendance"),
+    childSeatCount: formData.get("childSeatCount"),
+    vegetarianCount: formData.get("vegetarianCount"),
+    invitationDelivery: formData.get("invitationDelivery"),
+    mailingAddress: formData.get("mailingAddress"),
+    guestMessage: formData.get("guestMessage"),
+    attendanceReply: formData.get("attendanceReply"),
+    invitationReply: formData.get("invitationReply"),
+  });
+}
+
+async function upsertManualGuestDetails(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  guestId: string,
+  details: NormalizedGuestDetailsInput,
+) {
+  const identity = {
+    workspaceId,
+    source: MANUAL_DETAILS_SOURCE,
+    sourceInstance: MANUAL_DETAILS_SOURCE_INSTANCE,
+    externalId: guestId,
+  };
+  const provenance = {
+    guestId,
+    workspaceId,
+    source: MANUAL_DETAILS_SOURCE,
+    sourceInstance: MANUAL_DETAILS_SOURCE_INSTANCE,
+    sourceLabel: MANUAL_DETAILS_SOURCE_LABEL,
+    sourceManaged: false,
+    managedFields: [],
+    externalId: guestId,
+    sourcePartySize: null,
+    sourceSubmittedAt: null,
+  };
+
+  await transaction.guestImportRecord.upsert({
+    where: { workspaceId_source_sourceInstance_externalId: identity },
+    create: { ...provenance, ...details },
+    update: { ...provenance, ...details },
+  });
+}
+
 async function authorizeGuestMutation(
   workspaceId: string,
 ): Promise<GuestMutationState | string> {
@@ -109,8 +169,10 @@ export async function createGuestAction(
   const currentUserId = authorization;
 
   let input: NormalizedGuestInput;
+  let details: NormalizedGuestDetailsInput;
   try {
     input = guestInputFromFormData(formData);
+    details = guestDetailsFromFormData(formData);
   } catch (error) {
     return validationState(error);
   }
@@ -123,9 +185,17 @@ export async function createGuestAction(
         "edit",
         transaction,
       );
-      await transaction.guest.create({
+      const guest = await transaction.guest.create({
         data: { workspaceId, ...input },
       });
+      if (hasGuestDetails(details)) {
+        await upsertManualGuestDetails(
+          transaction,
+          workspaceId,
+          guest.id,
+          details,
+        );
+      }
     });
   } catch (error) {
     if (error instanceof WorkspaceAccessDeniedError) {
@@ -155,9 +225,11 @@ export async function updateGuestAction(
   const currentUserId = authorization;
 
   let input: NormalizedGuestInput;
+  let details: NormalizedGuestDetailsInput;
   let expectedVersion: number;
   try {
     input = guestInputFromFormData(formData);
+    details = guestDetailsFromFormData(formData);
     expectedVersion = normalizeGuestVersion(formData.get("expectedVersion"));
   } catch (error) {
     return validationState(error);
@@ -224,6 +296,12 @@ export async function updateGuestAction(
         },
       });
       if (result.count !== 1) throw new GuestStaleWriteError();
+      await upsertManualGuestDetails(
+        transaction,
+        workspaceId,
+        guestId,
+        details,
+      );
       removedFromTable = removesFromTable;
     });
   } catch (error) {

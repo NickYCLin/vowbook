@@ -11,6 +11,7 @@ const {
   findUnique,
   aggregate,
   tableFindUnique,
+  detailsUpsert,
   transaction,
   revalidatePath,
 } = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const {
   findUnique: vi.fn(),
   aggregate: vi.fn(),
   tableFindUnique: vi.fn(),
+  detailsUpsert: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -35,6 +37,7 @@ vi.mock("@/lib/workspace-mutation-access", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     guest: { create, findUnique, aggregate, updateMany: update, deleteMany: remove },
+    guestImportRecord: { upsert: detailsUpsert },
     seatingTable: { findUnique: tableFindUnique },
     $transaction: transaction,
   },
@@ -98,6 +101,7 @@ describe("guest server actions", () => {
     transaction.mockImplementation(async (operation) =>
       operation({
         guest: { create, findUnique, aggregate, updateMany: update, deleteMany: remove },
+        guestImportRecord: { upsert: detailsUpsert },
         seatingTable: { findUnique: tableFindUnique },
       }),
     );
@@ -155,6 +159,59 @@ describe("guest server actions", () => {
     ).resolves.toEqual({
       status: "error",
       message: "此工作區已經有新郎，請直接編輯原有資料。",
+    });
+  });
+
+  it("stores optional details for a manually created guest without an import label", async () => {
+    const formData = validGuestFormData();
+    formData.set("relationshipLabel", "大學同學");
+    formData.set("contactPhone", "0900-000-000");
+    formData.set("contactEmail", "guest@example.test");
+    formData.set("ceremonyAttendance", "ATTENDING");
+    formData.set("childSeatCount", "1");
+    formData.set("vegetarianCount", "0");
+    formData.set("invitationDelivery", "DIGITAL");
+    formData.set("attendanceReply", "會出席");
+    formData.set("invitationReply", "已傳送");
+    formData.set("guestMessage", "祝福新人");
+
+    await expect(
+      createGuestAction("workspace_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已新增賓客。" });
+
+    expect(detailsUpsert).toHaveBeenCalledWith({
+      where: {
+        workspaceId_source_sourceInstance_externalId: {
+          workspaceId: "workspace_1",
+          source: "MANUAL",
+          sourceInstance: "guest-details",
+          externalId: "guest_1",
+        },
+      },
+      create: expect.objectContaining({
+        guestId: "guest_1",
+        workspaceId: "workspace_1",
+        source: "MANUAL",
+        sourceInstance: "guest-details",
+        sourceLabel: "自行填寫",
+        sourceManaged: false,
+        managedFields: [],
+        externalId: "guest_1",
+        relationshipLabel: "大學同學",
+        contactPhone: "0900-000-000",
+        contactEmail: "guest@example.test",
+        ceremonyAttendance: true,
+        childSeatCount: 1,
+        vegetarianCount: 0,
+        invitationDelivery: "DIGITAL",
+        attendanceReply: "會出席",
+        invitationReply: "已傳送",
+        guestMessage: "祝福新人",
+      }),
+      update: expect.objectContaining({
+        relationshipLabel: "大學同學",
+        contactPhone: "0900-000-000",
+      }),
     });
   });
 
@@ -345,6 +402,42 @@ describe("guest server actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/tables",
     );
+  });
+
+  it("saves editable details as a manual overlay without changing import provenance", async () => {
+    const formData = validGuestFormData();
+    formData.set("contactPhone", "0911-111-111");
+    formData.set("ceremonyAttendance", "DECLINED");
+    formData.set("invitationDelivery", "NONE");
+    formData.set("invitationReply", "不需要喜帖");
+
+    await expect(
+      updateGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+
+    expect(detailsUpsert).toHaveBeenCalledWith({
+      where: {
+        workspaceId_source_sourceInstance_externalId: {
+          workspaceId: "workspace_1",
+          source: "MANUAL",
+          sourceInstance: "guest-details",
+          externalId: "guest_1",
+        },
+      },
+      create: expect.objectContaining({
+        guestId: "guest_1",
+        contactPhone: "0911-111-111",
+        ceremonyAttendance: false,
+        invitationDelivery: "NONE",
+        invitationReply: "不需要喜帖",
+      }),
+      update: expect.objectContaining({
+        contactPhone: "0911-111-111",
+        ceremonyAttendance: false,
+        invitationDelivery: "NONE",
+        invitationReply: "不需要喜帖",
+      }),
+    });
   });
 
   it("allows core edits when every import record is an editable copy", async () => {

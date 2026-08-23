@@ -16,6 +16,7 @@ type CrudFixture = {
   editedGuestNotes: string;
   importedGuestName: string;
   importedGuestEditedPartySize: number;
+  importedGuestEditedPhone: string;
   stableTableName: string;
   createdTableName: string;
   editedSecondTableName: string;
@@ -795,7 +796,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     const guestArticle = page
       .getByRole("heading", { name: fixture.manualGuestName, exact: true })
       .locator("xpath=ancestor::article[1]");
-    await guestArticle.getByText(`編輯 ${fixture.manualGuestName}`, { exact: true }).click();
+    await guestArticle
+      .getByRole("button", { name: `編輯 ${fixture.manualGuestName}`, exact: true })
+      .click();
     const editGuestDialog = page.getByRole("dialog", {
       name: fixture.manualGuestName,
       exact: true,
@@ -837,14 +840,14 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await expectNoPageOverflow(page);
   });
 
-  await test.step("只修改匯入賓客的營運邀請人數並保留來源人數", async () => {
+  await test.step("匯入賓客可修改營運欄位與通用聯絡資料", async () => {
     const importedGuestArticle = page
       .getByRole("heading", { name: fixture.importedGuestName, exact: true })
       .locator("xpath=ancestor::article[1]");
-    const importedEditSummary = importedGuestArticle.getByText(
-      `編輯 ${fixture.importedGuestName}`,
-      { exact: true },
-    );
+    const importedEditSummary = importedGuestArticle.getByRole("button", {
+      name: `編輯 ${fixture.importedGuestName}`,
+      exact: true,
+    });
     await importedEditSummary.click();
     const importedEditDialog = page.getByRole("dialog", {
       name: fixture.importedGuestName,
@@ -858,22 +861,26 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     const importedSide = importedEditForm.getByLabel("與新人的關係");
     const importedAttendance = importedEditForm.getByLabel("出席狀態");
     const importedPartySize = importedEditForm.getByLabel("邀請人數（含本人）");
+    const importedPhone = importedEditForm.getByLabel("聯絡電話");
 
     await expect(importedName).toHaveValue(fixture.importedGuestName);
-    await expect(importedName).not.toBeEditable();
-    await expect(importedName).toHaveJSProperty("readOnly", true);
+    await expect(importedName).toBeEditable();
     await expect(importedSide).toHaveValue("PARTNER_A");
-    await expect(importedSide).toBeDisabled();
+    await expect(importedSide).toBeEnabled();
     await expect(importedAttendance).toHaveValue("ATTENDING");
-    await expect(importedAttendance).toBeDisabled();
+    await expect(importedAttendance).toBeEnabled();
     await expect(
-      importedEditForm.getByText("此欄位由匯入來源維護。", { exact: true }),
-    ).toHaveCount(3);
+      importedEditForm.getByText(
+        "這筆資料曾由外部來源建立，仍可依現場狀況修改；原始來源紀錄會保留供後續追蹤。",
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(importedPartySize).toHaveValue("2");
     await expect(importedPartySize).toBeEditable();
     await expect(importedPartySize).toHaveJSProperty("readOnly", false);
 
     await importedPartySize.fill(String(fixture.importedGuestEditedPartySize));
+    await importedPhone.fill(fixture.importedGuestEditedPhone);
     await importedEditForm.getByRole("button", { name: "儲存變更" }).click();
 
     const importedUpdateStatus = page.getByRole("status").filter({
@@ -900,21 +907,15 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       ),
     ).toBeVisible();
 
-    const importDetailsSummary = importedGuestArticle.getByText(
-      "拍拍印匯入明細",
+    const detailsSummary = importedGuestArticle.getByText(
+      "聯絡與回覆資料",
       { exact: true },
     );
-    await importDetailsSummary.click();
-    const importDetails = importDetailsSummary.locator("xpath=parent::details");
-    await expect(importDetails).toHaveAttribute("open", "");
-    const sourcePartySizeLabel = importDetails.getByText(
-      "來源邀請人數（含本人）",
-      { exact: true },
-    );
-    await expect(sourcePartySizeLabel).toBeVisible();
-    await expect(
-      sourcePartySizeLabel.locator("xpath=following-sibling::dd[1]"),
-    ).toHaveText("2 位");
+    await detailsSummary.click();
+    const details = detailsSummary.locator("xpath=parent::details");
+    await expect(details).toHaveAttribute("open", "");
+    await expect(details.getByText(fixture.importedGuestEditedPhone)).toBeVisible();
+    await expect(importedGuestArticle.getByText(/拍拍印/u)).toHaveCount(0);
     await expectNoPageOverflow(page);
   });
 

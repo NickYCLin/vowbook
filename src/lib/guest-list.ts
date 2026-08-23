@@ -38,6 +38,21 @@ export type GuestImportDetailsDto = {
   sourceSubmittedAt: Date | null;
 };
 
+export type GuestDetailsDto = Pick<
+  GuestImportDetailsDto,
+  | "relationshipLabel"
+  | "contactPhone"
+  | "contactEmail"
+  | "ceremonyAttendance"
+  | "childSeatCount"
+  | "vegetarianCount"
+  | "invitationDelivery"
+  | "mailingAddress"
+  | "guestMessage"
+  | "attendanceReply"
+  | "invitationReply"
+>;
+
 export type GuestImportRecordDto = {
   provenanceKey: string;
   source: string;
@@ -58,6 +73,7 @@ export type GuestListItemDto = {
   notes: string | null;
   // 桌名可以重複，所以只給名字認不出是哪一桌，桌號才是身分。
   seatingTable: { number: number; name: string } | null;
+  details: GuestDetailsDto | null;
   importRecords: GuestImportRecordDto[];
 };
 
@@ -108,6 +124,7 @@ function seatingTableOf(
 const editorImportRecordSelect = {
   id: true,
   source: true,
+  sourceInstance: true,
   sourceLabel: true,
   sourceManaged: true,
   managedFields: true,
@@ -125,6 +142,66 @@ const editorImportRecordSelect = {
   invitationReply: true,
   sourceSubmittedAt: true,
 } as const;
+
+type EditorImportRecord = {
+  source: string;
+  sourceInstance?: string;
+  sourceManaged: boolean;
+  relationshipLabel: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  ceremonyAttendance: boolean | null;
+  childSeatCount: number | null;
+  vegetarianCount: number | null;
+  invitationDelivery: GuestDetailsDto["invitationDelivery"];
+  mailingAddress: string | null;
+  guestMessage: string | null;
+  attendanceReply: string | null;
+  invitationReply: string | null;
+};
+
+const detailFields = [
+  "relationshipLabel",
+  "contactPhone",
+  "contactEmail",
+  "ceremonyAttendance",
+  "childSeatCount",
+  "vegetarianCount",
+  "invitationDelivery",
+  "mailingAddress",
+  "guestMessage",
+  "attendanceReply",
+  "invitationReply",
+] as const satisfies readonly (keyof GuestDetailsDto)[];
+
+function detailsFromRecords(
+  records: readonly EditorImportRecord[],
+): GuestDetailsDto | null {
+  const manual = records.find(
+    (record) =>
+      record.source === "MANUAL" &&
+      record.sourceInstance === "guest-details",
+  );
+  const ordered = manual
+    ? [manual]
+    : [...records].sort(
+        (left, right) => Number(right.sourceManaged) - Number(left.sourceManaged),
+      );
+  if (ordered.length === 0) return null;
+
+  const details = Object.fromEntries(
+    detailFields.map((field) => [
+      field,
+      manual
+        ? manual[field]
+        : ordered.find((record) => record[field] !== null)?.[field] ?? null,
+    ]),
+  ) as GuestDetailsDto;
+
+  return Object.values(details).some((value) => value !== null)
+    ? details
+    : null;
+}
 
 export async function listGuestsForWorkspace(workspaceId: string) {
   const currentUser = await requireCurrentUser();
@@ -169,6 +246,7 @@ export async function listGuestsForWorkspace(workspaceId: string) {
       const viewerGuests: GuestListItemDto[] = guests.map((guest) => ({
         ...guest,
         seatingTable: seatingTableOf(guest, tableNumbers),
+        details: null,
         importRecords: guest.importRecords.map((record) => ({
           provenanceKey: record.id,
           source: record.source,
@@ -199,6 +277,7 @@ export async function listGuestsForWorkspace(workspaceId: string) {
     const editorGuests: GuestListItemDto[] = guests.map((guest) => ({
       ...guest,
       seatingTable: seatingTableOf(guest, tableNumbers),
+      details: detailsFromRecords(guest.importRecords),
       importRecords: guest.importRecords.map((record) => ({
         provenanceKey: record.id,
         source: record.source,
