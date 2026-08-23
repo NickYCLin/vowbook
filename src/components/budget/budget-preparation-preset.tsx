@@ -14,6 +14,9 @@ const emptySuggestionKeys: ReadonlySet<string> = new Set();
 const preparationPresetItems = BUDGET_PREPARATION_PRESET_STAGES.flatMap(
   (stage) => stage.groups.flatMap((group) => group.items),
 );
+const standardPreparationPresetItems = BUDGET_PREPARATION_PRESET_STAGES.filter(
+  (stage) => !stage.optional,
+).flatMap((stage) => stage.groups.flatMap((group) => group.items));
 
 function restoreConnectedFocus(trigger: HTMLButtonElement | null) {
   if (trigger?.isConnected && trigger.closest("[hidden]") === null) {
@@ -39,6 +42,7 @@ export function BudgetPreparationPreset({
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [showOptionalSuggestions, setShowOptionalSuggestions] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [inputVersion, setInputVersion] = useState(0);
   const isUnavailable = (key: string) =>
@@ -46,9 +50,19 @@ export function BudgetPreparationPreset({
   const availableItems = preparationPresetItems.filter(
     (item) => !isUnavailable(item.key),
   );
-  const availableKeys: ReadonlySet<string> = new Set(availableItems.map((item) => item.key));
+  const availableKeys: ReadonlySet<string> = new Set(
+    availableItems.map((item) => item.key),
+  );
+  const standardAvailableKeys: ReadonlySet<string> = new Set(
+    standardPreparationPresetItems
+      .filter((item) => !isUnavailable(item.key))
+      .map((item) => item.key),
+  );
   const availableSelectedKeys = new Set(
     [...selectedKeys].filter((key) => availableKeys.has(key)),
+  );
+  const allStandardSelected = [...standardAvailableKeys].every((key) =>
+    availableSelectedKeys.has(key),
   );
   const selectedCount = availableSelectedKeys.size;
   const allSuggestionsHandled = availableItems.length === 0;
@@ -86,6 +100,7 @@ export function BudgetPreparationPreset({
   function openDialog() {
     if (dialogRef.current?.open) return;
     setShowFeedback(false);
+    setShowOptionalSuggestions(false);
     dialogRef.current?.showModal();
     dialogTitleRef.current?.focus();
   }
@@ -97,16 +112,20 @@ export function BudgetPreparationPreset({
   function setSuggestionSelected(key: string, selected: boolean) {
     if (isUnavailable(key) || isPending) return;
     setSelectedKeys((current) => {
-      const next = new Set([...current].filter((value) => availableKeys.has(value)));
+      const next = new Set(
+        [...current].filter((value) => availableKeys.has(value)),
+      );
       if (selected) next.add(key);
       else next.delete(key);
       return next;
     });
   }
 
-  function selectAllAvailable() {
+  function selectAllStandard() {
     if (isPending) return;
-    setSelectedKeys(new Set(availableKeys));
+    setSelectedKeys(
+      (current) => new Set([...current, ...standardAvailableKeys]),
+    );
   }
 
   function clearSelection() {
@@ -166,7 +185,7 @@ export function BudgetPreparationPreset({
             id={`${idPrefix}-description`}
             className="text-sm leading-6 text-stone-600"
           >
-            依 Drive 籌備階段列出常見項目；只會加入勾選內容，加入後會標示為待準備，之後可再編輯。
+            依 Drive 籌備階段列出常見項目；迎娶流程為選用，不會包含在一般項目的全選範圍。只會加入勾選內容，加入後可再編輯。
           </p>
 
           <div className="mt-5 flex min-w-0 flex-col gap-2 rounded-xl border border-[#cbd8ce] bg-[#f4faf5] p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -176,11 +195,15 @@ export function BudgetPreparationPreset({
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
-                disabled={isPending || selectedCount === availableItems.length}
-                onClick={selectAllAvailable}
+                disabled={
+                  isPending ||
+                  standardAvailableKeys.size === 0 ||
+                  allStandardSelected
+                }
+                onClick={selectAllStandard}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#789584] bg-white px-4 py-2 text-sm font-semibold text-[#405448] transition hover:bg-[#e8f2e9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#567260] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
-                全選可加入項目
+                全選一般項目
               </button>
               <button
                 type="button"
@@ -201,7 +224,7 @@ export function BudgetPreparationPreset({
             <legend className="sr-only">常見婚禮項目</legend>
             {BUDGET_PREPARATION_PRESET_STAGES.map((stage) => {
               const stageTitleId = `${idPrefix}-${stage.stageKey}-title`;
-              return (
+              const stageContent = (
                 <section
                   key={stage.stageKey}
                   role="group"
@@ -283,6 +306,42 @@ export function BudgetPreparationPreset({
                       </fieldset>
                     ))}
                   </div>
+                </section>
+              );
+              if (!stage.optional) return stageContent;
+
+              const optionalContentId = `${idPrefix}-${stage.stageKey}-optional`;
+              return (
+                <section
+                  key={stage.stageKey}
+                  className="min-w-0 rounded-2xl border border-dashed border-[#9bb1a2] bg-[#f4faf5] p-4 sm:p-5"
+                >
+                  <p className="text-xs font-semibold tracking-[0.12em] text-[#567260]">
+                    選用流程
+                  </p>
+                  <button
+                    type="button"
+                    aria-expanded={showOptionalSuggestions}
+                    aria-controls={optionalContentId}
+                    disabled={isPending}
+                    onClick={() =>
+                      setShowOptionalSuggestions((current) => !current)
+                    }
+                    className="mt-1 flex min-h-11 w-full items-center justify-between gap-3 rounded-xl text-left font-serif text-lg font-semibold text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#567260]"
+                  >
+                    <span>有迎娶流程？加入迎娶項目</span>
+                    <span aria-hidden="true">
+                      {showOptionalSuggestions ? "收合" : "展開"}
+                    </span>
+                  </button>
+                  <p className="mt-1 text-sm leading-6 text-stone-600">
+                    沒有迎娶流程時不需要加入；展開後再挑選實際會用到的項目。
+                  </p>
+                  {showOptionalSuggestions ? (
+                    <div id={optionalContentId} className="mt-4">
+                      {stageContent}
+                    </div>
+                  ) : null}
                 </section>
               );
             })}

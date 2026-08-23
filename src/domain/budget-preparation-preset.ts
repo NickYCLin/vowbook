@@ -117,6 +117,7 @@ export type BudgetPreparationPresetItem = Readonly<{
 export type BudgetPreparationPresetGroup = Readonly<{
   stageKey: BudgetPreparationStageKey;
   label: string;
+  optional?: true;
   items: readonly BudgetPreparationPresetItem[];
 }>;
 
@@ -390,6 +391,7 @@ export const BUDGET_PREPARATION_PRESET_GROUPS: readonly BudgetPreparationPresetG
   {
     stageKey: "STAGE_WEDDING_PROCESSION",
     label: "迎娶儀式用品、工作人員紅包",
+    optional: true,
     items: [
       {
         key: KEYS.PROCESSION_GROOM_ESCORT_GIFT,
@@ -503,6 +505,7 @@ export const BUDGET_PREPARATION_PRESET_STAGES =
     return {
       stageKey: stage.stageKey,
       label: stage.label,
+      optional: stage.optional ?? false,
       groups: [...itemsByTaxonomy].map(([taxonomyItemKey, items]) => ({
         taxonomyItemKey,
         label: BUDGET_TAXONOMY_NODE_BY_KEY[taxonomyItemKey].label,

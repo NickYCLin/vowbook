@@ -18,6 +18,9 @@ describe("budget preparation preset", () => {
     expect(
       BUDGET_PREPARATION_PRESET_GROUPS.map((stage) => stage.items.length),
     ).toEqual([14, 8, 9, 12, 18]);
+    expect(
+      BUDGET_PREPARATION_PRESET_GROUPS.map((stage) => stage.optional ?? false),
+    ).toEqual([false, false, false, false, true]);
     expect(allSuggestions).toHaveLength(61);
     expect(
       new Set(allSuggestions.map((item) => item.taxonomyItemKey)).size,
@@ -36,6 +39,17 @@ describe("budget preparation preset", () => {
     expect(serializedCatalog).not.toContain("STAGE_ENGAGEMENT_CEREMONY");
     expect(serializedCatalog).not.toContain("ITEM_ENGAGEMENT_GROOM");
     expect(serializedCatalog).not.toContain("ITEM_ENGAGEMENT_BRIDE");
+  });
+
+  it("keeps the wedding procession catalog opt-in", () => {
+    const processionStage = BUDGET_PREPARATION_PRESET_STAGES.find(
+      (stage) => stage.stageKey === "STAGE_WEDDING_PROCESSION",
+    );
+
+    expect(processionStage?.optional).toBe(true);
+    expect(
+      processionStage?.groups.flatMap((group) => group.items),
+    ).toHaveLength(18);
   });
 
   it("keeps proposal under 求婚 with exactly the six Drive source items", () => {
