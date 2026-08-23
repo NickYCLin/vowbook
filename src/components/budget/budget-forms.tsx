@@ -503,17 +503,26 @@ function BudgetFields({
           htmlFor={`${idPrefix}-candidate-vendors`}
           className="block font-medium text-ink"
         >
-          候選廠商或工作人員
+          候選廠商與比較紀錄
           <OptionalLabel />
         </label>
         <textarea
           id={`${idPrefix}-candidate-vendors`}
           name="candidateVendors"
-          rows={3}
+          rows={5}
+          aria-describedby={`${idPrefix}-candidate-vendors-help`}
+          placeholder="每行記錄一家，例如：廠商 A｜報價 NT$30,000｜優點：方案完整｜缺點：檔期較少"
           value={values.candidateVendors}
           onChange={(event) => onChange("candidateVendors", event.target.value)}
           className={`${fieldClassName} py-3`}
         />
+        <p
+          id={`${idPrefix}-candidate-vendors-help`}
+          className="mt-2 text-sm leading-6 text-ink-faint"
+        >
+          可分行記錄每家廠商的報價、方案內容、優點、缺點與比較結論；最多
+          1000 個字元。
+        </p>
       </div>
 
       <div className="grid min-w-0 gap-5 sm:grid-cols-2">

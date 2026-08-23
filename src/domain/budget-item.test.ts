@@ -220,7 +220,8 @@ describe("budget item domain contract", () => {
         balanceAmount: "34000",
         additionalAmount: "500",
         estimatedRange: "  NT$40,000 ～ NT$60,000  ",
-        candidateVendors: "  合成候選廠商 A\n合成候選廠商 B  ",
+        candidateVendors:
+          "  廠商 A｜報價 46,500｜優點：方案完整｜缺點：檔期較少\n廠商 B｜報價 42,000｜優點：價格較低｜缺點：成品較少  ",
         confirmedVendor: "  合成確認廠商  ",
         vendorContact: "  synthetic-contact@example.test  ",
         primaryContact: "PARTNER_A",
@@ -232,7 +233,8 @@ describe("budget item domain contract", () => {
       balanceAmount: 34000,
       additionalAmount: 500,
       estimatedRange: "NT$40,000 ～ NT$60,000",
-      candidateVendors: "合成候選廠商 A\n合成候選廠商 B",
+      candidateVendors:
+        "廠商 A｜報價 46,500｜優點：方案完整｜缺點：檔期較少\n廠商 B｜報價 42,000｜優點：價格較低｜缺點：成品較少",
       confirmedVendor: "合成確認廠商",
       vendorContact: "synthetic-contact@example.test",
       primaryContact: "PARTNER_A",
