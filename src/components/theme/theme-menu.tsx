@@ -1,8 +1,15 @@
 "use client";
 
 import { CaretDown } from "@phosphor-icons/react";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  type ChangeEvent,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { withBasePath } from "@/lib/base-path";
 import { cn } from "@/lib/class-names";
 import {
   DEFAULT_THEME_PREFERENCE,
@@ -35,14 +42,88 @@ function getThemePreferenceSnapshot(): ThemePreference {
   return getStoredThemePreference();
 }
 
+const MAX_AVATAR_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ACCEPTED_AVATAR_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+function AvatarVisual({
+  src,
+  initial,
+  className,
+  testId,
+  onError,
+}: {
+  src: string | null;
+  initial: string;
+  className: string;
+  testId?: string;
+  onError: () => void;
+}) {
+  if (src) {
+    return (
+      // This authenticated endpoint and the Google account URL must bypass
+      // Next's public image optimizer so cookies and remote-host rules remain intact.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt=""
+        src={src}
+        data-testid={testId}
+        referrerPolicy="no-referrer"
+        className={cn("shrink-0 rounded-full object-cover", className)}
+        onError={onError}
+      />
+    );
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-clay-soft font-serif font-semibold text-clay-strong",
+        className,
+      )}
+    >
+      {initial}
+    </span>
+  );
+}
+
+async function responseErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: unknown };
+    return typeof payload.error === "string" ? payload.error : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function ThemeMenu({
   displayName,
   initial,
+  googleAvatarUrl = null,
+  customAvatarUrl = null,
 }: {
   displayName: string;
   initial: string;
+  googleAvatarUrl?: string | null;
+  customAvatarUrl?: string | null;
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState(
+    customAvatarUrl ?? googleAvatarUrl,
+  );
+  const [hasCustomAvatar, setHasCustomAvatar] = useState(
+    customAvatarUrl !== null,
+  );
+  const [avatarPending, setAvatarPending] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState("");
   const preference = useSyncExternalStore(
     subscribeThemePreference,
     getThemePreferenceSnapshot,
@@ -75,18 +156,102 @@ export function ThemeMenu({
     persistThemePreference(nextPreference);
   };
 
+  const handleAvatarError = () => {
+    setAvatarUrl((current) =>
+      current === googleAvatarUrl ? null : googleAvatarUrl,
+    );
+  };
+
+  const uploadAvatar = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (!ACCEPTED_AVATAR_MEDIA_TYPES.has(file.type)) {
+      setAvatarMessage("頭像只支援 JPEG、PNG 或 WebP 圖片。");
+      return;
+    }
+    if (file.size === 0 || file.size > MAX_AVATAR_UPLOAD_BYTES) {
+      setAvatarMessage("頭像圖片必須小於 5 MiB，且不可為空檔。");
+      return;
+    }
+
+    setAvatarPending(true);
+    setAvatarMessage("");
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const response = await fetch(withBasePath("/api/profile/avatar"), {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData,
+      });
+      if (!response.ok) {
+        setAvatarMessage(
+          await responseErrorMessage(response, "目前無法更新頭像，請稍後再試。"),
+        );
+        return;
+      }
+
+      const payload = (await response.json()) as { updatedAt?: unknown };
+      if (typeof payload.updatedAt !== "string") {
+        setAvatarMessage("頭像已送出，但無法確認更新結果，請重新整理頁面。");
+        return;
+      }
+      setHasCustomAvatar(true);
+      setAvatarUrl(
+        withBasePath(
+          `/api/profile/avatar?v=${encodeURIComponent(payload.updatedAt)}`,
+        ),
+      );
+      setAvatarMessage("已更新自訂頭像。");
+    } catch {
+      setAvatarMessage("目前無法更新頭像，請檢查網路後再試。");
+    } finally {
+      setAvatarPending(false);
+    }
+  };
+
+  const restoreDefaultAvatar = async () => {
+    setAvatarPending(true);
+    setAvatarMessage("");
+    try {
+      const response = await fetch(withBasePath("/api/profile/avatar"), {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        setAvatarMessage(
+          await responseErrorMessage(response, "目前無法移除自訂頭像，請稍後再試。"),
+        );
+        return;
+      }
+      setHasCustomAvatar(false);
+      setAvatarUrl(googleAvatarUrl);
+      setAvatarMessage(
+        googleAvatarUrl
+          ? "已恢復使用 Google 帳號頭像。"
+          : "已移除自訂頭像，改用姓名縮寫。",
+      );
+    } catch {
+      setAvatarMessage("目前無法移除自訂頭像，請檢查網路後再試。");
+    } finally {
+      setAvatarPending(false);
+    }
+  };
+
   return (
     <details ref={detailsRef} className="group relative min-w-0 print:hidden">
       <summary
         aria-label={`開啟帳號與外觀選單，${displayName}，目前為${selectedThemeLabel}`}
         className="flex min-h-11 max-w-full list-none items-center gap-2 rounded-control px-1.5 text-caption text-ink-soft transition hover:bg-clay-soft/60 hover:text-ink focus-visible:outline-none [&::-webkit-details-marker]:hidden"
       >
-        <span
-          aria-hidden="true"
-          className="grid size-8 shrink-0 place-items-center rounded-full bg-clay-soft font-serif text-caption font-semibold text-clay-strong"
-        >
-          {initial}
-        </span>
+        <AvatarVisual
+          src={avatarUrl}
+          initial={initial}
+          className="size-8 text-caption"
+          testId="account-avatar-image"
+          onError={handleAvatarError}
+        />
         <span className="hidden max-w-28 truncate sm:block">
           {selectedThemeLabel}
         </span>
@@ -97,7 +262,71 @@ export function ThemeMenu({
         />
       </summary>
 
-      <div className="fixed top-[4.25rem] right-4 left-4 z-50 overflow-hidden rounded-card border border-line bg-surface text-ink shadow-overlay sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-[min(20rem,calc(100vw-2rem))]">
+      <div className="fixed top-[4.25rem] right-4 left-4 z-50 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-card border border-line bg-surface text-ink shadow-overlay sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-[min(20rem,calc(100vw-2rem))]">
+        <section aria-labelledby="avatar-heading" className="px-4 py-4">
+          <h2 id="avatar-heading" className="font-serif text-lg font-semibold">
+            帳號頭像
+          </h2>
+          <div className="mt-3 flex min-w-0 items-center gap-3">
+            <AvatarVisual
+              src={avatarUrl}
+              initial={initial}
+              className="size-14 text-lg"
+              onError={handleAvatarError}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{displayName}</p>
+              <p className="mt-0.5 text-xs text-ink-soft">
+                {hasCustomAvatar
+                  ? "目前使用自訂頭像"
+                  : googleAvatarUrl
+                    ? "使用 Google 帳號頭像"
+                    : "目前使用姓名縮寫"}
+              </p>
+            </div>
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="選擇自訂頭像"
+            className="sr-only"
+            disabled={avatarPending}
+            onChange={(event) => void uploadAvatar(event)}
+          />
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={avatarPending}
+              className="min-h-11 rounded-full border border-clay px-3 py-2 text-sm font-semibold text-clay-strong transition hover:bg-clay-soft disabled:cursor-wait disabled:opacity-60"
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              {hasCustomAvatar ? "更換頭像" : "上傳自訂頭像"}
+            </button>
+            {hasCustomAvatar ? (
+              <button
+                type="button"
+                disabled={avatarPending}
+                className="min-h-11 rounded-full border border-line px-3 py-2 text-sm font-semibold text-ink-soft transition hover:bg-surface-sunken hover:text-ink disabled:cursor-wait disabled:opacity-60"
+                onClick={() => void restoreDefaultAvatar()}
+              >
+                {googleAvatarUrl ? "恢復 Google 頭像" : "移除自訂頭像"}
+              </button>
+            ) : null}
+          </div>
+          <p
+            aria-live="polite"
+            className={cn(
+              "mt-2 min-h-5 text-xs",
+              avatarMessage ? "text-ink-soft" : "text-ink-faint",
+            )}
+          >
+            {avatarPending
+              ? "正在處理頭像…"
+              : avatarMessage || "支援 JPEG、PNG、WebP，檔案上限 5 MiB。"}
+          </p>
+        </section>
+        <div className="border-t border-line" />
         <fieldset
           aria-label="外觀主題"
           className="min-w-0 border-0 px-3.5 py-4"
