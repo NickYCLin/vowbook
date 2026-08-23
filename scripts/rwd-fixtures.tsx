@@ -51,7 +51,9 @@ function AppShell({
           </span>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <ThemeMenu displayName={LONG_EMAIL} initial="誓" />
-            <SignOutButton variant="ghost" className="hidden sm:inline-flex" />
+            <span className="hidden sm:block">
+              <SignOutButton variant="ghost" />
+            </span>
           </div>
         </div>
       </header>
