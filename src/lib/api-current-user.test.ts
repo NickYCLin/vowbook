@@ -17,6 +17,10 @@ const user = {
   email: "canonical@example.com",
   name: "既有使用者",
   image: null,
+  accessStatus: "ACTIVE" as const,
+  accessStatusChangedAt: null,
+  lastLoginAt: null,
+  version: 0,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

@@ -28,6 +28,9 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-12\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-13\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-14\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-15\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-16\)/);
+    expect(runner).toContain("userAccessMigration");
     expect(runner).toContain("avatarMigration");
     expect(runner).toContain("guestDetailsMigration");
     expect(runner).toContain("taskSidesMigration");
@@ -113,6 +116,7 @@ describe("PostgreSQL canonical integration runner", () => {
   it("runs Guest RSVP PostgreSQL invariants in the canonical fresh-chain gate", () => {
     expect(runner).toContain("src/test/postgres-guest-rsvp.integration.test.ts");
     expect(runner).toContain("src/test/postgres-profile-avatar.integration.test.ts");
+    expect(runner).toContain("src/test/postgres-user-access.integration.test.ts");
   });
 
   it("runs workspace invitation races and preserves prior-head invitation state", () => {
@@ -123,6 +127,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("workspaceInvitations !== 0");
     expect(runner).toContain("migration_name = ${priorHeadMigration}");
     expect(runner).toContain("migration_name = ${guestDetailsMigration}");
+    expect(runner).toContain("migration_name = ${userAccessMigration}");
     expect(runner).toContain(
       "preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP",
     );
@@ -135,11 +140,18 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 30");
+    expect(runner).toContain("migrationEntries.length !== 31");
+    expect(runner).toContain(
+      'userAccessMigration !== "20260824004000_user_access_admin"',
+    );
     expect(runner).toContain(
       'guestDetailsMigration !==\n    "20260823155000_guest_details_invitation_reply_optional"',
     );
     expect(runner).toContain("priorHeadPosition !== 16");
+    expect(runner).toContain('storedPriorUser?.accessStatus !== "ACTIVE"');
+    expect(runner).toContain("storedPriorUser?.accessStatusChangedAt !== null");
+    expect(runner).toContain("storedPriorUser?.lastLoginAt !== null");
+    expect(runner).toContain("storedPriorUser?.version !== 0");
     expect(runner).toContain("priorGuestSnapshotSelect");
     expect(runner).toContain("select: priorGuestSnapshotSelect");
     expect(runner).toContain(

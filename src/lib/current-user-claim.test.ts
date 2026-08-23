@@ -5,6 +5,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
 import {
   hasPendingInvitationAfterProof,
+  isGoogleSubjectAllowedToSignIn,
   resolveCurrentUserIdentity,
   resolveCurrentUserIdentityWithClaims,
 } from "./current-user-claim";
@@ -36,6 +37,10 @@ function transactionClient({
     email: "invitee@example.com",
     name: "受邀者",
     image: null,
+    accessStatus: "ACTIVE" as const,
+    accessStatusChangedAt: null,
+    lastLoginAt: null,
+    version: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -43,6 +48,7 @@ function transactionClient({
     user: {
       findUnique: vi.fn().mockResolvedValue(existingUser),
       upsert: vi.fn().mockResolvedValue(user),
+      update: vi.fn().mockResolvedValue(user),
     },
     $queryRaw: vi
       .fn()
@@ -128,6 +134,10 @@ describe("current-user DB-clock invitation claim", () => {
         image: null,
       },
     });
+    expect(tx.user.update).toHaveBeenCalledWith({
+      where: { id: "user_1" },
+      data: { lastLoginAt: new Date("2026-07-29T02:01:00.000Z") },
+    });
     expect(tx.membership.createMany).toHaveBeenCalledOnce();
     expect(tx.membership.createMany).toHaveBeenCalledWith({
       data: [
@@ -195,6 +205,40 @@ describe("current-user DB-clock invitation claim", () => {
     expect(tx.membership.createMany).not.toHaveBeenCalled();
   });
 
+  it("never refreshes profile data or accepts invitations for a blocked account", async () => {
+    const blockedUser = {
+      id: "user_blocked",
+      googleSubject: "google_123",
+      email: "blocked@example.com",
+      name: "已停權",
+      image: null,
+      accessStatus: "SUSPENDED",
+      accessStatusChangedAt: new Date(),
+      lastLoginAt: new Date(),
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const { client, tx } = transactionClient({ existingUser: blockedUser });
+
+    await expect(
+      resolveCurrentUserIdentityWithClaims(
+        {
+          googleSubject: "google_123",
+          emailVerifiedAt: proof,
+          email: "new@example.com",
+          name: "不應更新",
+          image: null,
+        },
+        client,
+      ),
+    ).resolves.toEqual({ acceptedInvitationCount: 0, user: blockedUser });
+    expect(tx.user.upsert).not.toHaveBeenCalled();
+    expect(tx.user.update).not.toHaveBeenCalled();
+    expect(tx.membership.createMany).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalledOnce();
+  });
+
   it("bulk-creates memberships with one bounded create query", async () => {
     const claims = [
       { id: "invitation_1", workspace_id: "workspace_1", role: "PARTNER" as const },
@@ -224,6 +268,27 @@ describe("current-user DB-clock invitation claim", () => {
         role: claim.role,
       })),
       skipDuplicates: true,
+    });
+  });
+});
+
+describe("Google subject sign-in status gate", () => {
+  it.each([
+    [null, true],
+    [{ accessStatus: "ACTIVE" }, true],
+    [{ accessStatus: "SUSPENDED" }, false],
+    [{ accessStatus: "REMOVED" }, false],
+  ])("allows only new or active identities", async (record, allowed) => {
+    const findUnique = vi.fn().mockResolvedValue(record);
+
+    await expect(
+      isGoogleSubjectAllowedToSignIn("google_123", {
+        user: { findUnique },
+      } as unknown as PrismaClient),
+    ).resolves.toBe(allowed);
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { googleSubject: "google_123" },
+      select: { accessStatus: true },
     });
   });
 });

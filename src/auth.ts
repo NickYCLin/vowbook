@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { NextAuthOptions, Profile } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { getBasePath, withBasePath } from "@/lib/base-path";
-import { resolveCurrentUserIdentityWithClaims } from "@/lib/current-user-claim";
+import {
+  isGoogleSubjectAllowedToSignIn,
+  resolveCurrentUserIdentityWithClaims,
+} from "@/lib/current-user-claim";
 import { prisma } from "@/lib/prisma";
 
 function hasVerifiedGoogleEmail(profile: Profile | undefined): boolean {
@@ -95,11 +98,16 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ account, profile }) {
-      return Boolean(
+      const hasVerifiedIdentity = Boolean(
         account?.provider === "google" &&
           account.providerAccountId &&
           hasVerifiedGoogleEmail(profile),
       );
+      if (!hasVerifiedIdentity || !account?.providerAccountId) {
+        return false;
+      }
+
+      return isGoogleSubjectAllowedToSignIn(account.providerAccountId);
     },
     async jwt({ token, account, profile, user, trigger, session }) {
       const issuedNotice = token.invitationNotice;
@@ -137,6 +145,9 @@ export const authOptions: NextAuthOptions = {
           });
           if (!resolution.user) {
             throw new Error("Verified Google identity could not be persisted.");
+          }
+          if (resolution.user.accessStatus !== "ACTIVE") {
+            throw new Error("Account access blocked.");
           }
 
           const completedAt = performance.now();

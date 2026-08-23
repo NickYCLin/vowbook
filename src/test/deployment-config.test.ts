@@ -70,6 +70,9 @@ describe("production container contract", () => {
     expect(appService).toContain("image: vowbook:local");
     expect(appService).toContain("container_name: vowbook-app");
     expect(appService).toContain(
+      "env_file:\n      - path: .env.admin\n        required: false",
+    );
+    expect(appService).toContain(
       'ports:\n      - "127.0.0.1:${VOWBOOK_PORT:-3000}:3000"',
     );
     expect(appService).toContain("condition: service_healthy");

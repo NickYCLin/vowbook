@@ -97,6 +97,7 @@ describe("WorkspaceInvitation Prisma and migration contract", () => {
       "20260822130000_wedding_task_sides",
       "20260823153000_user_profile_avatar",
       "20260823155000_guest_details_invitation_reply_optional",
+      "20260824004000_user_access_admin",
     ]);
   });
 

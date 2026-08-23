@@ -1,6 +1,7 @@
 "use client";
 
 import { CaretDown } from "@phosphor-icons/react";
+import Link from "next/link";
 import {
   type ChangeEvent,
   useEffect,
@@ -108,11 +109,13 @@ export function ThemeMenu({
   initial,
   googleAvatarUrl = null,
   customAvatarUrl = null,
+  adminHref = null,
 }: {
   displayName: string;
   initial: string;
   googleAvatarUrl?: string | null;
   customAvatarUrl?: string | null;
+  adminHref?: string | null;
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -376,6 +379,16 @@ export function ThemeMenu({
             只套用在這台裝置
           </p>
         </fieldset>
+        {adminHref ? (
+          <div className="border-t border-line p-2">
+            <Link
+              href={adminHref}
+              className="flex min-h-11 w-full items-center rounded-control px-4 text-sm font-semibold text-ink-soft transition hover:bg-clay-soft hover:text-ink"
+            >
+              使用者管理
+            </Link>
+          </div>
+        ) : null}
         <div className="border-t border-line p-2">
           <SignOutButton
             variant="ghost"

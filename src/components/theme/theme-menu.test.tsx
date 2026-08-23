@@ -42,6 +42,27 @@ describe("ThemeMenu", () => {
     expect(screen.getByText("只套用在這台裝置")).toBeVisible();
   });
 
+  it("shows the private system-admin entry only when the server authorizes it", () => {
+    const { rerender } = render(
+      <ThemeMenu displayName="合成使用者" initial="合" />,
+    );
+    expect(
+      screen.queryByRole("link", { name: "使用者管理" }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <ThemeMenu
+        displayName="合成使用者"
+        initial="合"
+        adminHref="/admin/users"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "使用者管理" })).toHaveAttribute(
+      "href",
+      "/admin/users",
+    );
+  });
+
   it("persists and immediately applies the selected device theme", () => {
     render(<ThemeMenu displayName="合成使用者" initial="合" />);
 

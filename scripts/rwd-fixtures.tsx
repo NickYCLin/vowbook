@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "@/app/page";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { SystemUserList } from "@/components/admin/system-user-list";
 import { BudgetList } from "@/components/budget/budget-list";
 import SignInPage from "@/app/signin/page";
 import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-form";
@@ -281,6 +282,54 @@ const budgetSummary = {
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
+  {
+    name: "system-admin-users",
+    element: (
+      <AppShell>
+        <main className="mx-auto w-full max-w-6xl min-w-0 px-5 py-6 sm:px-8 sm:py-12">
+          <header className="min-w-0">
+            <p className="text-eyebrow font-semibold text-clay uppercase">
+              系統管理
+            </p>
+            <h1 className="mt-2 font-serif text-2xl font-semibold text-ink sm:text-3xl">
+              使用者管理
+            </h1>
+            <p className="mt-2 max-w-3xl text-caption leading-6 text-ink-soft sm:text-base">
+              查看目前使用這個 VowBook 環境的帳號、最近登入與婚宴成員關係。
+            </p>
+          </header>
+          <SystemUserList
+            users={Array.from({ length: 4 }, (_, index) => ({
+              id: `rwd_user_${index}`,
+              email: index === 0 ? LONG_EMAIL : `user-${index}@example.test`,
+              name: index === 0 ? LONG_NAME : `合成使用者 ${index}`,
+              image: null,
+              accessStatus: (["ACTIVE", "SUSPENDED", "REMOVED", "ACTIVE"] as const)[index],
+              accessStatusChangedAt:
+                index === 0 ? null : "2026-08-23T01:00:00.000Z",
+              lastLoginAt:
+                index === 2 ? null : "2026-08-24T01:00:00.000Z",
+              version: index,
+              createdAt: "2026-08-01T01:00:00.000Z",
+              systemAdmin: index === 0,
+              memberships:
+                index === 2
+                  ? []
+                  : [
+                      {
+                        role: index === 0 ? ("OWNER" as const) : ("PLANNER" as const),
+                        workspace: {
+                          id: `rwd_admin_workspace_${index}`,
+                          name: `${LONG_NAME.slice(0, 42)}的婚宴工作區`,
+                        },
+                      },
+                    ],
+            }))}
+          />
+        </main>
+      </AppShell>
+    ),
+  },
   {
     name: "dashboard",
     element: (
