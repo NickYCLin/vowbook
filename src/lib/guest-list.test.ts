@@ -75,6 +75,7 @@ describe("listGuestsForWorkspace", () => {
           partySize: 2,
           notes: null,
           seatingTable: null,
+          details: null,
           importRecords: [
             {
               provenanceKey: "viewer_record_formstack",
@@ -206,6 +207,19 @@ describe("listGuestsForWorkspace", () => {
 
     const result = await listGuestsForWorkspace("workspace_1");
     expect(result.guests).toHaveLength(1);
+    expect(result.guests[0].details).toEqual({
+      relationshipLabel: "PII_RELATIONSHIP_SENTINEL",
+      contactPhone: "PII_PHONE_SENTINEL",
+      contactEmail: "PII_EMAIL_SENTINEL",
+      ceremonyAttendance: false,
+      childSeatCount: 0,
+      vegetarianCount: 0,
+      invitationDelivery: "UNKNOWN",
+      mailingAddress: null,
+      guestMessage: "PII_MESSAGE_SENTINEL",
+      attendanceReply: "PII_ATTENDANCE_SENTINEL",
+      invitationReply: null,
+    });
     expect(result.guests[0].importRecords).toEqual([
       {
         provenanceKey: "editor_record_formstack",
@@ -260,6 +274,7 @@ describe("listGuestsForWorkspace", () => {
       select: {
         id: true,
         source: true,
+        sourceInstance: true,
         sourceLabel: true,
         sourceManaged: true,
         managedFields: true,
@@ -283,6 +298,86 @@ describe("listGuestsForWorkspace", () => {
     expect(query.select.importRecords.select).not.toHaveProperty("workspaceId");
     expect(query.select.importRecords.select).not.toHaveProperty("createdAt");
     expect(query.select.importRecords.select).not.toHaveProperty("updatedAt");
+  });
+
+  it("uses manually edited details ahead of imported provenance", async () => {
+    requireWorkspaceAccess.mockResolvedValue({
+      role: "OWNER",
+      workspace: { id: "workspace_1", name: "我們的婚宴" },
+    });
+    findMany.mockResolvedValue([
+      {
+        id: "guest_1",
+        version: 2,
+        name: "已人工修正",
+        category: "GUEST",
+        side: "SHARED",
+        attendanceStatus: "ATTENDING",
+        partySize: 2,
+        notes: null,
+        seatingTable: null,
+        importRecords: [
+          {
+            id: "linein_record",
+            source: "LINEIN",
+            sourceInstance: "default",
+            sourceLabel: "拍拍印",
+            sourceManaged: true,
+            managedFields: ["NAME"],
+            sourcePartySize: 2,
+            relationshipLabel: "舊關係",
+            contactPhone: "0900-000-000",
+            contactEmail: null,
+            ceremonyAttendance: true,
+            childSeatCount: null,
+            vegetarianCount: null,
+            invitationDelivery: null,
+            mailingAddress: null,
+            guestMessage: null,
+            attendanceReply: null,
+            invitationReply: null,
+            sourceSubmittedAt: null,
+          },
+          {
+            id: "manual_record",
+            source: "MANUAL",
+            sourceInstance: "guest-details",
+            sourceLabel: "自行填寫",
+            sourceManaged: false,
+            managedFields: [],
+            sourcePartySize: null,
+            relationshipLabel: "目前關係",
+            contactPhone: null,
+            contactEmail: "new@example.test",
+            ceremonyAttendance: false,
+            childSeatCount: 0,
+            vegetarianCount: 1,
+            invitationDelivery: "DIGITAL",
+            mailingAddress: null,
+            guestMessage: "目前留言",
+            attendanceReply: "目前回覆",
+            invitationReply: "已傳送",
+            sourceSubmittedAt: null,
+          },
+        ],
+      },
+    ]);
+
+    const result = await listGuestsForWorkspace("workspace_1");
+
+    expect(result.guests[0].details).toEqual({
+      relationshipLabel: "目前關係",
+      contactPhone: null,
+      contactEmail: "new@example.test",
+      ceremonyAttendance: false,
+      childSeatCount: 0,
+      vegetarianCount: 1,
+      invitationDelivery: "DIGITAL",
+      mailingAddress: null,
+      guestMessage: "目前留言",
+      attendanceReply: "目前回覆",
+      invitationReply: "已傳送",
+    });
   });
 
   it("resolves each guest's table number from the workspace seating order", async () => {

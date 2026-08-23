@@ -17,7 +17,7 @@ import {
   EditGuestForm,
 } from "./guest-forms";
 import type {
-  GuestImportDetailsDto,
+  GuestDetailsDto,
   GuestListItemDto,
 } from "@/lib/guest-list";
 import { Badge, BadgeDot, type BadgeTone } from "@/components/ui/badge";
@@ -50,7 +50,7 @@ type GuestListProps = {
 };
 
 type InvitationDelivery = Exclude<
-  GuestImportDetailsDto["invitationDelivery"],
+  GuestDetailsDto["invitationDelivery"],
   null
 >;
 
@@ -70,26 +70,7 @@ function ceremonyLabel(value: boolean): string {
   return value ? "出席" : "不出席";
 }
 
-function submittedAtLabel(value: Date): string {
-  return new Intl.DateTimeFormat("zh-TW", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Taipei",
-  }).format(value);
-}
-
-function ImportDetails({
-  sourceLabel,
-  details,
-}: {
-  sourceLabel: string;
-  details: GuestImportDetailsDto;
-}) {
-  const hasVisibleDetails = Object.values(details).some((value) => value !== null);
-  const submittedAt = details.sourceSubmittedAt
-    ? new Date(details.sourceSubmittedAt)
-    : null;
-
+function GuestDetails({ details }: { details: GuestDetailsDto }) {
   return (
     <details className="group mt-1 min-w-0">
       <summary className="inline-flex min-h-11 w-fit max-w-full cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-caption font-semibold break-words text-clay-strong transition hover:bg-clay-soft [&::-webkit-details-marker]:hidden">
@@ -105,14 +86,9 @@ function ImportDetails({
         >
           <path d="M6 3l5 5-5 5" />
         </svg>
-        {sourceLabel}匯入明細
+        聯絡與回覆資料
       </summary>
-      {!hasVisibleDetails ? (
-        <p className="mt-3 text-caption leading-6 text-ink-soft">
-          此來源未提供可顯示的明細。
-        </p>
-      ) : (
-        <dl className="mt-3 grid min-w-0 gap-x-6 gap-y-3 rounded-control border border-line bg-surface-sunken p-4 text-caption sm:grid-cols-[8rem_minmax(0,1fr)]">
+      <dl className="mt-3 grid min-w-0 gap-x-6 gap-y-3 rounded-control border border-line bg-surface-sunken p-4 text-caption sm:grid-cols-[8rem_minmax(0,1fr)]">
           {details.contactPhone && (
             <>
               <dt className="font-semibold text-ink">聯絡電話</dt>
@@ -133,7 +109,7 @@ function ImportDetails({
 
           {details.relationshipLabel && (
             <>
-              <dt className="font-semibold text-ink">原始關係</dt>
+              <dt className="font-semibold text-ink">關係補充</dt>
               <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
                 {details.relationshipLabel}
               </dd>
@@ -142,19 +118,10 @@ function ImportDetails({
 
           {details.attendanceReply && (
             <>
-              <dt className="font-semibold text-ink">原始出席回覆</dt>
+              <dt className="font-semibold text-ink">出席回覆補充</dt>
               <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
                 {details.attendanceReply}
               </dd>
-            </>
-          )}
-
-          {details.sourcePartySize !== null && (
-            <>
-              <dt className="font-semibold text-ink">
-                來源邀請人數（含本人）
-              </dt>
-              <dd className="text-ink-soft">{details.sourcePartySize} 位</dd>
             </>
           )}
 
@@ -209,18 +176,7 @@ function ImportDetails({
             </>
           )}
 
-          {submittedAt && (
-            <>
-              <dt className="font-semibold text-ink">提交時間</dt>
-              <dd className="text-ink-soft">
-                <time dateTime={submittedAt.toISOString()}>
-                  {submittedAtLabel(submittedAt)}
-                </time>
-              </dd>
-            </>
-          )}
-        </dl>
-      )}
+      </dl>
     </details>
   );
 }
@@ -239,55 +195,6 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
   const [seatingFilter, setSeatingFilter] = useState<
     "ALL" | "ASSIGNED" | "UNASSIGNED"
   >("ALL");
-  const sourceSummaries = useMemo(() => {
-    const summaries = new Map<
-      string,
-      {
-        source: string;
-        sourceLabel: string;
-        groups: number;
-        attendingGroups: number;
-        attendingPartySize: number;
-        declinedGroups: number;
-        undecidedGroups: number;
-      }
-    >();
-
-    for (const guest of guests) {
-      if (guest.category !== "GUEST") continue;
-      const countedSources = new Set<string>();
-      for (const record of guest.importRecords) {
-        if (countedSources.has(record.source)) {
-          continue;
-        }
-        countedSources.add(record.source);
-
-        const summary = summaries.get(record.source) ?? {
-          source: record.source,
-          sourceLabel: record.sourceLabel,
-          groups: 0,
-          attendingGroups: 0,
-          attendingPartySize: 0,
-          declinedGroups: 0,
-          undecidedGroups: 0,
-        };
-        summary.groups += 1;
-        if (guest.attendanceStatus === "ATTENDING") {
-          summary.attendingGroups += 1;
-          summary.attendingPartySize += guest.partySize;
-        } else if (guest.attendanceStatus === "DECLINED") {
-          summary.declinedGroups += 1;
-        } else {
-          summary.undecidedGroups += 1;
-        }
-        summaries.set(record.source, summary);
-      }
-    }
-
-    return Array.from(summaries.values()).sort((left, right) =>
-      left.source.localeCompare(right.source),
-    );
-  }, [guests]);
   const totals = useMemo(() => {
     let generalGuestGroups = 0;
     let generalRespondedGroups = 0;
@@ -479,18 +386,6 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                     }
                   />
                 </StatRow>
-              {sourceSummaries.length > 0 && (
-                <div className="mt-4 space-y-1 border-t border-line pt-4">
-                  {sourceSummaries.map((summary) => (
-                    <p
-                      key={summary.source}
-                      className="text-caption leading-6 break-words text-ink-soft"
-                    >
-                      {`${summary.sourceLabel}：${summary.groups} 組 · 出席 ${summary.attendingGroups} 組／${summary.attendingPartySize} 位 · 不出席 ${summary.declinedGroups} 組${summary.undecidedGroups > 0 ? ` · 尚未確認 ${summary.undecidedGroups} 組` : ""}`}
-                    </p>
-                  ))}
-                </div>
-              )}
             </div>
           </Card>
         )}
@@ -689,11 +584,6 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                                 {GUEST_CATEGORY_LABELS[guest.category]}
                               </Badge>
                             ) : null}
-                            {guest.importRecords.map((record) => (
-                              <Badge key={record.provenanceKey} tone="neutral">
-                                {record.sourceLabel}
-                              </Badge>
-                            ))}
                             <Badge
                               tone={attendanceTones[guest.attendanceStatus]}
                             >
@@ -713,6 +603,7 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                                 attendanceStatus={guest.attendanceStatus}
                                 partySize={guest.partySize}
                                 notes={guest.notes}
+                                details={guest.details}
                                 onSuccess={announceFeedback}
                                 managedFields={Array.from(
                                   new Set(
@@ -729,11 +620,8 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                                 guestId={guest.id}
                                 expectedVersion={guest.version}
                                 name={guest.name}
-                                importSources={guest.importRecords.map(
-                                  (record) => ({
-                                    sourceLabel: record.sourceLabel,
-                                    sourceManaged: record.sourceManaged,
-                                  }),
+                                hasManagedImportSource={guest.importRecords.some(
+                                  (record) => record.sourceManaged,
                                 )}
                               />
                             </div>
@@ -746,21 +634,15 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                           </p>
                         )}
 
-                        {guest.importRecords.map((record) =>
-                          record.details ? (
-                            <ImportDetails
-                              key={record.provenanceKey}
-                              sourceLabel={record.sourceLabel}
-                              details={record.details}
-                            />
-                          ) : null,
-                        )}
+                        {guest.details ? (
+                          <GuestDetails details={guest.details} />
+                        ) : null}
 
                         {guest.importRecords.some(
                           (record) => record.details === null,
                         ) && (
                           <p className="mt-1 text-caption leading-6 text-ink-faint">
-                            聯絡與留言限可編輯成員查看
+                            聯絡與回覆資料限可編輯成員查看
                           </p>
                         )}
                       </article>

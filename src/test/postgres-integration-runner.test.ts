@@ -29,6 +29,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-13\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-14\)/);
     expect(runner).toContain("avatarMigration");
+    expect(runner).toContain("guestDetailsMigration");
     expect(runner).toContain("taskSidesMigration");
     expect(runner).toContain("rosterCategoriesMigration");
     expect(runner).toContain("duplicateNamesMigration");
@@ -121,6 +122,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("upgradedClient.workspaceInvitation.count");
     expect(runner).toContain("workspaceInvitations !== 0");
     expect(runner).toContain("migration_name = ${priorHeadMigration}");
+    expect(runner).toContain("migration_name = ${guestDetailsMigration}");
     expect(runner).toContain(
       "preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP",
     );
@@ -133,7 +135,10 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 29");
+    expect(runner).toContain("migrationEntries.length !== 30");
+    expect(runner).toContain(
+      'guestDetailsMigration !==\n    "20260823155000_guest_details_invitation_reply_optional"',
+    );
     expect(runner).toContain("priorHeadPosition !== 16");
     expect(runner).toContain("priorGuestSnapshotSelect");
     expect(runner).toContain("select: priorGuestSnapshotSelect");

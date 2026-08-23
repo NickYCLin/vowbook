@@ -111,8 +111,23 @@ const guestFixture = (
     index % 2 === 0
       ? { number: index + 1, name: `宴客桌 ${index + 1}` }
       : null,
-  // 匯入來源的賓客那一列會多掛一顆來源徽章，名單改成表格排版之後這一列最容易
-  // 把徽章欄撐爆，稽核要有樣本。
+  // 聯絡與回覆資料可來自匯入或人工補充；畫面統一用一般賓客欄位呈現。
+  details:
+    index === 1
+      ? {
+          relationshipLabel: "大學同學",
+          contactPhone: "0900-000-000",
+          contactEmail: "guest@example.com",
+          ceremonyAttendance: true,
+          childSeatCount: 0,
+          vegetarianCount: 1,
+          invitationDelivery: "DIGITAL" as const,
+          mailingAddress: LONG_URL_ISH,
+          guestMessage: LONG_NAME,
+          attendanceReply: "會出席",
+          invitationReply: "已收到",
+        }
+      : null,
   importRecords:
     index === 1
       ? [

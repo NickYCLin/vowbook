@@ -22,16 +22,14 @@ vi.mock("@/components/guests/guest-forms", () => ({
   ),
   DeleteGuestForm: ({
     name,
-    importSources,
+    hasManagedImportSource,
   }: {
     name: string;
-    importSources: Array<{ sourceLabel: string; sourceManaged: boolean }>;
+    hasManagedImportSource: boolean;
   }) => (
     <button>
       刪除 {name}{" "}
-      {importSources.length > 0
-        ? importSources.map((source) => source.sourceLabel).join("+")
-        : "人工"}
+      {hasManagedImportSource ? "匯入" : "一般"}
     </button>
   ),
 }));
@@ -49,6 +47,7 @@ const guest = {
   partySize: 2,
   notes: "需要兒童椅",
   seatingTable: { number: 1, name: "主桌" },
+  details: null,
   importRecords: [],
   createdAt: new Date("2026-07-22T00:00:00.000Z"),
   updatedAt: new Date("2026-07-22T00:00:00.000Z"),
@@ -139,7 +138,7 @@ describe("GuestList", () => {
       screen.getByRole("button", { name: "編輯 王小明" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "刪除 王小明 人工" }),
+      screen.getByRole("button", { name: "刪除 王小明 一般" }),
     ).toBeInTheDocument();
   });
 
@@ -200,7 +199,7 @@ describe("GuestList", () => {
     expect(screen.getByText("顯示 3 / 3 筆")).toBeInTheDocument();
   });
 
-  it("combines filters without changing per-source canonical Guest totals", () => {
+  it("combines filters without exposing source-specific labels", () => {
     const importedAttending = {
       ...guest,
       id: "guest_imported_attending",
@@ -272,12 +271,8 @@ describe("GuestList", () => {
 
     expect(screen.getByRole("heading", { name: "合成乙" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "合成甲" })).not.toBeInTheDocument();
-    expect(
-      screen.getByText("拍拍印：2 組 · 出席 1 組／2 位 · 不出席 1 組"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("合成表單：1 組 · 出席 1 組／2 位 · 不出席 0 組"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
   });
 
   it("distinguishes no filter results from an empty source collection", () => {
@@ -351,7 +346,7 @@ describe("GuestList", () => {
     expect(screen.getByText("桌次：尚未安排")).toBeInTheDocument();
   });
 
-  it("shows VIEWER every source aggregate and marker but never receives PII details", () => {
+  it("gives VIEWER a generic privacy marker without source brands or PII details", () => {
     const importedGuest = {
       ...guest,
       id: "guest_imported",
@@ -408,16 +403,10 @@ describe("GuestList", () => {
       />,
     );
 
+    expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
     expect(
-      screen.getByText("拍拍印：2 組 · 出席 1 組／3 位 · 不出席 1 組"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("合成表單：1 組 · 出席 0 組／0 位 · 不出席 1 組"),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText("拍拍印")).toHaveLength(2);
-    expect(screen.getByText("合成表單")).toBeInTheDocument();
-    expect(
-      screen.getAllByText("聯絡與留言限可編輯成員查看"),
+      screen.getAllByText("聯絡與回覆資料限可編輯成員查看"),
     ).toHaveLength(2);
     expect(container.querySelector("details")).toBeNull();
     expect(container).not.toHaveTextContent("PII_PHONE_SENTINEL");
@@ -427,10 +416,23 @@ describe("GuestList", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("shows source-labelled editor details and passes exact managed fields to edit", () => {
+  it("shows one generic editable detail section and keeps provenance internal", () => {
     const importedGuest = {
       ...guest,
       id: "guest_imported",
+      details: {
+        relationshipLabel: "大學  同學\n同社團",
+        contactPhone: "0900-000-000",
+        contactEmail: "guest@example.test",
+        ceremonyAttendance: false,
+        childSeatCount: 1,
+        vegetarianCount: 0,
+        invitationDelivery: "UNKNOWN" as const,
+        mailingAddress: null,
+        guestMessage: "祝福新人",
+        attendanceReply: "不克出席，但仍希望收到喜餅",
+        invitationReply: null,
+      },
       importRecords: [
         {
           provenanceKey: "editor-formstack",
@@ -491,10 +493,10 @@ describe("GuestList", () => {
       />,
     );
 
-    const details = screen.getByText("拍拍印匯入明細").closest("details");
+    const details = screen.getByText("聯絡與回覆資料").closest("details");
     expect(details).not.toBeNull();
     expect(details).not.toHaveAttribute("open");
-    expect(screen.getByText("拍拍印匯入明細")).toHaveClass("min-h-11");
+    expect(screen.getByText("聯絡與回覆資料")).toHaveClass("min-h-11");
     const importedDetails = within(details as HTMLElement);
     expect(
       importedDetails.getByText("不克出席，但仍希望收到喜餅"),
@@ -507,21 +509,16 @@ describe("GuestList", () => {
     ).find((element) => element.textContent === "大學  同學\n同社團");
     expect(relationshipValue).toHaveClass("whitespace-pre-wrap");
     expect(importedDetails.getByText("0900-000-000")).toBeInTheDocument();
-    expect(importedDetails.getByText("來源邀請人數（含本人）")).toBeInTheDocument();
-    expect(importedDetails.getByText("2 位")).toBeInTheDocument();
     expect(importedDetails.getByText("祝福新人")).toBeInTheDocument();
     expect(importedDetails.getByText("未填寫")).toBeInTheDocument();
-    expect(
-      within(
-        screen.getByText("合成表單匯入明細").closest("details") as HTMLElement,
-      ).getByText("此來源未提供可顯示的明細。"),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "編輯 王小明" })).toHaveAttribute(
       "data-managed-fields",
       "NAME,SIDE,ATTENDANCE_STATUS",
     );
     expect(
-      screen.getByRole("button", { name: "刪除 王小明 合成表單+拍拍印" }),
+      screen.getByRole("button", { name: "刪除 王小明 匯入" }),
     ).toBeInTheDocument();
     expect(container).not.toHaveTextContent("externalId");
   });
