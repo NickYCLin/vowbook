@@ -25,7 +25,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Wordmark href="/dashboard" />
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <ThemeMenu displayName={displayName} initial={initial} />
-            <SignOutButton variant="ghost" className="hidden sm:inline-flex" />
+            <span className="hidden sm:block">
+              <SignOutButton variant="ghost" />
+            </span>
           </div>
         </div>
       </header>

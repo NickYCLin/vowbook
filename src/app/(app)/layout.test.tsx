@@ -45,6 +45,9 @@ describe("AppLayout", () => {
     expect(
       screen.getByText("外觀主題：合成使用者"),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "登出" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "登出" }).closest("span")).toHaveClass(
+      "hidden",
+      "sm:block",
+    );
   });
 });
