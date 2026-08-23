@@ -12,6 +12,11 @@ vi.mock("@/auth", () => ({ authOptions: {} }));
 vi.mock("@/components/auth/sign-out-button", () => ({
   SignOutButton: () => <button>登出</button>,
 }));
+vi.mock("@/components/theme/theme-menu", () => ({
+  ThemeMenu: ({ displayName }: { displayName: string }) => (
+    <button>外觀主題：{displayName}</button>
+  ),
+}));
 
 import AppLayout from "./layout";
 
@@ -37,5 +42,9 @@ describe("AppLayout", () => {
       "px-5",
       "sm:px-8",
     );
+    expect(
+      screen.getByText("外觀主題：合成使用者"),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "登出" })).toBeVisible();
   });
 });

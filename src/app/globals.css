@@ -76,6 +76,120 @@
   --shadow-overlay: 0 24px 70px -20px rgba(58, 42, 30, 0.45);
 }
 
+/*
+ * 個人外觀主題
+ * -----------------------------------------------------------------
+ * Tailwind utility 都引用同一組語意 token；切換 data-theme 就能讓整個
+ * VowBook 一起換色，而不是在各頁逐一覆寫 class。未儲存偏好的使用者仍
+ * 使用原本的誓約紙本色票。
+ */
+:root,
+html[data-theme="vowbook-paper"] {
+  --vowbook-paper-rule: rgba(112, 89, 70, 0.028);
+  --vowbook-dialog-backdrop: rgba(48, 36, 27, 0.42);
+  --vowbook-selection: #dec5b0;
+}
+
+html[data-theme="morning-mist"] {
+  --color-paper: #f4f6f2;
+  --color-paper-deep: #e8eeeb;
+  --color-surface: #fbfcfa;
+  --color-surface-sunken: #edf1ef;
+  --color-ink: #26342e;
+  --color-ink-soft: #5f6f68;
+  --color-ink-faint: #83918b;
+  --color-line: #d6ded9;
+  --color-line-strong: #b9c8c1;
+  --color-clay: #587565;
+  --color-clay-strong: #3f5f50;
+  --color-clay-soft: #e4eee9;
+  --color-sage: #716987;
+  --color-sage-soft: #eeebf3;
+  --color-positive: #456b56;
+  --color-positive-soft: #e3eee7;
+  --color-caution: #8b692d;
+  --color-caution-soft: #f7edd8;
+  --color-danger: #984d4d;
+  --color-danger-soft: #f7e7e7;
+  --shadow-card:
+    0 1px 2px rgba(48, 70, 61, 0.04),
+    0 10px 28px -18px rgba(48, 70, 61, 0.26);
+  --shadow-raise:
+    0 2px 4px rgba(48, 70, 61, 0.05),
+    0 18px 40px -20px rgba(48, 70, 61, 0.32);
+  --shadow-overlay: 0 24px 70px -20px rgba(34, 52, 44, 0.36);
+  --vowbook-paper-rule: rgba(73, 104, 91, 0.025);
+  --vowbook-dialog-backdrop: rgba(30, 48, 40, 0.38);
+  --vowbook-selection: #c9ddd3;
+}
+
+html[data-theme="forest-vow"] {
+  --color-paper: #f4f0e6;
+  --color-paper-deep: #e8e2d4;
+  --color-surface: #fffdf8;
+  --color-surface-sunken: #ede9dc;
+  --color-ink: #17271e;
+  --color-ink-soft: #536158;
+  --color-ink-faint: #7f8a82;
+  --color-line: #d8d5c8;
+  --color-line-strong: #bfc4b5;
+  --color-clay: #2d6246;
+  --color-clay-strong: #1e4933;
+  --color-clay-soft: #e1ebe3;
+  --color-sage: #747956;
+  --color-sage-soft: #ececdd;
+  --color-positive: #3e684b;
+  --color-positive-soft: #e2eee4;
+  --color-caution: #876520;
+  --color-caution-soft: #f5ead0;
+  --color-danger: #95483e;
+  --color-danger-soft: #f5e4df;
+  --shadow-card:
+    0 1px 2px rgba(31, 69, 48, 0.05),
+    0 10px 28px -18px rgba(31, 69, 48, 0.28);
+  --shadow-raise:
+    0 2px 4px rgba(31, 69, 48, 0.06),
+    0 18px 40px -20px rgba(31, 69, 48, 0.36);
+  --shadow-overlay: 0 24px 70px -20px rgba(19, 43, 30, 0.42);
+  --vowbook-paper-rule: rgba(65, 91, 70, 0.026);
+  --vowbook-dialog-backdrop: rgba(22, 46, 32, 0.4);
+  --vowbook-selection: #c5d6c8;
+}
+
+html[data-theme="starlit-reception"] {
+  color-scheme: dark;
+  --color-paper: #0b1830;
+  --color-paper-deep: #0f203d;
+  --color-surface: #142440;
+  --color-surface-sunken: #1a2b49;
+  --color-ink: #f6eddc;
+  --color-ink-soft: #c9d0de;
+  --color-ink-faint: #91a0b6;
+  --color-line: #334761;
+  --color-line-strong: #56677e;
+  --color-clay: #92a8e1;
+  --color-clay-strong: #cbd6f5;
+  --color-clay-soft: #253a67;
+  --color-sage: #a7c4af;
+  --color-sage-soft: #20382e;
+  --color-positive: #acd0b4;
+  --color-positive-soft: #1f3a2c;
+  --color-caution: #e5c576;
+  --color-caution-soft: #3e341b;
+  --color-danger: #f0a59a;
+  --color-danger-soft: #482824;
+  --shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 12px 30px -20px rgba(0, 0, 0, 0.72);
+  --shadow-raise:
+    0 2px 4px rgba(0, 0, 0, 0.24),
+    0 20px 44px -22px rgba(0, 0, 0, 0.82);
+  --shadow-overlay: 0 26px 72px -18px rgba(0, 0, 0, 0.8);
+  --vowbook-paper-rule: rgba(184, 198, 226, 0.035);
+  --vowbook-dialog-backdrop: rgba(1, 7, 18, 0.68);
+  --vowbook-selection: #465d91;
+}
+
 /* 間距節奏：頁面區塊之間的標準留白 */
 @theme {
   --spacing-gutter: 1.25rem;
@@ -105,7 +219,7 @@ body {
   overflow-x: hidden;
   /* 紙張的橫線紋理：淡到只在大面積留白處才感覺得到 */
   background:
-    linear-gradient(rgba(112, 89, 70, 0.028) 1px, transparent 1px),
+    linear-gradient(var(--vowbook-paper-rule) 1px, transparent 1px),
     var(--color-paper);
   background-size: 100% 2rem;
   color: var(--color-ink);
@@ -128,7 +242,7 @@ summary {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(138, 93, 66, 0.32);
+  outline: 3px solid color-mix(in srgb, var(--color-clay) 38%, transparent);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -140,7 +254,7 @@ summary {
 
 /* Dialog 背景遮罩 */
 dialog::backdrop {
-  background: rgba(48, 36, 27, 0.42);
+  background: var(--vowbook-dialog-backdrop);
   backdrop-filter: blur(2px);
 }
 
@@ -168,5 +282,5 @@ dialog[open] {
 }
 
 ::selection {
-  background: #dec5b0;
+  background: var(--vowbook-selection);
 }
