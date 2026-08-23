@@ -16,6 +16,34 @@ describe("Prisma schema contract", () => {
     expect(schema).toMatch(/enum MembershipRole\s*{/);
   });
 
+  it("stores one private custom avatar per user with bounded binary data", () => {
+    const schema = fs.readFileSync(schemaPath, "utf8");
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260823153000_user_profile_avatar",
+        "migration.sql",
+      ),
+      "utf8",
+    );
+
+    expect(schema).toMatch(/model UserAvatar\s*\{/u);
+    expect(schema).toMatch(/userId\s+String\s+@id\s+@map\("user_id"\)/u);
+    expect(schema).toMatch(/user\s+User\s+@relation\([^\n]*onDelete:\s*Cascade/u);
+    expect(migration).toContain('CREATE TABLE "user_avatars"');
+    expect(migration).toContain('PRIMARY KEY ("user_id")');
+    expect(migration).toContain('CHECK ("media_type" = \'image/webp\')');
+    expect(migration).toMatch(/"byte_size" BETWEEN 1 AND 1048576/u);
+    expect(migration).toContain('octet_length("data") = "byte_size"');
+    expect(migration).toContain(
+      '"sha256" = encode(sha256("data"), \'hex\')',
+    );
+    expect(migration).toContain("convert_to('WEBP', 'UTF8')");
+    expect(migration).toMatch(/FOREIGN KEY \("user_id"\)[\s\S]*ON DELETE CASCADE/u);
+  });
+
   it("cascades workspace memberships without cascading workspace ownership", () => {
     const schema = fs.readFileSync(schemaPath, "utf8");
 

@@ -27,6 +27,8 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-11\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-12\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-13\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-14\)/);
+    expect(runner).toContain("avatarMigration");
     expect(runner).toContain("taskSidesMigration");
     expect(runner).toContain("rosterCategoriesMigration");
     expect(runner).toContain("duplicateNamesMigration");
@@ -109,6 +111,7 @@ describe("PostgreSQL canonical integration runner", () => {
 
   it("runs Guest RSVP PostgreSQL invariants in the canonical fresh-chain gate", () => {
     expect(runner).toContain("src/test/postgres-guest-rsvp.integration.test.ts");
+    expect(runner).toContain("src/test/postgres-profile-avatar.integration.test.ts");
   });
 
   it("runs workspace invitation races and preserves prior-head invitation state", () => {
@@ -130,10 +133,13 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 28");
+    expect(runner).toContain("migrationEntries.length !== 29");
     expect(runner).toContain("priorHeadPosition !== 16");
     expect(runner).toContain("priorGuestSnapshotSelect");
     expect(runner).toContain("select: priorGuestSnapshotSelect");
+    expect(runner).toContain(
+      'avatarMigration !== "20260823153000_user_profile_avatar"',
+    );
     expect(runner).toContain(
       'taskSidesMigration !== "20260822130000_wedding_task_sides"',
     );
@@ -188,9 +194,12 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("migration_name = ${floorPlanMigration}");
     expect(runner).toContain("migration_name = ${rosterCategoriesMigration}");
     expect(runner).toContain("migration_name = ${taskSidesMigration}");
+    expect(runner).toContain("migration_name = ${avatarMigration}");
     expect(runner).toContain("appliedDuplicateNames");
     expect(runner).toContain("appliedRosterCategories");
     expect(runner).toContain("appliedTaskSides");
+    expect(runner).toContain("appliedAvatar");
+    expect(runner).toContain("userAvatars !== 0");
     expect(runner).toContain('storedGuest?.category !== "GUEST"');
     expect(runner).toContain("duplicateNameIndexes");
     expect(runner).toContain("seating_tables_workspace_id_name_key");

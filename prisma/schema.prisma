@@ -117,6 +117,7 @@ model User {
   email                     String
   name                      String?
   image                     String?
+  avatar                    UserAvatar?
   createdAt                 DateTime           @default(now()) @map("created_at")
   updatedAt                 DateTime           @updatedAt @map("updated_at")
   createdWorkspaces         WeddingWorkspace[] @relation("WorkspaceCreator")
@@ -127,6 +128,19 @@ model User {
 
   @@index([email], map: "users_email_idx")
   @@map("users")
+}
+
+model UserAvatar {
+  userId    String   @id @map("user_id")
+  data      Bytes
+  mediaType String   @db.VarChar(40) @map("media_type")
+  byteSize  Int      @map("byte_size")
+  sha256    String   @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_avatars")
 }
 
 model WeddingWorkspace {

@@ -95,6 +95,7 @@ describe("WorkspaceInvitation Prisma and migration contract", () => {
       "20260817120000_seating_table_duplicate_names",
       "20260822120000_guest_roster_categories",
       "20260822130000_wedding_task_sides",
+      "20260823153000_user_profile_avatar",
     ]);
   });
 
