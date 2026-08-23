@@ -129,8 +129,8 @@ describe("GuestList", () => {
       <GuestList workspaceId="workspace_1" guests={[guest]} canEdit />,
     );
 
-    // 新增入口已移到頁面標題列，清單內不再有展開式表單。
-    expect(container.querySelector("details")).toBeNull();
+    // 新增入口已移到頁面標題列；特殊需求可以展開，但清單內不再藏新增表單。
+    expect(container.querySelector('details form[aria-label="新增名單成員表單"]')).toBeNull();
     expect(
       screen.queryByRole("button", { name: "新增賓客表單" }),
     ).not.toBeInTheDocument();
@@ -332,6 +332,144 @@ describe("GuestList", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1/2")).toBeInTheDocument();
     expect(screen.getByText("未安排 1 筆")).toBeInTheDocument();
+  });
+
+  it("summarises child-seat and vegetarian needs with the people who need them", () => {
+    const details = (childSeatCount: number, vegetarianCount: number) => ({
+      relationshipLabel: null,
+      contactPhone: null,
+      contactEmail: null,
+      ceremonyAttendance: null,
+      childSeatCount,
+      vegetarianCount,
+      invitationDelivery: null,
+      mailingAddress: null,
+      guestMessage: null,
+      attendanceReply: null,
+      invitationReply: null,
+    });
+
+    render(
+      <GuestList
+        workspaceId="workspace_1"
+        guests={[
+          {
+            ...guest,
+            id: "confirmed-parent",
+            name: "已確認家庭",
+            details: details(2, 1),
+          },
+          {
+            ...guest,
+            id: "confirmed-family",
+            name: "新人家人",
+            category: "FAMILY",
+            partySize: 1,
+            details: details(0, 2),
+          },
+          {
+            ...guest,
+            id: "pending-parent",
+            name: "待確認家庭",
+            attendanceStatus: "UNDECIDED",
+            seatingTable: null,
+            details: details(1, 1),
+          },
+          {
+            ...guest,
+            id: "declined-parent",
+            name: "不出席家庭",
+            attendanceStatus: "DECLINED",
+            seatingTable: null,
+            details: details(5, 6),
+          },
+        ]}
+        canEdit
+      />,
+    );
+
+    const requirements = screen.getByRole("region", {
+      name: "宴席特殊需求",
+    });
+    expect(
+      within(requirements).getByText(
+        "總數包含已確認出席與尚未確認；不出席不計入。",
+      ),
+    ).toBeInTheDocument();
+
+    const childSeats = within(requirements)
+      .getByText("兒童座椅需求")
+      .closest("details");
+    expect(childSeats).not.toBeNull();
+    expect(within(childSeats as HTMLElement).getByText("3 張")).toBeInTheDocument();
+    expect(
+      within(childSeats as HTMLElement).getByText(
+        "已確認 2 張 · 待確認 1 張",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(childSeats as HTMLElement).getByText("已確認家庭"),
+    ).toBeInTheDocument();
+    expect(
+      within(childSeats as HTMLElement).getByText("待確認家庭"),
+    ).toBeInTheDocument();
+    expect(
+      within(childSeats as HTMLElement).queryByText("不出席家庭"),
+    ).not.toBeInTheDocument();
+
+    const vegetarian = within(requirements)
+      .getByText("素食餐需求")
+      .closest("details");
+    expect(vegetarian).not.toBeNull();
+    expect(within(vegetarian as HTMLElement).getByText("4 位")).toBeInTheDocument();
+    expect(
+      within(vegetarian as HTMLElement).getByText(
+        "已確認 3 位 · 待確認 1 位",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(vegetarian as HTMLElement).getByText("已確認家庭"),
+    ).toBeInTheDocument();
+    expect(
+      within(vegetarian as HTMLElement).getByText("新人家人"),
+    ).toBeInTheDocument();
+    expect(
+      within(vegetarian as HTMLElement).getByText("待確認家庭"),
+    ).toBeInTheDocument();
+    expect(
+      within(vegetarian as HTMLElement).queryByText("不出席家庭"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps special-requirement totals private for VIEWER", () => {
+    render(
+      <GuestList
+        workspaceId="workspace_1"
+        guests={[
+          {
+            ...guest,
+            details: {
+              relationshipLabel: null,
+              contactPhone: null,
+              contactEmail: null,
+              ceremonyAttendance: null,
+              childSeatCount: 2,
+              vegetarianCount: 1,
+              invitationDelivery: null,
+              mailingAddress: null,
+              guestMessage: null,
+              attendanceReply: null,
+              invitationReply: null,
+            },
+          },
+        ]}
+        canEdit={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("region", { name: "宴席特殊需求" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a clear unassigned label when a guest has no table", () => {

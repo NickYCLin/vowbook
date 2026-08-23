@@ -181,6 +181,148 @@ function GuestDetails({ details }: { details: GuestDetailsDto }) {
   );
 }
 
+type GuestRequirementNeed = {
+  id: string;
+  name: string;
+  count: number;
+};
+
+type GuestRequirementSummary = {
+  total: number;
+  confirmedTotal: number;
+  pendingTotal: number;
+  confirmedGuests: GuestRequirementNeed[];
+  pendingGuests: GuestRequirementNeed[];
+};
+
+function summariseRequirement(
+  guests: readonly GuestListItem[],
+  field: "childSeatCount" | "vegetarianCount",
+): GuestRequirementSummary {
+  const confirmedGuests: GuestRequirementNeed[] = [];
+  const pendingGuests: GuestRequirementNeed[] = [];
+
+  for (const guest of guests) {
+    if (guest.attendanceStatus === "DECLINED") continue;
+    const count = guest.details?.[field] ?? 0;
+    if (count <= 0) continue;
+
+    const need = { id: guest.id, name: guest.name, count };
+    if (guest.attendanceStatus === "ATTENDING") {
+      confirmedGuests.push(need);
+    } else {
+      pendingGuests.push(need);
+    }
+  }
+
+  const confirmedTotal = confirmedGuests.reduce(
+    (total, guest) => total + guest.count,
+    0,
+  );
+  const pendingTotal = pendingGuests.reduce(
+    (total, guest) => total + guest.count,
+    0,
+  );
+
+  return {
+    total: confirmedTotal + pendingTotal,
+    confirmedTotal,
+    pendingTotal,
+    confirmedGuests,
+    pendingGuests,
+  };
+}
+
+function RequirementGuestGroup({
+  title,
+  guests,
+  unit,
+}: {
+  title: string;
+  guests: readonly GuestRequirementNeed[];
+  unit: string;
+}) {
+  if (guests.length === 0) return null;
+
+  return (
+    <div>
+      <h4 className="text-caption font-semibold text-ink-soft">{title}</h4>
+      <ul className="mt-2 divide-y divide-line rounded-control border border-line bg-surface">
+        {guests.map((guest) => (
+          <li
+            key={guest.id}
+            className="flex min-w-0 items-center justify-between gap-4 px-3.5 py-2.5 text-caption"
+          >
+            <span className="min-w-0 break-words text-ink">{guest.name}</span>
+            <span className="shrink-0 font-semibold tabular-nums text-ink-soft">
+              {guest.count} {unit}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RequirementSummary({
+  label,
+  unit,
+  summary,
+}: {
+  label: string;
+  unit: string;
+  summary: GuestRequirementSummary;
+}) {
+  return (
+    <details className="group min-w-0 rounded-control border border-line bg-surface-sunken">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-control px-4 py-3 transition hover:bg-clay-soft/50 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <p className="font-serif text-body font-semibold text-ink">{label}</p>
+          <p className="mt-0.5 text-caption text-ink-soft">
+            已確認 {summary.confirmedTotal} {unit} · 待確認 {summary.pendingTotal}{" "}
+            {unit}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="font-serif text-xl font-semibold tabular-nums text-clay-strong">
+            {summary.total} {unit}
+          </p>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-4 text-ink-faint transition-transform group-open:rotate-90"
+          >
+            <path d="M6 3l5 5-5 5" />
+          </svg>
+        </div>
+      </summary>
+      <div className="space-y-4 border-t border-line px-4 py-4">
+        {summary.total === 0 ? (
+          <p className="text-caption text-ink-faint">目前沒有登記需求。</p>
+        ) : (
+          <>
+            <RequirementGuestGroup
+              title="已確認出席"
+              guests={summary.confirmedGuests}
+              unit={unit}
+            />
+            <RequirementGuestGroup
+              title="尚未確認出席"
+              guests={summary.pendingGuests}
+              unit={unit}
+            />
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
   const [feedback, setFeedback] = useState<GuestFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
@@ -245,6 +387,13 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
       seatedEntries,
     };
   }, [guests]);
+  const requirements = useMemo(
+    () => ({
+      childSeats: summariseRequirement(guests, "childSeatCount"),
+      vegetarianMeals: summariseRequirement(guests, "vegetarianCount"),
+    }),
+    [guests],
+  );
   const filteredGuests = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
 
@@ -389,6 +538,39 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
             </div>
           </Card>
         )}
+
+        {guests.length > 0 && canEdit ? (
+          <Card className="mb-4">
+            <section
+              aria-labelledby="guest-requirements-heading"
+              className="px-5 py-5 sm:px-6"
+            >
+              <div>
+                <h3
+                  id="guest-requirements-heading"
+                  className="font-serif text-title font-semibold text-ink"
+                >
+                  宴席特殊需求
+                </h3>
+                <p className="mt-1 text-caption leading-6 text-ink-soft">
+                  總數包含已確認出席與尚未確認；不出席不計入。
+                </p>
+              </div>
+              <div className="mt-4 grid min-w-0 gap-3 @3xl:grid-cols-2">
+                <RequirementSummary
+                  label="兒童座椅需求"
+                  unit="張"
+                  summary={requirements.childSeats}
+                />
+                <RequirementSummary
+                  label="素食餐需求"
+                  unit="位"
+                  summary={requirements.vegetarianMeals}
+                />
+              </div>
+            </section>
+          </Card>
+        ) : null}
 
         {guests.length === 0 ? (
           <EmptyState
