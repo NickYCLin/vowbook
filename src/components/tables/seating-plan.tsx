@@ -43,6 +43,7 @@ type SeatingGuest = {
   name: string;
   partySize: number;
   side: GuestSideValue;
+  notes: string | null;
 };
 
 type SeatingTableItem = {
@@ -515,6 +516,11 @@ export function SeatingPlan({
                                   <p className="text-caption font-medium break-words text-ink">
                                     {guest.name}・{guest.partySize} 位
                                   </p>
+                                  {guest.notes ? (
+                                    <p className="mt-1 text-caption leading-5 break-words whitespace-pre-wrap text-ink-soft">
+                                      備註：{guest.notes}
+                                    </p>
+                                  ) : null}
                                   {canEdit && (
                                     <UnassignGuestForm
                                       workspaceId={workspaceId}

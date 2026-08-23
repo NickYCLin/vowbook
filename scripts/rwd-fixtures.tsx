@@ -375,6 +375,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 name: LONG_NAME.slice(0, 24),
                 partySize: 6,
                 side: "PARTNER_A" as const,
+                notes: index === 0 ? "素食，需兒童椅\n靠近走道" : null,
               },
               {
                 id: `seated_${index}_b`,
@@ -382,6 +383,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 partySize: 3,
                 // 混坐的桌子在圖上要標成「共同」，稽核要有這個樣本。
                 side: index === 0 ? ("PARTNER_B" as const) : ("PARTNER_A" as const),
+                notes: null,
               },
             ],
           }))}
@@ -618,6 +620,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                   name: LONG_NAME.slice(0, 24),
                   partySize: 6,
                   side: "SHARED" as const,
+                  notes: LONG_URL_ISH,
                 },
               ],
             },
@@ -708,6 +711,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                       side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[
                         (index / 3) % 3
                       ],
+                      notes: null,
                     },
                     {
                       id: `plan_seated_${index}_b`,
@@ -716,6 +720,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                       side: (["PARTNER_A", "PARTNER_B", "PARTNER_A"] as const)[
                         (index / 3) % 3
                       ],
+                      notes: null,
                     },
                   ]
                 : [],
@@ -757,6 +762,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                       side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[
                         (index / 3) % 3
                       ],
+                      notes: null,
                     },
                   ]
                 : [],
