@@ -305,6 +305,14 @@ async function main() {
           "a[href], button, summary, input, select, textarea",
         )) {
           if (isInsideClosedDialog(element)) continue;
+          // 隱藏欄位與 sr-only 檔案選擇器由可見 label/button 觸發，
+          // 1px 是無障礙隱藏契約，不是使用者要直接點擊的目標。
+          if (
+            element instanceof HTMLInputElement &&
+            (element.type === "hidden" || element.classList.contains("sr-only"))
+          ) {
+            continue;
+          }
           const rect = element.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) continue;
           if (rect.height >= 43.5) continue;

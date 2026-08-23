@@ -99,12 +99,31 @@ Compose 會等待 PostgreSQL healthy、完成一次性 prisma migrate deploy，�
 | GOOGLE_CLIENT_ID | Google OAuth Client ID |
 | GOOGLE_CLIENT_SECRET | Google OAuth Client Secret |
 | AUTH_SECRET | NextAuth JWT／cookie 簽章秘密 |
+| VOWBOOK_ADMIN_EMAIL_HASHES | 系統管理者信箱正規化後的 SHA-256；可用逗號分隔多位管理者，未設定時不開放管理後台 |
 | NEXT_PUBLIC_BASE_PATH | host 本機 build/runtime base path |
 | NEXTAUTH_URL | host 本機 NextAuth canonical API URL |
 | VOWBOOK_BASE_PATH | Compose build/runtime base path |
 | VOWBOOK_NEXTAUTH_URL | Compose 對外 NextAuth canonical API URL |
 | VOWBOOK_DATABASE_URL | Compose 容器內 PostgreSQL URL |
 | TEST_DATABASE_URL | 僅供隔離 PostgreSQL integration tests 使用的 localhost 測試資料庫 |
+
+### 系統管理者與使用者存取
+
+一般 Google 使用者仍可直接註冊，建立後的帳號狀態預設為 `ACTIVE`。只有信箱雜湊列在 `VOWBOOK_ADMIN_EMAIL_HASHES` 的使用中帳號，才會在帳號選單看到「使用者管理」並能開啟 `/admin/users`。未授權帳號直接存取該路徑會得到 404，管理者本身也不能被後台停權或移除。
+
+管理後台提供註冊時間、最近登入、工作區與成員角色，並支援三種可逆狀態：
+
+- `ACTIVE`：可正常登入；新註冊預設使用此狀態。
+- `SUSPENDED`：暫時停權，既有 session 會在下一次頁面或 API 請求失效。
+- `REMOVED`：撤銷登入權限，但保留婚宴資料與成員紀錄，之後可恢復。
+
+請先將管理者 Google 信箱去除前後空白、轉為小寫，再計算 SHA-256。Docker 部署可把雜湊寫入不會提交的 `.env.admin`：
+
+```text
+VOWBOOK_ADMIN_EMAIL_HASHES="replace-with-64-character-lowercase-sha256"
+```
+
+Compose 會在檔案存在時把 `.env.admin` 只載入 app container；沒有設定或格式錯誤時管理後台會維持關閉。多位管理者可用逗號分隔雜湊。本機直接執行 `npm run dev` 時，則把相同變數放在被 git 忽略的 `.env.local` 或 shell 環境。
 
 ## 驗證
 

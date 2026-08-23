@@ -7,8 +7,12 @@ import { Wordmark } from "@/components/brand/wordmark";
 import { ThemeMenu } from "@/components/theme/theme-menu";
 import { safeGoogleAvatarUrl } from "@/domain/profile-avatar";
 import { getSignInPath, withBasePath } from "@/lib/base-path";
-import { resolveCurrentUser } from "@/lib/current-user";
+import {
+  AccountAccessBlockedError,
+  resolveCurrentUser,
+} from "@/lib/current-user";
 import { findProfileAvatarUpdatedAt } from "@/lib/profile-avatar";
+import { isSystemAdmin } from "@/lib/system-admin";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -17,7 +21,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     redirect(getSignInPath("/dashboard"));
   }
 
-  const currentUser = await resolveCurrentUser(session);
+  let currentUser;
+  try {
+    currentUser = await resolveCurrentUser(session);
+  } catch (error) {
+    if (error instanceof AccountAccessBlockedError) {
+      redirect("/signin?error=AccessDenied");
+    }
+    throw error;
+  }
   const customAvatarUpdatedAt = await findProfileAvatarUpdatedAt(currentUser.id);
   const googleAvatarUrl = safeGoogleAvatarUrl(
     currentUser.image ?? session.user.image,
@@ -42,6 +54,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               initial={initial}
               googleAvatarUrl={googleAvatarUrl}
               customAvatarUrl={customAvatarUrl}
+              adminHref={isSystemAdmin(currentUser) ? "/admin/users" : null}
             />
             <span className="hidden sm:block">
               <SignOutButton variant="ghost" />

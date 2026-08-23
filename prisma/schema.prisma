@@ -14,6 +14,12 @@ enum MembershipRole {
   VIEWER
 }
 
+enum UserAccessStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
 enum WorkspaceInvitationStatus {
   PENDING
   ACCEPTED
@@ -118,6 +124,10 @@ model User {
   name                      String?
   image                     String?
   avatar                    UserAvatar?
+  accessStatus              UserAccessStatus   @default(ACTIVE) @map("access_status")
+  accessStatusChangedAt     DateTime?          @db.Timestamptz(3) @map("access_status_changed_at")
+  lastLoginAt               DateTime?          @db.Timestamptz(3) @map("last_login_at")
+  version                   Int                @default(0)
   createdAt                 DateTime           @default(now()) @map("created_at")
   updatedAt                 DateTime           @updatedAt @map("updated_at")
   createdWorkspaces         WeddingWorkspace[] @relation("WorkspaceCreator")
@@ -127,6 +137,7 @@ model User {
   workspaceInvitationsAccepted WorkspaceInvitation[] @relation("WorkspaceInvitationAccepter")
 
   @@index([email], map: "users_email_idx")
+  @@index([accessStatus, createdAt], map: "users_access_status_created_at_idx")
   @@map("users")
 }
 

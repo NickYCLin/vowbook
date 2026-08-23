@@ -11,6 +11,9 @@ services:
     mem_limit: 1g
     pids_limit: 128
     restart: unless-stopped
+    env_file:
+      - path: .env.admin
+        required: false
     depends_on:
       postgres:
         condition: service_healthy

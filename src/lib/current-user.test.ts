@@ -26,6 +26,7 @@ vi.mock("@/lib/current-user-claim", () => ({
 }));
 
 import {
+  AccountAccessBlockedError,
   AuthenticationRequiredError,
   requireCurrentUser,
   requireCurrentUserContext,
@@ -38,6 +39,10 @@ const user = {
   email: "canonical@example.com",
   name: "王小明",
   image: null,
+  accessStatus: "ACTIVE" as const,
+  accessStatusChangedAt: null,
+  lastLoginAt: null,
+  version: 0,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -131,6 +136,28 @@ describe("redirect-neutral current-user resolver", () => {
       AuthenticationRequiredError,
     );
   });
+
+  it.each(["SUSPENDED", "REMOVED"] as const)(
+    "rejects an existing %s account even when its signed session is still valid",
+    async (accessStatus) => {
+      const completedSession = {
+        ...session,
+        user: {
+          ...session.user,
+          googleInvitationClaimCompletedAt:
+            session.user.googleEmailVerifiedAt,
+        },
+      };
+      findCurrentUserByGoogleSubject.mockResolvedValueOnce({
+        ...user,
+        accessStatus,
+      });
+
+      await expect(resolveCurrentUser(completedSession)).rejects.toBeInstanceOf(
+        AccountAccessBlockedError,
+      );
+    },
+  );
 });
 
 describe("requireCurrentUser page adapter", () => {
@@ -184,5 +211,24 @@ describe("requireCurrentUser page adapter", () => {
     getServerSession.mockResolvedValueOnce(session);
     resolveCurrentUserIdentity.mockRejectedValueOnce(databaseFailure);
     await expect(requireCurrentUser()).rejects.toBe(databaseFailure);
+  });
+
+  it("redirects a blocked existing session to the safe access-denied sign-in state", async () => {
+    const completedSession = {
+      ...session,
+      user: {
+        ...session.user,
+        googleInvitationClaimCompletedAt:
+          session.user.googleEmailVerifiedAt,
+      },
+    };
+    getServerSession.mockResolvedValue(completedSession);
+    findCurrentUserByGoogleSubject.mockResolvedValueOnce({
+      ...user,
+      accessStatus: "SUSPENDED",
+    });
+
+    await expect(requireCurrentUser()).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/signin?error=AccessDenied");
   });
 });

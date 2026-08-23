@@ -19,6 +19,13 @@ export class AuthenticationRequiredError extends Error {
   }
 }
 
+export class AccountAccessBlockedError extends Error {
+  constructor() {
+    super("Account access blocked.");
+    this.name = "AccountAccessBlockedError";
+  }
+}
+
 export async function resolveCurrentUser(
   session: Session | null,
 ): Promise<User> {
@@ -50,6 +57,9 @@ export async function resolveCurrentUser(
   if (!currentUser) {
     throw new AuthenticationRequiredError();
   }
+  if (currentUser.accessStatus !== "ACTIVE") {
+    throw new AccountAccessBlockedError();
+  }
   return currentUser;
 }
 
@@ -75,6 +85,10 @@ export async function requireCurrentUserContext(): Promise<CurrentUserContext> {
       pendingInvitationConfirmation,
     };
   } catch (error) {
+    if (error instanceof AccountAccessBlockedError) {
+      redirect("/signin?error=AccessDenied");
+    }
+
     if (error instanceof AuthenticationRequiredError) {
       redirect(getSignInPath("/dashboard"));
     }
@@ -89,6 +103,10 @@ export async function requireCurrentUser(): Promise<User> {
   try {
     return await resolveCurrentUser(session);
   } catch (error) {
+    if (error instanceof AccountAccessBlockedError) {
+      redirect("/signin?error=AccessDenied");
+    }
+
     if (error instanceof AuthenticationRequiredError) {
       redirect(getSignInPath("/dashboard"));
     }

@@ -4,6 +4,7 @@ import type { User } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import {
+  AccountAccessBlockedError,
   AuthenticationRequiredError,
   resolveCurrentUser,
 } from "@/lib/current-user";
@@ -14,7 +15,10 @@ export async function getApiCurrentUser(): Promise<User | null> {
   try {
     return await resolveCurrentUser(session);
   } catch (error) {
-    if (error instanceof AuthenticationRequiredError) {
+    if (
+      error instanceof AuthenticationRequiredError ||
+      error instanceof AccountAccessBlockedError
+    ) {
       return null;
     }
     throw error;

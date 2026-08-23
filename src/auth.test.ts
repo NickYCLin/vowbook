@@ -1,7 +1,12 @@
 import type { NextAuthOptions } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { queryRaw, resolveCurrentUserIdentityWithClaims } = vi.hoisted(() => ({
+const {
+  isGoogleSubjectAllowedToSignIn,
+  queryRaw,
+  resolveCurrentUserIdentityWithClaims,
+} = vi.hoisted(() => ({
+  isGoogleSubjectAllowedToSignIn: vi.fn(),
   queryRaw: vi.fn(),
   resolveCurrentUserIdentityWithClaims: vi.fn(),
 }));
@@ -10,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { $queryRaw: queryRaw },
 }));
 vi.mock("@/lib/current-user-claim", () => ({
+  isGoogleSubjectAllowedToSignIn,
   resolveCurrentUserIdentityWithClaims,
 }));
 
@@ -114,6 +120,8 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+isGoogleSubjectAllowedToSignIn.mockResolvedValue(true);
+
 describe("NextAuth base path config", () => {
   it("keeps the custom sign-in page under /VowBook", async () => {
     vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/VowBook");
@@ -151,6 +159,15 @@ describe("NextAuth base path config", () => {
 describe("NextAuth Google sign-in verification gate", () => {
   it("allows a Google account with a non-empty verified profile email", async () => {
     await expect(runSignIn()).resolves.toBe(true);
+    expect(isGoogleSubjectAllowedToSignIn).toHaveBeenCalledWith(
+      "google_subject",
+    );
+  });
+
+  it("rejects a suspended or removed Google subject before issuing a session", async () => {
+    isGoogleSubjectAllowedToSignIn.mockResolvedValueOnce(false);
+
+    await expect(runSignIn()).resolves.toBe(false);
   });
 
   it("rejects an unverified or unverifiable Google profile", async () => {
@@ -214,7 +231,7 @@ describe("NextAuth server-signed Google email verification proof", () => {
     ]);
     resolveCurrentUserIdentityWithClaims.mockResolvedValueOnce({
       acceptedInvitationCount: 2,
-      user: { id: "user_1" },
+      user: { id: "user_1", accessStatus: "ACTIVE" },
     });
 
     await expect(runJwt()).resolves.toMatchObject({
@@ -244,6 +261,21 @@ describe("NextAuth server-signed Google email verification proof", () => {
 
     await expect(runJwt()).rejects.toBe(databaseFailure);
   });
+
+  it.each(["SUSPENDED", "REMOVED"] as const)(
+    "fails closed when a %s account is disabled between sign-in and JWT issuance",
+    async (accessStatus) => {
+      queryRaw.mockResolvedValueOnce([
+        { databaseNow: new Date("2026-07-29T02:03:04.567Z") },
+      ]);
+      resolveCurrentUserIdentityWithClaims.mockResolvedValueOnce({
+        acceptedInvitationCount: 0,
+        user: { id: "user_1", accessStatus },
+      });
+
+      await expect(runJwt()).rejects.toThrow("Account access blocked.");
+    },
+  );
 
   it.each([
     ["missing profile", undefined],

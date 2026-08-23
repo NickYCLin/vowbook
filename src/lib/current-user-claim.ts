@@ -33,6 +33,18 @@ export type CurrentUserIdentityResolution = {
   user: User | null;
 };
 
+export async function isGoogleSubjectAllowedToSignIn(
+  googleSubject: string,
+  client: Pick<PrismaClient, "user"> = prisma,
+): Promise<boolean> {
+  const existingUser = await client.user.findUnique({
+    where: { googleSubject },
+    select: { accessStatus: true },
+  });
+
+  return existingUser === null || existingUser.accessStatus === "ACTIVE";
+}
+
 export async function findCurrentUserByGoogleSubject(
   googleSubject: string,
   client: Pick<PrismaClient, "user"> = prisma,
@@ -107,8 +119,15 @@ export async function resolveCurrentUserIdentityWithClaims(
       return { acceptedInvitationCount: 0, user };
     }
 
+    const existingUser = await transaction.user.findUnique({
+      where: { googleSubject: identity.googleSubject },
+    });
+    if (existingUser && existingUser.accessStatus !== "ACTIVE") {
+      return { acceptedInvitationCount: 0, user: existingUser };
+    }
+
     const email = normalizeInvitationEmail(identity.email);
-    const user = await transaction.user.upsert({
+    let user = await transaction.user.upsert({
       where: { googleSubject: identity.googleSubject },
       create: {
         googleSubject: identity.googleSubject,
@@ -121,6 +140,15 @@ export async function resolveCurrentUserIdentityWithClaims(
         name: identity.name,
         image: identity.image,
       },
+    });
+
+    if (user.accessStatus !== "ACTIVE") {
+      return { acceptedInvitationCount: 0, user };
+    }
+
+    user = await transaction.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: proof.database_now },
     });
 
     const invitations = await transaction.$queryRaw<
