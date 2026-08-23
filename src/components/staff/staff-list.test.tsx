@@ -57,6 +57,30 @@ describe("WeddingStaffList", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("places the lead reception group before every other role", () => {
+    render(
+      <WeddingStaffList
+        workspaceId="workspace_internal"
+        staff={[
+          ...staff,
+          {
+            ...staff[0],
+            id: "staff_lead_reception",
+            roleName: "總招待",
+            personName: "總召",
+          },
+        ]}
+        canEdit={false}
+      />,
+    );
+
+    expect(
+      screen
+        .getAllByRole("region")
+        .map((region) => region.getAttribute("aria-label")),
+    ).toEqual(["總招待", "招待", "主持"]);
+  });
+
   it("shows editor controls without exposing IDs", () => {
     const { container } = render(
       <WeddingStaffList

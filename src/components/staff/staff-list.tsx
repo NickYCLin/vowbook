@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Stat, StatRow } from "@/components/ui/stat";
 
 const staffHeadingId = "wedding-staff-list-heading";
+const LEAD_RECEPTION_ROLE = "總招待";
 
 function staffEditTriggerId(staffId: string) {
   return `wedding-staff-edit-${staffId}`;
@@ -25,7 +26,12 @@ function groupedStaff(staff: WeddingStaffListItem[]) {
     group.push(person);
     groups.set(person.roleName, group);
   }
-  return [...groups.entries()];
+  return [...groups.entries()].sort(([leftRole], [rightRole]) => {
+    if (leftRole === LEAD_RECEPTION_ROLE) return -1;
+    if (rightRole === LEAD_RECEPTION_ROLE) return 1;
+    // 其他職務沿用伺服器已提供的穩定順序，避免為了突出總招待而全面重排。
+    return 0;
+  });
 }
 
 export function WeddingStaffList({
