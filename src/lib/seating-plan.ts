@@ -67,7 +67,13 @@ export async function getSeatingPlan(workspaceId: string) {
                 where: { workspaceId },
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 // side 是拿來推「這桌屬於哪一邊」的：桌次本身沒有這個欄位。
-                select: { id: true, name: true, partySize: true, side: true },
+                select: {
+                  id: true,
+                  name: true,
+                  partySize: true,
+                  side: true,
+                  notes: true,
+                },
               },
             },
           }),

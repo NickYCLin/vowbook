@@ -73,7 +73,13 @@ describe("getSeatingPlan", () => {
         guests: {
           where: { workspaceId: "workspace_1" },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: { id: true, name: true, partySize: true, side: true },
+          select: {
+            id: true,
+            name: true,
+            partySize: true,
+            side: true,
+            notes: true,
+          },
         },
       },
     });

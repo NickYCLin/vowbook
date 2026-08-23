@@ -165,6 +165,7 @@ const table = {
       name: "王小明",
       partySize: 3,
       side: "PARTNER_A" as const,
+      notes: "素食，需兒童椅\n靠近走道",
     },
   ],
 };
@@ -382,6 +383,8 @@ describe("SeatingPlan", () => {
     );
     expect(screen.getByText("靠近舞台")).toBeInTheDocument();
     expect(screen.getByText("王小明・3 位")).toBeInTheDocument();
+    const guestNotes = screen.getByText("備註：素食，需兒童椅 靠近走道");
+    expect(guestNotes).toHaveClass("break-words", "whitespace-pre-wrap");
     expect(screen.getByText("這桌目前還沒安排賓客。")).toBeInTheDocument();
     expect(screen.getByText("所有賓客都已安排桌次。")).toBeInTheDocument();
   });
