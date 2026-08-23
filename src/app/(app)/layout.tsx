@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/auth";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Wordmark } from "@/components/brand/wordmark";
+import { ThemeMenu } from "@/components/theme/theme-menu";
 import { getSignInPath } from "@/lib/base-path";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -22,19 +23,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md print:hidden">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
           <Wordmark href="/dashboard" />
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-clay-soft font-serif text-caption font-semibold text-clay-strong"
-              >
-                {initial}
-              </span>
-              <span className="hidden max-w-40 truncate text-caption text-ink-soft sm:block">
-                {displayName}
-              </span>
-            </span>
-            <SignOutButton />
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <ThemeMenu displayName={displayName} initial={initial} />
+            <SignOutButton variant="ghost" className="hidden sm:inline-flex" />
           </div>
         </div>
       </header>

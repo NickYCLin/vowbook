@@ -13,6 +13,12 @@ describe("authenticated app layout contract", () => {
     );
   });
 
+  it("applies a saved appearance before hydration and keeps theme control global", () => {
+    expect(source("src/app/layout.tsx")).toContain("THEME_BOOTSTRAP_SCRIPT");
+    expect(source("src/app/layout.tsx")).toContain("ThemeController");
+    expect(source("src/app/(app)/layout.tsx")).toContain("ThemeMenu");
+  });
+
   it("keeps the viewport stable and aligns dashboard/workspace content to max-w-6xl", () => {
     expect(source("src/app/globals.css")).toMatch(
       /html\s*\{[^}]*scrollbar-gutter:\s*stable;/u,

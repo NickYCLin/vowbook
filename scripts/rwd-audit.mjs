@@ -38,6 +38,7 @@ function offlineStubs() {
     ].join("\n"),
     "next/link": [
       "import { createElement } from 'react';",
+      "export const useLinkStatus = () => ({ pending: false });",
       "export default function Link({ href, children, ...rest }) {",
       "  return createElement('a', { href: typeof href === 'string' ? href : '#', ...rest }, children);",
       "}",
@@ -229,6 +230,16 @@ async function main() {
       });
       await page.goto(fileUrl, { waitUntil: "load" });
       if (mode.css) await page.addStyleTag({ content: mode.css });
+      // 帳號外觀選單使用 <details>；固定定位的收合內容在 Chromium 量測時
+      // 可能留下非零幾何。主動展開它，既避免假陽性，也讓每個斷點實際驗證選單。
+      const themeSummary = page.locator(
+        'summary[aria-label^="開啟帳號與外觀選單"]',
+      );
+      if ((await themeSummary.count()) > 0) {
+        await themeSummary.evaluate((summary) => {
+          summary.closest("details").open = true;
+        });
+      }
 
       const report = await page.evaluate((dialogsForcedOpen) => {
         // 用 clientWidth 當基準，捲軸寬度才不會被誤判成溢出。

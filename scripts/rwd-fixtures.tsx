@@ -11,6 +11,7 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "@/app/page";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BudgetList } from "@/components/budget/budget-list";
 import SignInPage from "@/app/signin/page";
 import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-form";
@@ -19,6 +20,7 @@ import { SeatingChart } from "@/components/tables/seating-chart";
 import { SeatingPlan } from "@/components/tables/seating-plan";
 import { WeddingStaffList } from "@/components/staff/staff-list";
 import { WeddingTaskList } from "@/components/tasks/task-list";
+import { ThemeMenu } from "@/components/theme/theme-menu";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WorkspaceMembersPanel } from "@/components/workspaces/workspace-members";
 import { WorkspaceSummary } from "@/components/workspaces/workspace-summary";
@@ -47,21 +49,9 @@ function AppShell({
           <span className="font-serif text-lg font-semibold text-ink">
             誓約簿 VowBook
           </span>
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-clay-soft font-serif text-caption font-semibold text-clay-strong"
-              >
-                誓
-              </span>
-              <span className="hidden max-w-40 truncate text-caption text-ink-soft sm:block">
-                {LONG_EMAIL}
-              </span>
-            </span>
-            <span className="inline-flex min-h-11 items-center rounded-control px-4 text-sm font-semibold text-clay-strong">
-              登出
-            </span>
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <ThemeMenu displayName={LONG_EMAIL} initial="誓" />
+            <SignOutButton variant="ghost" className="hidden sm:inline-flex" />
           </div>
         </div>
       </header>
