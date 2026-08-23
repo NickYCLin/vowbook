@@ -121,7 +121,7 @@ describe("Notion Budget tree UI", () => {
     ).toHaveTextContent("追加：NT$500");
     expect(screen.getByText("合成候選廠商")).toBeInTheDocument();
     expect(screen.getByText("synthetic-contact@example.test")).toBeInTheDocument();
-    expect(screen.getByText("新人一方")).toBeInTheDocument();
+    expect(screen.getByText("新郎")).toBeInTheDocument();
     expect(screen.getByText("資料來源：Notion 單次匯入")).toBeInTheDocument();
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("script")).toBeNull();
