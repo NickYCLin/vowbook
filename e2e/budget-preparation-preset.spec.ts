@@ -102,11 +102,17 @@ test("OWNER 可補齊非文定常見項目，且既有小白鞋不會覆蓋婚�
   });
   await expect(dialog).toBeVisible();
   await expect(
+    dialog.getByRole("button", {
+      name: "有迎娶流程？加入迎娶項目",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(
     dialog.getByRole("group", {
       name: "迎娶儀式用品、工作人員紅包",
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(dialog).not.toContainText("文定");
   await expect(dialog).not.toContainText("提親");
   await expect(
@@ -120,7 +126,7 @@ test("OWNER 可補齊非文定常見項目，且既有小白鞋不會覆蓋婚�
   );
 
   await dialog
-    .getByRole("button", { name: "全選可加入項目", exact: true })
+    .getByRole("button", { name: "全選一般項目", exact: true })
     .click();
   const selectedAfterSelectAll = await dialog
     .locator('input[type="checkbox"]:checked')
@@ -132,6 +138,22 @@ test("OWNER 可補齊非文定常見項目，且既有小白鞋不會覆蓋婚�
   await expect(dialog.locator('input[type="checkbox"]:checked')).toHaveCount(
     0,
   );
+
+  await dialog
+    .getByRole("button", {
+      name: "有迎娶流程？加入迎娶項目",
+      exact: true,
+    })
+    .click();
+  await expect(
+    dialog.getByRole("group", {
+      name: "迎娶儀式用品、工作人員紅包",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("checkbox", { name: /^陪娶禮/u }),
+  ).not.toBeChecked();
 
   const retouching = dialog.getByRole("checkbox", {
     name: /^精修/u,

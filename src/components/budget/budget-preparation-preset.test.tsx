@@ -50,6 +50,7 @@ vi.mock("@/domain/budget-preparation-preset", () => ({
     {
       stageKey: "STAGE_WEDDING_PROCESSION",
       label: "迎娶儀式用品、工作人員紅包",
+      optional: true,
       groups: [
         {
           taxonomyItemKey: "ITEM_PROCESSION_GROOM",
@@ -148,7 +149,7 @@ describe("BudgetPreparationPreset", () => {
       "overflow-y-auto",
     );
     expect(dialog).toHaveAccessibleDescription(
-      "依 Drive 籌備階段列出常見項目；只會加入勾選內容，加入後會標示為待準備，之後可再編輯。",
+      "依 Drive 籌備階段列出常見項目；迎娶流程為選用，不會包含在一般項目的全選範圍。只會加入勾選內容，加入後可再編輯。",
     );
     expect(
       screen.getByRole("heading", { name: "補齊常見婚禮項目" }),
@@ -164,10 +165,13 @@ describe("BudgetPreparationPreset", () => {
       within(preparationStage).getByRole("group", { name: "婚宴場地" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("group", {
+      screen.queryByRole("group", {
         name: "迎娶儀式用品、工作人員紅包",
       }),
-    ).toBeVisible();
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
+    ).toHaveAttribute("aria-expanded", "false");
     expect(container).not.toHaveTextContent("文定");
     expect(container).not.toHaveTextContent("提親");
     expect(container).toHaveTextContent("婚戒（求婚戒與對戒）");
@@ -188,17 +192,27 @@ describe("BudgetPreparationPreset", () => {
     ).toBeVisible();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "全選可加入項目" }),
+      screen.getByRole("button", { name: "全選一般項目" }),
     );
-    expect(screen.getByText("已選 2 個項目")).toBeVisible();
+    expect(screen.getByText("已選 1 個項目")).toBeVisible();
     expect(existing).not.toBeChecked();
     expect(covered).not.toBeChecked();
     expect(
       screen.getByRole("checkbox", { name: /婚戒/u }),
     ).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: /陪娶禮/u })).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
+    );
+    expect(
+      screen.getByRole("group", {
+        name: "迎娶儀式用品、工作人員紅包",
+      }),
+    ).toBeVisible();
     expect(
       screen.getByRole("checkbox", { name: /陪娶禮/u }),
-    ).toBeChecked();
+    ).not.toBeChecked();
 
     fireEvent.click(screen.getByRole("button", { name: "清除選取" }));
     expect(screen.getByText("已選 0 個項目")).toBeVisible();
@@ -231,6 +245,9 @@ describe("BudgetPreparationPreset", () => {
     });
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("checkbox", { name: /婚戒/u }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
+    );
     fireEvent.click(
       screen.getByRole("checkbox", { name: /陪娶禮/u }),
     );
