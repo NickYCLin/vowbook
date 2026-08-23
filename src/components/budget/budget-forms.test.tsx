@@ -219,7 +219,22 @@ describe("budget item forms", () => {
       "numeric",
     );
     expect(screen.getByLabelText(/預估費用範圍/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/候選廠商或工作人員/)).toBeInTheDocument();
+    const vendorComparison = screen.getByLabelText(/候選廠商與比較紀錄/);
+    expect(vendorComparison).toHaveAttribute("rows", "5");
+    expect(vendorComparison.getAttribute("placeholder")).toContain("報價");
+    expect(vendorComparison.getAttribute("placeholder")).toContain("優點");
+    expect(vendorComparison.getAttribute("placeholder")).toContain("缺點");
+    const vendorComparisonHelp = screen.getByText(
+      "可分行記錄每家廠商的報價、方案內容、優點、缺點與比較結論；最多 1000 個字元。",
+    );
+    expect(vendorComparisonHelp).toHaveAttribute("id");
+    expect(vendorComparison).toHaveAttribute(
+      "aria-describedby",
+      vendorComparisonHelp.id,
+    );
+    expect(
+      screen.queryByLabelText(/候選廠商或工作人員/),
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(/確定廠商/)).toBeInTheDocument();
     expect(screen.getByLabelText(/廠商聯絡人/)).toBeInTheDocument();
     const primaryContact = screen.getByLabelText(/主要負責人/);
@@ -1060,7 +1075,7 @@ describe("budget item forms", () => {
       expect(screen.getByLabelText(/尾款費用/)).toHaveValue("35000");
       expect(screen.getByLabelText(/加購費用/)).toHaveValue("600");
       expect(screen.getByLabelText(/預估費用範圍/)).toHaveValue("合成估價 B");
-      expect(screen.getByLabelText(/候選廠商或工作人員/)).toHaveValue(
+      expect(screen.getByLabelText(/候選廠商與比較紀錄/)).toHaveValue(
         "合成候選 B",
       );
       expect(screen.getByLabelText(/確定廠商/)).toHaveValue("合成確認 B");

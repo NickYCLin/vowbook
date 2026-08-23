@@ -885,7 +885,7 @@ function BudgetItemRow({
     richDetails.push(["預估費用範圍", item.estimatedRange]);
   }
   if (item.candidateVendors) {
-    richDetails.push(["候選廠商或工作人員", item.candidateVendors]);
+    richDetails.push(["候選廠商與比較紀錄", item.candidateVendors]);
   }
   if (item.confirmedVendor) {
     richDetails.push(["確定廠商", item.confirmedVendor]);
@@ -937,7 +937,12 @@ function BudgetItemRow({
     : item.actualAmount === null
       ? "尚未記錄"
       : formatTwdAmount(item.actualAmount);
-  const ledgerBrand = item.confirmedVendor ?? item.candidateVendors;
+  const ledgerBrand = item.confirmedVendor;
+  const ledgerBrandSummary = ledgerBrand
+    ? `廠商：${ledgerBrand}`
+    : item.candidateVendors
+      ? "已有候選廠商，尚未確認"
+      : "尚未設定廠商";
   const ledgerDepositAmount = amountsIncludeChildren
     ? !(item.rolledUpDepositAmountRecorded ?? item.rolledUpDepositAmount !== "0")
       ? "—"
@@ -1213,7 +1218,7 @@ function BudgetItemRow({
                   data-budget-ledger-column="brand"
                   className="mt-1 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft"
                 >
-                  {ledgerBrand ? `廠商：${ledgerBrand}` : "尚未設定廠商"}
+                  {ledgerBrandSummary}
                 </p>
                 <p
                   data-budget-mobile-row="metadata"

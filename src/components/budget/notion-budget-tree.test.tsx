@@ -58,8 +58,9 @@ const richImportedItem: BudgetItemListItem = {
   balanceAmount: 34000,
   additionalAmount: 500,
   estimatedRange: "NT$40,000 ～ NT$60,000",
-  candidateVendors: "合成候選廠商",
-  confirmedVendor: "合成確認廠商",
+  candidateVendors:
+    "廠商 A｜報價 NT$46,500｜優點：方案完整｜缺點：檔期較少\n廠商 B｜報價 NT$42,000｜優點：價格較低｜缺點：成品較少",
+  confirmedVendor: null,
   vendorContact: "synthetic-contact@example.test",
   primaryContact: "PARTNER_A",
   version: 3,
@@ -108,6 +109,10 @@ describe("Notion Budget tree UI", () => {
     expect(within(rowSurface!).getByText("已下訂，尾款未清")).toHaveClass(
       "sr-only",
     );
+    expect(
+      within(rowSurface!).getByText("已有候選廠商，尚未確認"),
+    ).toBeVisible();
+    expect(rowSurface).not.toHaveTextContent("廠商 A｜報價 NT$46,500");
     expect(within(rowSurface!).getByText("訂金").nextSibling).toHaveTextContent(
       "NT$12,000",
     );
@@ -119,7 +124,12 @@ describe("Notion Budget tree UI", () => {
         '[data-budget-ledger-content-name="true"]',
       ),
     ).toHaveTextContent("追加：NT$500");
-    expect(screen.getByText("合成候選廠商")).toBeInTheDocument();
+    expect(screen.getByText("候選廠商與比較紀錄")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "廠商 A｜報價 NT$46,500｜優點：方案完整｜缺點：檔期較少 廠商 B｜報價 NT$42,000｜優點：價格較低｜缺點：成品較少",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("synthetic-contact@example.test")).toBeInTheDocument();
     expect(screen.getByText("新郎")).toBeInTheDocument();
     expect(screen.getByText("資料來源：Notion 單次匯入")).toBeInTheDocument();

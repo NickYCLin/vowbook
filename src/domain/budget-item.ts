@@ -533,7 +533,7 @@ export function normalizeBudgetItemDetails(
     ),
     candidateVendors: normalizeOptionalText(
       input.candidateVendors,
-      "候選廠商或工作人員",
+      "候選廠商與比較紀錄",
       1000,
     ),
     confirmedVendor: normalizeOptionalText(
