@@ -185,7 +185,7 @@ describe("budget item domain contract", () => {
     );
   });
 
-  it("parses three booking states and synthetic partner-owner labels", () => {
+  it("parses three booking states and maps budget owners to the couple", () => {
     expect(normalizeBudgetBookingStatus("PLANNING")).toBe("PLANNING");
     expect(normalizeBudgetBookingStatus("BOOKED_BALANCE_DUE")).toBe(
       "BOOKED_BALANCE_DUE",
@@ -200,8 +200,8 @@ describe("budget item domain contract", () => {
     expect(normalizeBudgetPrimaryContact("PARTNER_A")).toBe("PARTNER_A");
     expect(normalizeBudgetPrimaryContact("PARTNER_B")).toBe("PARTNER_B");
     expect(BUDGET_PRIMARY_CONTACT_LABELS).toEqual({
-      PARTNER_A: "新人一方",
-      PARTNER_B: "新人另一方",
+      PARTNER_A: "新郎",
+      PARTNER_B: "新娘",
     });
     expect(() => normalizeBudgetBookingStatus("PAID-ish")).toThrow(
       BudgetItemValidationError,

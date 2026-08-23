@@ -7,8 +7,8 @@ export const BUDGET_BOOKING_STATUS_LABELS = {
 } as const;
 
 export const BUDGET_PRIMARY_CONTACT_LABELS = {
-  PARTNER_A: "新人一方",
-  PARTNER_B: "新人另一方",
+  PARTNER_A: "新郎",
+  PARTNER_B: "新娘",
 } as const;
 
 export const BUDGET_COST_CATEGORY_LABELS = {

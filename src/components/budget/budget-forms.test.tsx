@@ -222,7 +222,12 @@ describe("budget item forms", () => {
     expect(screen.getByLabelText(/候選廠商或工作人員/)).toBeInTheDocument();
     expect(screen.getByLabelText(/確定廠商/)).toBeInTheDocument();
     expect(screen.getByLabelText(/廠商聯絡人/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/主要負責人/)).toBeInTheDocument();
+    const primaryContact = screen.getByLabelText(/主要負責人/);
+    expect(primaryContact).toBeInTheDocument();
+    expect(within(primaryContact).getAllByRole("option")).toHaveLength(3);
+    expect(within(primaryContact).getByRole("option", { name: "未設定" })).toHaveValue("");
+    expect(within(primaryContact).getByRole("option", { name: "新郎" })).toHaveValue("PARTNER_A");
+    expect(within(primaryContact).getByRole("option", { name: "新娘" })).toHaveValue("PARTNER_B");
     expect(screen.getByLabelText(/備註/)).not.toHaveAttribute("maxlength");
     expect(
       screen.getByText(
