@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import { withSeatingTableNumbers } from "@/domain/seating-table";
+import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
@@ -73,6 +74,15 @@ export async function getSeatingPlan(workspaceId: string) {
                   partySize: true,
                   side: true,
                   notes: true,
+                  importRecords: {
+                    orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+                    select: {
+                      source: true,
+                      sourceInstance: true,
+                      sourceManaged: true,
+                      childSeatCount: true,
+                    },
+                  },
                 },
               },
             },
@@ -93,10 +103,22 @@ export async function getSeatingPlan(workspaceId: string) {
     // 匯入只保留來源追蹤；目前名單的人數在桌次頁也可以直接調整。
     const unassignedGuests = unassignedGuestRows;
 
+    // 桌次頁只需要有效的兒童椅張數，不把匯入來源與歷史明細送到瀏覽器。
+    const tablesWithChildSeats = tables.map((table) => ({
+      ...table,
+      guests: table.guests.map(({ importRecords, ...guest }) => ({
+        ...guest,
+        childSeatCount: effectiveGuestDetailValue(
+          importRecords,
+          (record) => record.childSeatCount,
+        ),
+      })),
+    }));
+
     // 桌號在這裡才掛上去：它完全由順位決定，查詢的 orderBy 就是那個順位。
     return {
       ...access,
-      tables: withSeatingTableNumbers(tables),
+      tables: withSeatingTableNumbers(tablesWithChildSeats),
       unassignedGuests,
     };
   } catch {

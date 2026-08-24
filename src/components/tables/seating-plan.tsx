@@ -44,6 +44,7 @@ type SeatingGuest = {
   partySize: number;
   side: GuestSideValue;
   notes: string | null;
+  childSeatCount: number | null;
 };
 
 type SeatingTableItem = {
@@ -75,6 +76,18 @@ type PendingSeatingMove =
 type PendingSeatingDelete = DeleteSeatingTableIntent & {
   sourceTables: SeatingTableItem[];
 };
+
+function childSeatRequirement(table: SeatingTableItem) {
+  const guests = table.guests.flatMap((guest) =>
+    guest.childSeatCount !== null && guest.childSeatCount > 0
+      ? [{ id: guest.id, name: guest.name, count: guest.childSeatCount }]
+      : [],
+  );
+  return {
+    guests,
+    total: guests.reduce((total, guest) => total + guest.count, 0),
+  };
+}
 
 export function SeatingPlan({
   workspaceId,
@@ -459,6 +472,7 @@ export function SeatingPlan({
                   );
                   const isOverCapacity = assignedPartySize > table.capacity;
                   const side = seatingTableSide(table.guests);
+                  const childSeats = childSeatRequirement(table);
 
                   return (
                     <li key={table.id} className="min-w-0">
@@ -479,12 +493,20 @@ export function SeatingPlan({
                                 {table.name}
                               </span>
                             </h3>
-                            {side ? (
-                              <Badge tone={SIDE_BADGE_TONES[side]}>
-                                <BadgeDot />
-                                {GUEST_SIDE_LABELS[side]}
-                              </Badge>
-                            ) : null}
+                            <div className="flex min-w-0 flex-wrap justify-end gap-1.5">
+                              {childSeats.total > 0 ? (
+                                <Badge tone="caution">
+                                  <BadgeDot />
+                                  兒童椅 {childSeats.total} 張
+                                </Badge>
+                              ) : null}
+                              {side ? (
+                                <Badge tone={SIDE_BADGE_TONES[side]}>
+                                  <BadgeDot />
+                                  {GUEST_SIDE_LABELS[side]}
+                                </Badge>
+                              ) : null}
+                            </div>
                           </div>
 
                           <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -536,6 +558,7 @@ export function SeatingPlan({
                   );
                   const isOverCapacity = assignedPartySize > table.capacity;
                   const side = seatingTableSide(table.guests);
+                  const childSeats = childSeatRequirement(table);
 
                   return (
                     <Card key={table.id}>
@@ -591,6 +614,24 @@ export function SeatingPlan({
                           </p>
                         )}
 
+                        {childSeats.total > 0 ? (
+                          <section
+                            aria-label={`${seatingTableLabel(table)}兒童椅需求`}
+                            className="mt-4 rounded-control border border-caution/30 bg-caution-soft px-3.5 py-3 text-caution"
+                          >
+                            <p className="text-caption font-semibold tabular-nums">
+                              兒童椅共 {childSeats.total} 張
+                            </p>
+                            <div className="mt-1 flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-caption leading-5">
+                              {childSeats.guests.map((guest) => (
+                                <p key={guest.id} className="break-words tabular-nums">
+                                  {guest.name} {guest.count} 張
+                                </p>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null}
+
                         <div className="mt-4 border-t border-line pt-4">
                           <h4 className="text-eyebrow font-semibold text-ink-soft uppercase">
                             已安排賓客
@@ -613,6 +654,15 @@ export function SeatingPlan({
                                   <p className="text-caption font-semibold break-words text-ink">
                                     {guest.name}・{guest.partySize} 位
                                   </p>
+                                  {guest.childSeatCount !== null &&
+                                  guest.childSeatCount > 0 ? (
+                                    <div className="mt-1.5">
+                                      <Badge tone="caution">
+                                        <BadgeDot />
+                                        兒童椅 {guest.childSeatCount} 張
+                                      </Badge>
+                                    </div>
+                                  ) : null}
                                   {guest.notes ? (
                                     <p className="mt-1 text-caption leading-5 break-words whitespace-pre-wrap text-ink-soft">
                                       備註：{guest.notes}

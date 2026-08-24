@@ -16,7 +16,7 @@ export type SeatingChartTable = {
   name: string;
   layoutX: number | null;
   layoutY: number | null;
-  guests: Array<{ side: GuestSideValue }>;
+  guests: Array<{ side: GuestSideValue; childSeatCount?: number | null }>;
 };
 
 const SIDE_DOT_CLASSNAMES = {
@@ -41,6 +41,7 @@ function chartDensity(tableCount: number) {
       name: "text-[1.5cqw] leading-[1.25] line-clamp-2",
       dot: "size-[0.9cqw]",
       sideLabel: "text-[1.3cqw] leading-[1.2]",
+      childSeats: "text-[1.05cqw] leading-[1.15]",
     };
   }
   if (tableCount <= 20) {
@@ -50,6 +51,7 @@ function chartDensity(tableCount: number) {
       name: "text-[1.2cqw] leading-[1.25] line-clamp-1",
       dot: "size-[0.8cqw]",
       sideLabel: null,
+      childSeats: "text-[0.9cqw] leading-[1.15]",
     };
   }
   if (tableCount <= 32) {
@@ -59,6 +61,7 @@ function chartDensity(tableCount: number) {
       name: null,
       dot: "size-[0.7cqw]",
       sideLabel: null,
+      childSeats: "text-[0.8cqw] leading-[1.15]",
     };
   }
   return {
@@ -67,6 +70,7 @@ function chartDensity(tableCount: number) {
     name: null,
     dot: null,
     sideLabel: null,
+    childSeats: null,
   };
 }
 
@@ -136,12 +140,17 @@ export function SeatingChart({
             if (!position) return null;
             const percent = seatingFloorPlanCoordinateToBoardPercent(position);
             const side = seatingTableSide(table.guests);
+            const childSeats = table.guests.reduce(
+              (total, guest) =>
+                total + Math.max(guest.childSeatCount ?? 0, 0),
+              0,
+            );
             return (
               <article
                 key={table.id}
                 aria-label={`${seatingTableLabel(table)}${
                   side ? `，${GUEST_SIDE_LABELS[side]}` : ""
-                }`}
+                }${childSeats > 0 ? `，兒童椅 ${childSeats} 張` : ""}`}
                 className={cn(
                   "absolute grid -translate-x-1/2 -translate-y-1/2 place-content-center gap-[0.2cqw] rounded-full border border-line-strong bg-surface px-[0.6cqw] text-center shadow-card",
                   density.marker,
@@ -181,6 +190,16 @@ export function SeatingChart({
                         {GUEST_SIDE_SHORT_LABELS[side]}
                       </span>
                     ) : null}
+                  </span>
+                ) : null}
+                {childSeats > 0 && density.childSeats ? (
+                  <span
+                    className={cn(
+                      "font-semibold text-caution tabular-nums",
+                      density.childSeats,
+                    )}
+                  >
+                    兒童椅 {childSeats}
                   </span>
                 ) : null}
               </article>

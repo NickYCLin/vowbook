@@ -50,6 +50,7 @@ export type SeatingFloorPlanTable = {
     name: string;
     partySize: number;
     side: GuestSideValue;
+    childSeatCount: number | null;
   }>;
 };
 
@@ -155,6 +156,13 @@ function mergeDraftPositions(
 
 function occupancy(table: SeatingFloorPlanTable): number {
   return table.guests.reduce((total, guest) => total + guest.partySize, 0);
+}
+
+function childSeatTotal(table: SeatingFloorPlanTable): number {
+  return table.guests.reduce(
+    (total, guest) => total + Math.max(guest.childSeatCount ?? 0, 0),
+    0,
+  );
 }
 
 /**
@@ -970,11 +978,14 @@ export function SeatingFloorPlan({
                 }
               : displayTable;
             const assignedPartySize = occupancy(contentTable);
+            const assignedChildSeats = childSeatTotal(contentTable);
             const isSelected = canEdit && selectedTableId === table.id;
             const side = seatingTableSide(contentTable.guests);
             const label = `${seatingTableLabel(contentTable)}，${
               side ? `${GUEST_SIDE_LABELS[side]}，` : ""
-            }已安排 ${assignedPartySize} / ${contentTable.capacity} 位`;
+            }已安排 ${assignedPartySize} / ${contentTable.capacity} 位${
+              assignedChildSeats > 0 ? `，兒童椅 ${assignedChildSeats} 張` : ""
+            }`;
             // 交換時固定桌位不移動，只預覽對方的桌名與入座賓客。
             const rendered = draft;
             const isSwapPreview =
@@ -1015,6 +1026,19 @@ export function SeatingFloorPlan({
                   height: `${metrics.markerSizePx}px`,
                 }}
               >
+                {assignedChildSeats > 0 && !isMaximumDensity ? (
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "pointer-events-none absolute z-20 inline-flex items-center rounded-full border border-caution/35 bg-caution-soft font-bold text-caution shadow-sm tabular-nums",
+                      isDense
+                        ? "top-0 right-0 px-1 py-0 text-[0.5rem] leading-3"
+                        : "-top-1 -right-1 px-1.5 py-0.5 text-[0.625rem] leading-3",
+                    )}
+                  >
+                    {isDense ? "椅" : "兒童椅"} {assignedChildSeats}
+                  </span>
+                ) : null}
                 {canEdit ? (
                   <button
                     type="button"

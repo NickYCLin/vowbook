@@ -41,6 +41,7 @@ const tables = [
         name: "王小明",
         partySize: 3,
         side: "PARTNER_A" as const,
+        childSeatCount: 2,
       },
     ],
   },
@@ -211,7 +212,11 @@ describe("SeatingFloorPlan", () => {
     // 側別改標在圓桌上，而且是從實際入座的賓客推得的。
     expect(within(board).getByText("男方", { exact: true })).toBeInTheDocument();
     expect(within(board).getByText("中央動線", { exact: true })).toBeInTheDocument();
-    expect(within(board).getByRole("article", { name: "1 號桌 主桌，男方親友，已安排 3 / 10 位" })).toBeInTheDocument();
+    const mainTable = within(board).getByRole("article", {
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
+    });
+    expect(mainTable).toBeInTheDocument();
+    expect(within(mainTable).getByText("兒童椅 2")).toBeInTheDocument();
     expect(within(board).getByRole("article", { name: "2 號桌 摯友桌，已安排 0 / 8 位" })).toHaveAttribute(
       "data-layout-source",
       "persisted",
@@ -274,7 +279,7 @@ describe("SeatingFloorPlan", () => {
     );
 
     const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位",
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     expect(mainCard).toHaveAttribute("data-layout-x", "500");
     expect(mainCard).toHaveAttribute("data-layout-y", "220");
@@ -336,7 +341,9 @@ describe("SeatingFloorPlan", () => {
     });
     // 跟著指標跑的那張不能補間，否則圓桌會拖在手指後面。
     expect(
-      screen.getByRole("article", { name: "1 號桌 主桌，男方親友，已安排 3 / 10 位" }).className,
+      screen.getByRole("article", {
+        name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
+      }).className,
     ).not.toContain("transition-[box-shadow,left,top]");
     expect(updateLayout).not.toHaveBeenCalled();
     fireEvent.pointerUp(handle, {
@@ -416,7 +423,7 @@ describe("SeatingFloorPlan", () => {
     });
     const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
     const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位",
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     const friendsCard = screen.getByRole("article", {
       name: "2 號桌 摯友桌，已安排 0 / 8 位",
@@ -447,7 +454,7 @@ describe("SeatingFloorPlan", () => {
       "1 號桌 摯友桌，已安排 0 / 10 位",
     );
     expect(friendsCard).toHaveAccessibleName(
-      "2 號桌 主桌，男方親友，已安排 3 / 8 位",
+      "2 號桌 主桌，男方親友，已安排 3 / 8 位，兒童椅 2 張",
     );
     expect(updateLayout).not.toHaveBeenCalled();
 
@@ -552,7 +559,9 @@ describe("SeatingFloorPlan", () => {
     expect(formData.get("layoutX")).toBe("190");
     expect(formData.get("layoutY")).toBe("220");
     expect(
-      screen.getByRole("article", { name: "1 號桌 主桌，男方親友，已安排 3 / 10 位" }),
+      screen.getByRole("article", {
+        name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
+      }),
     ).toHaveAttribute("data-layout-x", "190");
   });
 
@@ -580,7 +589,7 @@ describe("SeatingFloorPlan", () => {
     });
     const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
     const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位",
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     const safeBounds = getSeatingFloorPlanSafeCoordinateBounds(tables.length);
 
@@ -879,10 +888,16 @@ describe("SeatingFloorPlan", () => {
         (total, guest) => total + guest.partySize,
         0,
       );
+      const assignedChildSeats = table.guests.reduce(
+        (total, guest) => total + (guest.childSeatCount ?? 0),
+        0,
+      );
       const card = screen.getByRole("article", {
         name: `${table.number} 號桌 ${table.name}，${
           table.guests.length > 0 ? "男方親友，" : ""
-        }已安排 ${assignedPartySize} / ${table.capacity} 位`,
+        }已安排 ${assignedPartySize} / ${table.capacity} 位${
+          assignedChildSeats > 0 ? `，兒童椅 ${assignedChildSeats} 張` : ""
+        }`,
       });
       expect(card).toHaveAttribute("data-layout-x", String(expectedPosition?.x));
       expect(card).toHaveAttribute("data-layout-y", String(expectedPosition?.y));
@@ -913,7 +928,7 @@ describe("SeatingFloorPlan", () => {
     );
 
     const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位",
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     const blockerCard = screen.getByRole("article", {
       name: "2 號桌 摯友桌，已安排 0 / 8 位",
@@ -948,7 +963,7 @@ describe("SeatingFloorPlan", () => {
     );
 
     const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位",
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     await fireEvent.click(
       screen.getByRole("button", { name: "將 1 號桌 主桌 向右移動" }),

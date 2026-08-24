@@ -432,6 +432,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 partySize: 6,
                 side: "PARTNER_A" as const,
                 notes: index === 0 ? "素食，需兒童椅\n靠近走道" : null,
+                childSeatCount: index === 0 ? 2 : null,
               },
               {
                 id: `seated_${index}_b`,
@@ -440,6 +441,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 // 混坐的桌子在圖上要標成「共同」，稽核要有這個樣本。
                 side: index === 0 ? ("PARTNER_B" as const) : ("PARTNER_A" as const),
                 notes: null,
+                childSeatCount: null,
               },
               ...(index === 0
                 ? [
@@ -449,6 +451,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                       partySize: 2,
                       side: "PARTNER_A" as const,
                       notes: "需要靠近走道",
+                      childSeatCount: 1,
                     },
                     {
                       id: `seated_${index}_d`,
@@ -456,6 +459,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                       partySize: 1,
                       side: "PARTNER_B" as const,
                       notes: null,
+                      childSeatCount: null,
                     },
                   ]
                 : []),
@@ -695,6 +699,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                   partySize: 6,
                   side: "SHARED" as const,
                   notes: LONG_URL_ISH,
+                  childSeatCount: 2,
                 },
               ],
             },
@@ -786,6 +791,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                         (index / 3) % 3
                       ],
                       notes: null,
+                      childSeatCount: index === 0 ? 2 : null,
                     },
                     {
                       id: `plan_seated_${index}_b`,
@@ -795,6 +801,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                         (index / 3) % 3
                       ],
                       notes: null,
+                      childSeatCount: null,
                     },
                   ]
                 : [],
@@ -837,6 +844,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                         (index / 3) % 3
                       ],
                       notes: null,
+                      childSeatCount: index === 0 ? 2 : null,
                     },
                   ]
                 : [],
