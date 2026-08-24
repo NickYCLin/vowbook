@@ -46,11 +46,23 @@ describe("SeatingChart", () => {
     expect(within(poster).getByRole("img", { name: "舞台" })).toBeInTheDocument();
 
     // 混坐的主桌標成共同，單一側的桌子標那一側，空桌不標。
-    expect(
-      within(poster).getByRole("article", {
-        name: "1 號桌 主桌，共同親友，兒童椅 3 張",
-      }),
-    ).toHaveTextContent("主桌");
+    const mainTable = within(poster).getByRole("article", {
+      name: "1 號桌 主桌，共同親友，兒童椅 3 張",
+    });
+    expect(mainTable).toHaveTextContent("主桌");
+    expect(mainTable).toHaveClass("justify-items-center", "text-center");
+    expect(within(mainTable).getByText("1", { exact: true })).toHaveClass(
+      "w-full",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("主桌", { exact: true })).toHaveClass(
+      "w-full",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("兒童椅 3")).toHaveClass(
+      "w-full",
+      "text-center",
+    );
     expect(within(poster).getByText("兒童椅 3")).toBeInTheDocument();
     expect(
       within(poster).getByRole("article", { name: "2 號桌 宴客桌 2，男方親友" }),

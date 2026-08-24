@@ -216,6 +216,27 @@ describe("SeatingFloorPlan", () => {
       name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
     expect(mainTable).toBeInTheDocument();
+    expect(mainTable.querySelector("[title]")).toHaveClass(
+      "justify-items-center",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("1", { exact: true })).toHaveClass(
+      "w-full",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("主桌", { exact: true })).toHaveClass(
+      "w-full",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("男方", { exact: true })).toHaveClass(
+      "w-full",
+      "justify-center",
+      "text-center",
+    );
+    expect(within(mainTable).getByText("3 / 10 位", { exact: true })).toHaveClass(
+      "w-full",
+      "text-center",
+    );
     expect(within(mainTable).getByText("兒童椅 2")).toBeInTheDocument();
     expect(within(board).getByRole("article", { name: "2 號桌 摯友桌，已安排 0 / 8 位" })).toHaveAttribute(
       "data-layout-source",
