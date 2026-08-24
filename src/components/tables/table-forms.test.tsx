@@ -553,9 +553,18 @@ describe("seating table forms", () => {
       screen.getByRole("option", { name: "已滿親友桌（剩餘 1 位）" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "安排王小明" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "將王小明移出桌次" })).toHaveClass(
+    const unassignButton = screen.getByRole("button", {
+      name: "將王小明移出桌次",
+    });
+    expect(unassignButton).toHaveClass(
       "min-h-11",
+      "sm:min-h-9",
+      "border-danger/40",
     );
+    expect(unassignButton.closest("form")).toHaveClass("items-end");
+    expect(
+      within(unassignButton).getByTestId("unassign-guest-icon"),
+    ).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByLabelText("為王小明選擇桌次").closest("form")).not.toHaveAttribute(
       "novalidate",
     );
