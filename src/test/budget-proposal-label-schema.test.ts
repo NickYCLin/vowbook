@@ -21,25 +21,28 @@ describe("Budget proposal fixed-label migration", () => {
       .map((entry) => entry.name)
       .sort();
 
-    expect(migrationNames).toHaveLength(31);
+    expect(migrationNames).toHaveLength(32);
     expect(migrationNames.at(21)).toBe(migrationName);
-    expect(migrationNames.at(-7)).toBe(
+    expect(migrationNames.at(-8)).toBe(
       "20260813160000_seating_table_floor_plan",
     );
-    expect(migrationNames.at(-6)).toBe(
+    expect(migrationNames.at(-7)).toBe(
       "20260817120000_seating_table_duplicate_names",
     );
-    expect(migrationNames.at(-5)).toBe(
+    expect(migrationNames.at(-6)).toBe(
       "20260822120000_guest_roster_categories",
     );
-    expect(migrationNames.at(-4)).toBe(
+    expect(migrationNames.at(-5)).toBe(
       "20260822130000_wedding_task_sides",
     );
-    expect(migrationNames.at(-3)).toBe("20260823153000_user_profile_avatar");
-    expect(migrationNames.at(-2)).toBe(
+    expect(migrationNames.at(-4)).toBe("20260823153000_user_profile_avatar");
+    expect(migrationNames.at(-3)).toBe(
       "20260823155000_guest_details_invitation_reply_optional",
     );
-    expect(migrationNames.at(-1)).toBe("20260824004000_user_access_admin");
+    expect(migrationNames.at(-2)).toBe("20260824004000_user_access_admin");
+    expect(migrationNames.at(-1)).toBe(
+      "20260824213500_allow_family_party_size",
+    );
     expect(fs.existsSync(migrationPath)).toBe(true);
   });
 

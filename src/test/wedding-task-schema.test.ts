@@ -85,6 +85,7 @@ describe("wedding task schema and migration contract", () => {
       "20260823153000_user_profile_avatar",
       "20260823155000_guest_details_invitation_reply_optional",
       "20260824004000_user_access_admin",
+      "20260824213500_allow_family_party_size",
     ]);
     expect(fs.existsSync(taskMigrationPath)).toBe(true);
   });

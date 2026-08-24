@@ -143,12 +143,16 @@ function GuestFields({
         </div>
       </div>
 
-      {category === "GUEST" ? (
+      {category !== "COUPLE" ? (
         <div className="min-w-0">
           <Field
             htmlFor={idPrefix + "-party-size"}
             label="邀請人數（含本人）"
-            hint="包含賓客本人，最多 20 位。"
+            hint={
+              category === "FAMILY"
+                ? "可包含同行的伴侶、小孩或寶寶，最多 20 位；需要兒童座椅可在下方填寫。"
+                : "包含賓客本人，最多 20 位。"
+            }
           >
             <Input
               id={idPrefix + "-party-size"}
@@ -168,7 +172,7 @@ function GuestFields({
         <div className="rounded-control border border-line bg-surface-sunken px-4 py-3">
           <p className="text-sm font-semibold text-ink">名單人數：1 位</p>
           <p className="mt-1 text-caption leading-6 text-ink-soft">
-            新人與家人請一人建立一筆名單。
+            新人請一人建立一筆名單。
           </p>
           <input type="hidden" name="partySize" value="1" />
         </div>

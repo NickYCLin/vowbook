@@ -36,6 +36,19 @@ class GuestPartyCapacityError extends Error {}
 const MANUAL_DETAILS_SOURCE = "MANUAL";
 const MANUAL_DETAILS_SOURCE_INSTANCE = "guest-details";
 const MANUAL_DETAILS_SOURCE_LABEL = "自行填寫";
+const GUEST_DETAILS_FORM_FIELDS = [
+  "relationshipLabel",
+  "contactPhone",
+  "contactEmail",
+  "ceremonyAttendance",
+  "childSeatCount",
+  "vegetarianCount",
+  "invitationDelivery",
+  "mailingAddress",
+  "guestMessage",
+  "attendanceReply",
+  "invitationReply",
+] as const;
 
 function isUniqueConstraintError(error: unknown): boolean {
   return (
@@ -105,6 +118,10 @@ function guestDetailsFromFormData(
     attendanceReply: formData.get("attendanceReply"),
     invitationReply: formData.get("invitationReply"),
   });
+}
+
+function includesGuestDetailsFields(formData: FormData): boolean {
+  return GUEST_DETAILS_FORM_FIELDS.some((field) => formData.has(field));
 }
 
 async function upsertManualGuestDetails(
@@ -225,11 +242,16 @@ export async function updateGuestAction(
   const currentUserId = authorization;
 
   let input: NormalizedGuestInput;
-  let details: NormalizedGuestDetailsInput;
+  let details: NormalizedGuestDetailsInput | null;
   let expectedVersion: number;
   try {
     input = guestInputFromFormData(formData);
-    details = guestDetailsFromFormData(formData);
+    // 桌次頁的就地人數編輯只送核心欄位；不能把未送出的兒童座椅、
+    // 素食等既有資料誤當成空白並覆寫。完整賓客表單會帶這些欄位，
+    // 即使值為空也代表使用者明確要清除。
+    details = includesGuestDetailsFields(formData)
+      ? guestDetailsFromFormData(formData)
+      : null;
     expectedVersion = normalizeGuestVersion(formData.get("expectedVersion"));
   } catch (error) {
     return validationState(error);
@@ -296,12 +318,14 @@ export async function updateGuestAction(
         },
       });
       if (result.count !== 1) throw new GuestStaleWriteError();
-      await upsertManualGuestDetails(
-        transaction,
-        workspaceId,
-        guestId,
-        details,
-      );
+      if (details !== null) {
+        await upsertManualGuestDetails(
+          transaction,
+          workspaceId,
+          guestId,
+          details,
+        );
+      }
       removedFromTable = removesFromTable;
     });
   } catch (error) {

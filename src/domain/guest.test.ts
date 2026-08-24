@@ -59,7 +59,7 @@ describe("guest domain contract", () => {
     });
   });
 
-  it("keeps newlyweds and family as one person per roster entry", () => {
+  it("keeps newlyweds individual while allowing family companions", () => {
     expect(
       normalizeGuestInput({
         name: "新郎",
@@ -71,16 +71,27 @@ describe("guest domain contract", () => {
       }),
     ).toMatchObject({ category: "COUPLE", side: "PARTNER_A", partySize: 1 });
 
-    expect(() =>
+    expect(
       normalizeGuestInput({
-        name: "新娘媽媽",
+        name: "新娘媽媽一家",
         category: "FAMILY",
         side: "PARTNER_B",
+        attendanceStatus: "ATTENDING",
+        partySize: "4",
+        notes: "",
+      }),
+    ).toMatchObject({ category: "FAMILY", side: "PARTNER_B", partySize: 4 });
+
+    expect(() =>
+      normalizeGuestInput({
+        name: "新郎",
+        category: "COUPLE",
+        side: "PARTNER_A",
         attendanceStatus: "ATTENDING",
         partySize: "2",
         notes: "",
       }),
-    ).toThrow("新人與家人請一人建立一筆名單");
+    ).toThrow("新人請一人建立一筆名單");
   });
 
   it("rejects a shared-side newlywed or family role", () => {
