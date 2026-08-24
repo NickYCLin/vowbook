@@ -152,18 +152,23 @@ export function SeatingChart({
                   side ? `，${GUEST_SIDE_LABELS[side]}` : ""
                 }${childSeats > 0 ? `，兒童椅 ${childSeats} 張` : ""}`}
                 className={cn(
-                  "absolute grid -translate-x-1/2 -translate-y-1/2 place-content-center gap-[0.2cqw] rounded-full border border-line-strong bg-surface px-[0.6cqw] text-center shadow-card",
+                  "absolute grid -translate-x-1/2 -translate-y-1/2 place-content-center justify-items-center gap-[0.2cqw] rounded-full border border-line-strong bg-surface px-[0.6cqw] text-center shadow-card",
                   density.marker,
                 )}
                 style={{ left: `${percent.x}%`, top: `${percent.y}%` }}
               >
-                <span className={cn("font-semibold text-ink tabular-nums", density.number)}>
+                <span
+                  className={cn(
+                    "w-full text-center font-semibold text-ink tabular-nums",
+                    density.number,
+                  )}
+                >
                   {table.number}
                 </span>
                 {density.name ? (
                   <span
                     className={cn(
-                      "max-w-full font-medium break-words text-ink-soft",
+                      "w-full max-w-full text-center font-medium break-words text-ink-soft",
                       density.name,
                     )}
                   >
@@ -171,7 +176,7 @@ export function SeatingChart({
                   </span>
                 ) : null}
                 {side && density.dot ? (
-                  <span className="flex items-center justify-center gap-[0.5cqw]">
+                  <span className="flex w-full items-center justify-center gap-[0.5cqw] text-center">
                     <span
                       aria-hidden="true"
                       className={cn(
@@ -195,7 +200,7 @@ export function SeatingChart({
                 {childSeats > 0 && density.childSeats ? (
                   <span
                     className={cn(
-                      "font-semibold text-caution tabular-nums",
+                      "w-full text-center font-semibold text-caution tabular-nums",
                       density.childSeats,
                     )}
                   >

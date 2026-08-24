@@ -202,7 +202,7 @@ function MarkerContent({
     <>
       <span
         className={cn(
-          "font-semibold text-ink tabular-nums",
+          "w-full text-center font-semibold text-ink tabular-nums",
           isMaximumDensity
             ? "text-caption leading-4"
             : isDense
@@ -216,7 +216,7 @@ function MarkerContent({
         <>
           <span
             className={cn(
-              "max-w-full font-medium break-words text-ink-soft",
+              "w-full max-w-full text-center font-medium break-words text-ink-soft",
               isDense
                 ? "line-clamp-1 text-[0.625rem] leading-3"
                 : "line-clamp-2 text-caption leading-4",
@@ -231,7 +231,7 @@ function MarkerContent({
           {side ? (
             <span
               className={cn(
-                "flex max-w-full items-center gap-1 font-semibold",
+                "flex w-full max-w-full items-center justify-center gap-1 text-center font-semibold",
                 SIDE_TEXT_CLASSNAMES[side],
                 isDense ? "text-[0.5rem] leading-3" : "text-[0.6875rem]",
               )}
@@ -248,7 +248,7 @@ function MarkerContent({
           ) : null}
           <span
             className={cn(
-              "font-semibold text-clay-strong tabular-nums",
+              "w-full text-center font-semibold text-clay-strong tabular-nums",
               isDense ? "text-[0.5rem] leading-3" : "text-[0.6875rem]",
             )}
           >
@@ -1030,7 +1030,7 @@ export function SeatingFloorPlan({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "pointer-events-none absolute z-20 inline-flex items-center rounded-full border border-caution/35 bg-caution-soft font-bold text-caution shadow-sm tabular-nums",
+                      "pointer-events-none absolute z-20 inline-flex items-center justify-center rounded-full border border-caution/35 bg-caution-soft text-center font-bold text-caution shadow-sm tabular-nums",
                       isDense
                         ? "top-0 right-0 px-1 py-0 text-[0.5rem] leading-3"
                         : "-top-1 -right-1 px-1.5 py-0.5 text-[0.625rem] leading-3",
@@ -1047,7 +1047,7 @@ export function SeatingFloorPlan({
                     aria-pressed={isSelected}
                     disabled={isPending}
                     className={cn(
-                      "grid size-full min-h-11 min-w-11 touch-none place-content-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2",
+                      "grid size-full min-h-11 min-w-11 touch-none place-content-center justify-items-center rounded-full text-center outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2",
                       isDense ? "px-0.5" : "px-2",
                     )}
                     onClick={() => onSelectTable?.(table.id)}
@@ -1068,7 +1068,7 @@ export function SeatingFloorPlan({
                   <div
                     title={label}
                     className={cn(
-                      "grid size-full place-content-center",
+                      "grid size-full place-content-center justify-items-center text-center",
                       isDense ? "px-0.5" : "px-2",
                     )}
                   >
