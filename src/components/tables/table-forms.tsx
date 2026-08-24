@@ -1,5 +1,6 @@
 "use client";
 
+import { UserMinus } from "@phosphor-icons/react";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import {
   adjustSeatingTablesAction,
@@ -912,19 +913,29 @@ export function UnassignGuestForm({
   return (
     <form
       action={formAction}
-      className="mt-1.5 min-w-0 space-y-2"
+      className="mt-1.5 flex min-w-0 flex-col items-end gap-2"
       onSubmit={() => onUnassignIntent?.({ guestId, guestName })}
     >
       <SubmitButton
         isPending={isPending}
         pendingLabel="移出中…"
-        variant="ghost"
+        variant="danger"
+        size="sm"
         aria-label={`將${guestName}移出桌次`}
-        className="-ml-4"
+        className="min-h-11 sm:min-h-9"
       >
+        <UserMinus
+          aria-hidden="true"
+          data-testid="unassign-guest-icon"
+          size={16}
+          weight="bold"
+        />
         移出此桌
       </SubmitButton>
-      <div data-action-feedback="seating-table-unassignment">
+      <div
+        className="w-full"
+        data-action-feedback="seating-table-unassignment"
+      >
         <SeatingTableActionFeedback
           state={state.status === "success" ? initialState : state}
         />

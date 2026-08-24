@@ -19,6 +19,7 @@ import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-fo
 import { GuestList } from "@/components/guests/guest-list";
 import { SeatingChart } from "@/components/tables/seating-chart";
 import { SeatingPlan } from "@/components/tables/seating-plan";
+import { UnassignGuestForm } from "@/components/tables/table-forms";
 import { WeddingStaffList } from "@/components/staff/staff-list";
 import { WeddingTaskList } from "@/components/tasks/task-list";
 import { ThemeMenu } from "@/components/theme/theme-menu";
@@ -476,6 +477,54 @@ const surfaces: { name: string; element: ReactNode }[] = [
             category: "GUEST" as const,
           }))}
         />
+      </WorkspacePage>
+    ),
+  },
+  {
+    // SeatingPlan 的編輯明細需先在 client 選桌；另外保留這個正式表單樣本，
+    // 讓 RWD 稽核可直接量到每張賓客小卡右下角的移出操作。
+    name: "tables-guest-actions",
+    element: (
+      <WorkspacePage
+        sectionTitle="桌次安排"
+        description="檢查已安排賓客小卡的操作位置與窄版觸控範圍。"
+        activeSection="tables"
+      >
+        <section
+          aria-labelledby="assigned-guest-actions-heading"
+          className="mt-6 min-w-0"
+          style={{ width: "23rem", maxWidth: "100%" }}
+        >
+          <h2
+            id="assigned-guest-actions-heading"
+            className="font-serif text-title font-semibold text-ink"
+          >
+            已安排賓客
+          </h2>
+          <ul
+            data-assigned-guest-grid
+            className="mt-3 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] items-start gap-3"
+          >
+            {["莊明倫", "劉媛潔", "郭倩賢", "許文瑜"].map((name, index) => (
+              <li
+                key={name}
+                data-assigned-guest-card
+                className="flex min-w-0 flex-col rounded-control border border-line bg-surface-sunken/55 px-3.5 py-3"
+              >
+                <p className="text-caption font-semibold break-words text-ink">
+                  {name}・{index === 3 ? 2 : 1} 位
+                </p>
+                <div className="mt-auto pt-1.5">
+                  <UnassignGuestForm
+                    workspaceId="workspace_rwd"
+                    guestId={`assigned_guest_${index}`}
+                    guestName={name}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       </WorkspacePage>
     ),
   },
