@@ -79,6 +79,15 @@ describe("getSeatingPlan", () => {
             partySize: true,
             side: true,
             notes: true,
+            importRecords: {
+              orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+              select: {
+                source: true,
+                sourceInstance: true,
+                sourceManaged: true,
+                childSeatCount: true,
+              },
+            },
           },
         },
       },
@@ -144,6 +153,95 @@ describe("getSeatingPlan", () => {
         { id: "table_legacy", number: 2, layoutX: null, layoutY: null },
       ],
     });
+  });
+
+  it("returns each seated guest's effective child-seat count without exposing provenance", async () => {
+    findTables.mockResolvedValueOnce([
+      {
+        id: "table_main",
+        position: 1,
+        version: 2,
+        layoutX: null,
+        layoutY: null,
+        name: "主桌",
+        capacity: 10,
+        notes: null,
+        guests: [
+          {
+            id: "guest_manual",
+            name: "人工調整",
+            partySize: 3,
+            side: "SHARED",
+            notes: null,
+            importRecords: [
+              {
+                source: "LINEIN",
+                sourceInstance: "default",
+                sourceManaged: true,
+                childSeatCount: 2,
+              },
+              {
+                source: "MANUAL",
+                sourceInstance: "guest-details",
+                sourceManaged: false,
+                childSeatCount: 1,
+              },
+            ],
+          },
+          {
+            id: "guest_cleared",
+            name: "已取消需求",
+            partySize: 2,
+            side: "PARTNER_A",
+            notes: null,
+            importRecords: [
+              {
+                source: "LINEIN",
+                sourceInstance: "default",
+                sourceManaged: true,
+                childSeatCount: 2,
+              },
+              {
+                source: "MANUAL",
+                sourceInstance: "guest-details",
+                sourceManaged: false,
+                childSeatCount: null,
+              },
+            ],
+          },
+          {
+            id: "guest_imported",
+            name: "沿用匯入",
+            partySize: 2,
+            side: "PARTNER_B",
+            notes: null,
+            importRecords: [
+              {
+                source: "MANUAL",
+                sourceInstance: "legacy",
+                sourceManaged: false,
+                childSeatCount: 1,
+              },
+              {
+                source: "LINEIN",
+                sourceInstance: "default",
+                sourceManaged: true,
+                childSeatCount: 2,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const plan = await getSeatingPlan("workspace_1");
+
+    expect(plan.tables[0]?.guests).toEqual([
+      expect.objectContaining({ id: "guest_manual", childSeatCount: 1 }),
+      expect.objectContaining({ id: "guest_cleared", childSeatCount: null }),
+      expect.objectContaining({ id: "guest_imported", childSeatCount: 2 }),
+    ]);
+    expect(plan.tables[0]?.guests[0]).not.toHaveProperty("importRecords");
   });
 
   it("numbers tables by seating order and skips the avoided numbers", async () => {

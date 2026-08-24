@@ -11,6 +11,7 @@ import {
   getWorkspacePermissions,
   WorkspaceAccessDeniedError,
 } from "@/domain/workspace";
+import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
@@ -177,24 +178,12 @@ const detailFields = [
 function detailsFromRecords(
   records: readonly EditorImportRecord[],
 ): GuestDetailsDto | null {
-  const manual = records.find(
-    (record) =>
-      record.source === "MANUAL" &&
-      record.sourceInstance === "guest-details",
-  );
-  const ordered = manual
-    ? [manual]
-    : [...records].sort(
-        (left, right) => Number(right.sourceManaged) - Number(left.sourceManaged),
-      );
-  if (ordered.length === 0) return null;
+  if (records.length === 0) return null;
 
   const details = Object.fromEntries(
     detailFields.map((field) => [
       field,
-      manual
-        ? manual[field]
-        : ordered.find((record) => record[field] !== null)?.[field] ?? null,
+      effectiveGuestDetailValue(records, (record) => record[field]),
     ]),
   ) as GuestDetailsDto;
 
