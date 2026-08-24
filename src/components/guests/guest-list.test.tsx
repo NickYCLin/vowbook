@@ -84,7 +84,7 @@ describe("GuestList", () => {
           guest,
           { ...guest, id: "groom", name: "陳新郎", category: "COUPLE", partySize: 1 },
           { ...guest, id: "bride", name: "林新娘", category: "COUPLE", side: "PARTNER_B", partySize: 1 },
-          { ...guest, id: "mother", name: "陳媽媽", category: "FAMILY", partySize: 1 },
+          { ...guest, id: "mother", name: "陳媽媽一家", category: "FAMILY", partySize: 3 },
         ]}
         canEdit={false}
       />
@@ -94,10 +94,16 @@ describe("GuestList", () => {
     expect(screen.getByRole("heading", { name: "一般賓客" })).toBeInTheDocument();
     expect(within(screen.getByRole("heading", { name: "陳新郎" }).closest("li")!).getByText("新郎")).toBeInTheDocument();
     expect(within(screen.getByRole("heading", { name: "林新娘" }).closest("li")!).getByText("新娘")).toBeInTheDocument();
-    expect(within(screen.getByRole("heading", { name: "陳媽媽" }).closest("li")!).getByText("新郎家人")).toBeInTheDocument();
+    expect(within(screen.getByRole("heading", { name: "陳媽媽一家" }).closest("li")!).getByText("新郎家人")).toBeInTheDocument();
     expect(screen.getByText("一般賓客組數")).toBeInTheDocument();
-    expect(screen.getByText("新人與家人數")).toBeInTheDocument();
-    expect(screen.getByText("宴席人數")).toBeInTheDocument();
+    const hostStat = screen.getByText("新人與家人數").closest("div");
+    expect(hostStat).not.toBeNull();
+    expect(within(hostStat as HTMLElement).getByText("5")).toBeInTheDocument();
+    expect(within(hostStat as HTMLElement).getByText("出席 5 位"))
+      .toBeInTheDocument();
+    const banquetStat = screen.getByText("宴席人數").closest("div");
+    expect(banquetStat).not.toBeNull();
+    expect(within(banquetStat as HTMLElement).getByText("7")).toBeInTheDocument();
     expect(screen.getByText("顯示 4 / 4 筆")).toBeInTheDocument();
   });
 

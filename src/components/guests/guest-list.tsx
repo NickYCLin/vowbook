@@ -342,8 +342,8 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
     let generalRespondedGroups = 0;
     let generalUndecidedGroups = 0;
     let generalAttendingHeadcount = 0;
-    let hostMembers = 0;
-    let hostAttendingMembers = 0;
+    let hostHeadcount = 0;
+    let hostAttendingHeadcount = 0;
     let banquetHeadcount = 0;
     let seatableEntries = 0;
     let seatedEntries = 0;
@@ -360,9 +360,9 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
           generalAttendingHeadcount += guest.partySize;
         }
       } else {
-        hostMembers += 1;
+        hostHeadcount += guest.partySize;
         if (guest.attendanceStatus === "ATTENDING") {
-          hostAttendingMembers += 1;
+          hostAttendingHeadcount += guest.partySize;
         }
       }
 
@@ -380,8 +380,8 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
       generalRespondedGroups,
       generalUndecidedGroups,
       generalAttendingHeadcount,
-      hostMembers,
-      hostAttendingMembers,
+      hostHeadcount,
+      hostAttendingHeadcount,
       banquetHeadcount,
       seatableEntries,
       seatedEntries,
@@ -509,9 +509,9 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                   />
                   <Stat
                     label="新人與家人數"
-                    value={totals.hostMembers}
+                    value={totals.hostHeadcount}
                     unit="位"
-                    hint={"出席 " + totals.hostAttendingMembers + " 位"}
+                    hint={"出席 " + totals.hostAttendingHeadcount + " 位"}
                     tone="brand"
                   />
                   <Stat

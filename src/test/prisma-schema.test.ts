@@ -96,6 +96,36 @@ describe("Prisma schema contract", () => {
     expect(migration).toMatch(/WHERE "category" = 'COUPLE'/u);
   });
 
+  it("allows family companions while keeping newlyweds as one-person entries", () => {
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260824213500_allow_family_party_size",
+        "migration.sql",
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain(
+      'DROP CONSTRAINT "guests_roster_category_check"',
+    );
+    const familyClause = migration.match(
+      /"category" = 'FAMILY'([\s\S]*?)OR \(/u,
+    )?.[1];
+    expect(familyClause).toContain(
+      '"side" IN (\'PARTNER_A\', \'PARTNER_B\')',
+    );
+    expect(familyClause).not.toContain('"party_size" = 1');
+    expect(migration).toMatch(
+      /"category" = 'COUPLE'[\s\S]*"side" IN \('PARTNER_A', 'PARTNER_B'\)[\s\S]*"party_size" = 1/u,
+    );
+    expect(migration).toContain(
+      'VALIDATE CONSTRAINT "guests_roster_category_check"',
+    );
+  });
+
   it("ships a production migration for the guest table without applying it", () => {
     const migrationsPath = path.join(process.cwd(), "prisma", "migrations");
     const guestMigration = fs

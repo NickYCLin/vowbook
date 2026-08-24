@@ -54,10 +54,10 @@ export function EditGuestPartySizeForm({
     setDraft(String(guest.partySize));
   }, [guest.partySize, guest.version]);
 
-  if (guest.category !== "GUEST") {
+  if (guest.category === "COUPLE") {
     return (
       <p className="mt-2 text-caption text-ink-faint">
-        名單人數 1 位・新人與家人一人一筆
+        名單人數 1 位・新人一人一筆
       </p>
     );
   }

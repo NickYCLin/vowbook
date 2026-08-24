@@ -259,12 +259,24 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
         },
       }),
     ).rejects.toBeDefined();
+    const familyGroup = await prisma.guest.create({
+      data: {
+        workspaceId: workspace.id,
+        name: "多人家人",
+        category: "FAMILY",
+        side: "PARTNER_B",
+        attendanceStatus: "ATTENDING",
+        partySize: 2,
+      },
+    });
+    expect(familyGroup.partySize).toBe(2);
+
     await expect(
       prisma.guest.create({
         data: {
           workspaceId: workspace.id,
-          name: "多人家人",
-          category: "FAMILY",
+          name: "多人新人",
+          category: "COUPLE",
           side: "PARTNER_B",
           attendanceStatus: "ATTENDING",
           partySize: 2,
@@ -275,6 +287,11 @@ describeDatabase.sequential("PostgreSQL Guest RSVP tenant invariants", () => {
     expect(
       await prisma.guest.count({
         where: { workspaceId: workspace.id, category: "COUPLE" },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.guest.count({
+        where: { workspaceId: workspace.id, category: "FAMILY" },
       }),
     ).toBe(1);
   });

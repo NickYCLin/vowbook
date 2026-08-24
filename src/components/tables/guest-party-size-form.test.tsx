@@ -88,6 +88,31 @@ describe("EditGuestPartySizeForm", () => {
     expect(input).toBeRequired();
   });
 
+  it("allows a family entry to include and adjust companions", () => {
+    const { container } = render(
+      <EditGuestPartySizeForm
+        workspaceId="workspace_internal"
+        guest={{ ...guest, category: "FAMILY", partySize: 4 }}
+      />,
+    );
+
+    expect(screen.getByLabelText("林小美的邀請人數（含本人）")).toHaveValue(4);
+    expect(container.querySelector('[name="category"]')).toHaveValue("FAMILY");
+  });
+
+  it("keeps a newlywed entry fixed at one person", () => {
+    render(
+      <EditGuestPartySizeForm
+        workspaceId="workspace_internal"
+        guest={{ ...guest, category: "COUPLE", partySize: 1 }}
+      />,
+    );
+
+    expect(screen.queryByLabelText("林小美的邀請人數（含本人）")).toBeNull();
+    expect(screen.getByText("名單人數 1 位・新人一人一筆"))
+      .toBeInTheDocument();
+  });
+
   it("keeps a draft until the server writes a new version", () => {
     const { rerender } = render(
       <EditGuestPartySizeForm workspaceId="workspace_internal" guest={guest} />,

@@ -169,8 +169,8 @@ export function normalizeGuestInput(input: GuestInput): NormalizedGuestInput {
   if (category !== "GUEST" && input.side === "SHARED") {
     throw new GuestValidationError("新人與家人需選擇新郎或新娘一方。");
   }
-  if (category !== "GUEST" && partySize !== 1) {
-    throw new GuestValidationError("新人與家人請一人建立一筆名單。");
+  if (category === "COUPLE" && partySize !== 1) {
+    throw new GuestValidationError("新人請一人建立一筆名單。");
   }
 
   return {

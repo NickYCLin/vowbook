@@ -87,7 +87,7 @@ describe("guest forms", () => {
     expect(container.querySelector('[name="role"]')).toBeNull();
   });
 
-  it("turns family into a one-person roster entry with side-specific roles", () => {
+  it("lets family include companions while keeping side-specific roles", () => {
     const { container } = render(
       <CreateGuestForm workspaceId="workspace_internal" />
     );
@@ -99,8 +99,25 @@ describe("guest forms", () => {
     expect(screen.getByLabelText("家人所屬")).toHaveValue("PARTNER_A");
     expect(screen.getByRole("option", { name: "新郎家人" })).toHaveValue("PARTNER_A");
     expect(screen.getByRole("option", { name: "新娘家人" })).toHaveValue("PARTNER_B");
+    expect(screen.getByLabelText("邀請人數（含本人）")).toHaveValue(1);
+    expect(screen.getByText("可包含同行的伴侶、小孩或寶寶，最多 20 位；需要兒童座椅可在下方填寫。"))
+      .toBeInTheDocument();
+    expect(
+      container.querySelector('input[type="hidden"][name="partySize"][value="1"]'),
+    ).toBeNull();
+  });
+
+  it("keeps each newlywed as an individual roster entry", () => {
+    const { container } = render(
+      <CreateGuestForm workspaceId="workspace_internal" />
+    );
+
+    fireEvent.change(screen.getByLabelText("名單身份"), {
+      target: { value: "COUPLE" },
+    });
+
     expect(screen.queryByLabelText("邀請人數（含本人）")).toBeNull();
-    expect(screen.getByText("新人與家人請一人建立一筆名單。"))
+    expect(screen.getByText("新人請一人建立一筆名單。"))
       .toBeInTheDocument();
     expect(
       container.querySelector('input[type="hidden"][name="partySize"][value="1"]'),

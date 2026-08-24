@@ -440,6 +440,19 @@ describe("guest server actions", () => {
     });
   });
 
+  it("preserves existing details when a quick edit only sends core fields", async () => {
+    await expect(
+      updateGuestAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        validGuestFormData(),
+      ),
+    ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+
+    expect(detailsUpsert).not.toHaveBeenCalled();
+  });
+
   it("allows core edits when every import record is an editable copy", async () => {
     findUnique.mockResolvedValue({
       id: "guest_1",

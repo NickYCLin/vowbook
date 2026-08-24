@@ -50,23 +50,25 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
-const userAccessMigration = migrationEntries.at(-1);
-const guestDetailsMigration = migrationEntries.at(-2);
-const avatarMigration = migrationEntries.at(-3);
-const taskSidesMigration = migrationEntries.at(-4);
-const rosterCategoriesMigration = migrationEntries.at(-5);
-const duplicateNamesMigration = migrationEntries.at(-6);
-const floorPlanMigration = migrationEntries.at(-7);
-const preparationSuggestionMigration = migrationEntries.at(-8);
-const engagementSuggestionMigration = migrationEntries.at(-9);
-const proposalLabelMigration = migrationEntries.at(-10);
-const repairMigration = migrationEntries.at(-11);
-const sourceHierarchyMigration = migrationEntries.at(-12);
-const relatedTaxonomyMigration = migrationEntries.at(-13);
-const fixedGroupsMigration = migrationEntries.at(-14);
-const failClosedMigration = migrationEntries.at(-15);
-const priorHeadMigration = migrationEntries.at(-16);
+const familyPartySizeMigration = migrationEntries.at(-1);
+const userAccessMigration = migrationEntries.at(-2);
+const guestDetailsMigration = migrationEntries.at(-3);
+const avatarMigration = migrationEntries.at(-4);
+const taskSidesMigration = migrationEntries.at(-5);
+const rosterCategoriesMigration = migrationEntries.at(-6);
+const duplicateNamesMigration = migrationEntries.at(-7);
+const floorPlanMigration = migrationEntries.at(-8);
+const preparationSuggestionMigration = migrationEntries.at(-9);
+const engagementSuggestionMigration = migrationEntries.at(-10);
+const proposalLabelMigration = migrationEntries.at(-11);
+const repairMigration = migrationEntries.at(-12);
+const sourceHierarchyMigration = migrationEntries.at(-13);
+const relatedTaxonomyMigration = migrationEntries.at(-14);
+const fixedGroupsMigration = migrationEntries.at(-15);
+const failClosedMigration = migrationEntries.at(-16);
+const priorHeadMigration = migrationEntries.at(-17);
 if (
+  !familyPartySizeMigration ||
   !userAccessMigration ||
   !guestDetailsMigration ||
   !avatarMigration ||
@@ -83,14 +85,16 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length < 16
+  migrationEntries.length < 17
 ) {
-  throw new Error("At least fifteen migrations are required for the upgrade gate.");
+  throw new Error("At least seventeen migrations are required for the upgrade gate.");
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 31 ||
+  migrationEntries.length !== 32 ||
   priorHeadPosition !== 16 ||
+  familyPartySizeMigration !==
+    "20260824213500_allow_family_party_size" ||
   userAccessMigration !== "20260824004000_user_access_admin" ||
   guestDetailsMigration !==
     "20260823155000_guest_details_invitation_reply_optional" ||
@@ -114,7 +118,7 @@ if (
   priorHeadMigration !== "20260802151000_linein_party_size_ownership"
 ) {
   throw new Error(
-    "Upgrade gate requires prior head 16 through migrations 17 to 31.",
+    "Upgrade gate requires prior head 16 through migrations 17 to 32.",
   );
 }
 
@@ -1522,6 +1526,21 @@ async function runPriorHeadUpgrade() {
         "prior-head upgrade verification failed: user-access migration missing",
       );
     }
+    const appliedFamilyPartySize = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${familyPartySizeMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    if (
+      !Array.isArray(appliedFamilyPartySize) ||
+      appliedFamilyPartySize.length !== 1
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: family-party-size migration missing",
+      );
+    }
     const duplicateNameIndexes = await upgradedClient.$queryRaw`
       SELECT indexname
       FROM pg_indexes
@@ -1651,7 +1670,7 @@ async function runPriorHeadUpgrade() {
   }
 
   console.log(
-    `Prior-head upgrade passed: ${failClosedMigration} normalized the stale LINEIN/default target and validated the fail-closed PARTY_SIZE constraint, then ${fixedGroupsMigration} established six public Drive budget stages and twenty public Drive item groups plus one hidden internal preservation stage and item group, ${relatedTaxonomyMigration} added the validated optional public Drive item purpose relation, ${sourceHierarchyMigration} added the validated Notion source hierarchy path with an empty path for every existing Budget row, ${repairMigration} accepted the canonical final shape as a data no-op, ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚, and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity, then ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys while preserving the same key, all twenty public item groups, and all twenty-eight system nodes; ${floorPlanMigration} added nullable paired floor-plan coordinates without backfilling the legacy table; ${duplicateNamesMigration} removed table-name uniqueness while preserving position identity; ${taskSidesMigration} defaulted the verified prior-head task to SHARED; ${avatarMigration} added an empty one-to-one private avatar table; ${guestDetailsMigration} allowed normalized invitation choices without source-specific reply text while preserving paper-address enforcement; ${userAccessMigration} defaulted existing users to ACTIVE with null access audit and login timestamps; preserved all scalar values across 4 Guests, preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP, changed only the target sourcePartySize, managedFields, sourceManaged, and updatedAt values, preserved the table ID, name, capacity, position, and target Guest assignment, and kept the verified prior-head task, audit, Budget, attachment, invitation, user, workspace, and membership fixtures unchanged.`,
+    `Prior-head upgrade passed: ${failClosedMigration} normalized the stale LINEIN/default target and validated the fail-closed PARTY_SIZE constraint, then ${fixedGroupsMigration} established six public Drive budget stages and twenty public Drive item groups plus one hidden internal preservation stage and item group, ${relatedTaxonomyMigration} added the validated optional public Drive item purpose relation, ${sourceHierarchyMigration} added the validated Notion source hierarchy path with an empty path for every existing Budget row, ${repairMigration} accepted the canonical final shape as a data no-op, ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚, and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity, then ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys while preserving the same key, all twenty public item groups, and all twenty-eight system nodes; ${floorPlanMigration} added nullable paired floor-plan coordinates without backfilling the legacy table; ${duplicateNamesMigration} removed table-name uniqueness while preserving position identity; ${taskSidesMigration} defaulted the verified prior-head task to SHARED; ${avatarMigration} added an empty one-to-one private avatar table; ${guestDetailsMigration} allowed normalized invitation choices without source-specific reply text while preserving paper-address enforcement; ${userAccessMigration} defaulted existing users to ACTIVE with null access audit and login timestamps; ${familyPartySizeMigration} allowed FAMILY party size while keeping COUPLE one person; preserved all scalar values across 4 Guests, preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP, changed only the target sourcePartySize, managedFields, sourceManaged, and updatedAt values, preserved the table ID, name, capacity, position, and target Guest assignment, and kept the verified prior-head task, audit, Budget, attachment, invitation, user, workspace, and membership fixtures unchanged.`,
   );
   return 0;
 }
