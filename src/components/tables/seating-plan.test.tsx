@@ -433,6 +433,15 @@ describe("SeatingPlan", () => {
     expect(
       screen.getByRole("button", { name: "桌數設定（目前 1 桌）" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "查看 1 號桌 主桌" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "編輯 1 號桌 主桌" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 1 號桌 主桌" }));
+
     expect(screen.getByRole("button", { name: "編輯 1 號桌 主桌" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "刪除 1 號桌 主桌" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "移出 王小明" })).toBeInTheDocument();
@@ -464,8 +473,8 @@ describe("SeatingPlan", () => {
     );
   });
 
-  it("uses the floor-plan selection to switch the editor inspector by table name", () => {
-    render(
+  it("lists every table before selection, then focuses one table and returns to the overview", () => {
+    const { container } = render(
       <SeatingPlan
         workspaceId="workspace_internal"
         tables={[
@@ -484,16 +493,43 @@ describe("SeatingPlan", () => {
     );
 
     const inspector = screen.getByRole("region", { name: "桌次明細" });
+    const overview = container.querySelector("[data-table-overview-grid]");
+    expect(overview).toHaveClass("grid-cols-1", "sm:grid-cols-2");
     expect(within(inspector).getByRole("heading", { name: "1 號桌 主桌" })).toBeInTheDocument();
     expect(
-      within(inspector).queryByRole("heading", { name: "2 號桌 摯友桌" }),
-    ).toBeNull();
+      within(inspector).getByRole("heading", { name: "2 號桌 摯友桌" }),
+    ).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("button", { name: "查看 1 號桌 主桌" }),
+    ).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("button", { name: "查看 2 號桌 摯友桌" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "選取 主桌" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "選取 摯友桌" }));
+    expect(container.querySelector("[data-table-overview-grid]")).toBeNull();
     expect(
       within(inspector).getByRole("heading", { name: "2 號桌 摯友桌" }),
     ).toBeInTheDocument();
     expect(within(inspector).queryByRole("heading", { name: "1 號桌 主桌" })).toBeNull();
+    expect(
+      within(inspector).getByRole("button", { name: "查看全部桌次" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(inspector).getByRole("button", { name: "查看全部桌次" }),
+    );
+    expect(container.querySelector("[data-table-overview-grid]")).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("heading", { name: "1 號桌 主桌" }),
+    ).toBeInTheDocument();
+    expect(
+      within(inspector).getByRole("heading", { name: "2 號桌 摯友桌" }),
+    ).toBeInTheDocument();
   });
 
   it("announces and focuses a confirmed unassigned-to-assigned transition", async () => {
@@ -568,6 +604,7 @@ describe("SeatingPlan", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "查看 1 號桌 主桌" }));
     fireEvent.click(screen.getByRole("button", { name: "移出 王小明" }));
     expect(
       screen.queryByText("已將王小明移出桌次。", { exact: true }),
@@ -634,6 +671,7 @@ describe("SeatingPlan", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "查看 1 號桌 主桌" }));
     fireEvent.click(screen.getByRole("button", { name: "刪除 1 號桌 主桌" }));
     rerender(
       <SeatingPlan
@@ -684,6 +722,7 @@ describe("SeatingPlan", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "查看 1 號桌 主桌" }));
     fireEvent.click(
       screen.getByRole("button", { name: "確認刪除空桌 1 號桌 主桌" }),
     );

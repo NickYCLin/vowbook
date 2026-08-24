@@ -92,9 +92,7 @@ export function SeatingPlan({
   );
   const [pendingDelete, setPendingDelete] =
     useState<PendingSeatingDelete | null>(null);
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(() =>
-    canEdit ? (tables[0]?.id ?? null) : null,
-  );
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const moveStatusRef = useRef<HTMLParagraphElement>(null);
   const partnerAHeadingId = useId();
   const partnerBHeadingId = useId();
@@ -226,13 +224,14 @@ export function SeatingPlan({
     PARTNER_B: partnerBHeadingId,
     SHARED: sharedHeadingId,
   } satisfies Record<GuestSideValue, string>;
-  const effectiveSelectedTableId = canEdit
-    ? tables.some((table) => table.id === selectedTableId)
-      ? selectedTableId
-      : (tables[0]?.id ?? null)
+  const selectedTable = canEdit
+    ? (tables.find((table) => table.id === selectedTableId) ?? null)
     : null;
+  const effectiveSelectedTableId = selectedTable?.id ?? null;
   const displayedTables = canEdit
-    ? tables.filter((table) => table.id === effectiveSelectedTableId)
+    ? selectedTable
+      ? [selectedTable]
+      : []
     : tables;
 
   function renderUnassignedGuestGroup(side: GuestSideValue) {
@@ -398,18 +397,29 @@ export function SeatingPlan({
         </section>
 
         <section aria-labelledby="tables-heading" className="min-w-0" data-table-inspector>
-          <div className="flex min-h-11 items-center justify-between gap-3">
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-3">
             <h2
               id="tables-heading"
               className="font-serif text-title font-semibold text-ink"
             >
               桌次明細
             </h2>
-            {tables.length > 0 && (
-              <p className="text-caption text-ink-soft tabular-nums">
-                共 {tables.length} 桌
-              </p>
-            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {selectedTable ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTableId(null)}
+                  className="inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3 py-2 text-caption font-semibold text-ink-soft transition-colors hover:border-clay hover:text-clay-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2"
+                >
+                  查看全部桌次
+                </button>
+              ) : null}
+              {tables.length > 0 && (
+                <p className="text-caption text-ink-soft tabular-nums">
+                  共 {tables.length} 桌
+                </p>
+              )}
+            </div>
           </div>
 
           {tables.length === 0 ? (
@@ -433,6 +443,89 @@ export function SeatingPlan({
                 description="可以編輯此工作區的成員尚未建立桌次。"
               />
             )
+          ) : canEdit && !selectedTable ? (
+            <div className="mt-4 min-w-0">
+              <p className="text-caption leading-6 text-ink-soft">
+                目前顯示全部桌次。點選場地配置中的圓桌，或從下方選一桌查看完整賓客與編輯功能。
+              </p>
+              <ul
+                data-table-overview-grid
+                className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2"
+              >
+                {tables.map((table) => {
+                  const assignedPartySize = table.guests.reduce(
+                    (total, guest) => total + guest.partySize,
+                    0,
+                  );
+                  const isOverCapacity = assignedPartySize > table.capacity;
+                  const side = seatingTableSide(table.guests);
+
+                  return (
+                    <li key={table.id} className="min-w-0">
+                      <Card className="h-full">
+                        <article className="flex h-full min-w-0 flex-col px-4 py-4">
+                          <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                            <h3
+                              aria-label={seatingTableLabel(table)}
+                              className="flex min-w-0 flex-1 items-baseline gap-2 font-serif text-body font-semibold text-ink"
+                            >
+                              <span className="shrink-0 tabular-nums text-clay-strong">
+                                {table.number}
+                                <span className="ml-0.5 font-sans text-caption font-semibold">
+                                  號桌
+                                </span>
+                              </span>
+                              <span className="min-w-0 break-words">
+                                {table.name}
+                              </span>
+                            </h3>
+                            {side ? (
+                              <Badge tone={SIDE_BADGE_TONES[side]}>
+                                <BadgeDot />
+                                {GUEST_SIDE_LABELS[side]}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                            <p className="text-caption text-ink-faint tabular-nums">
+                              {table.guests.length} 筆賓客
+                            </p>
+                            <p
+                              className={cn(
+                                "text-caption font-semibold tabular-nums",
+                                isOverCapacity
+                                  ? "text-danger"
+                                  : "text-clay-strong",
+                              )}
+                            >
+                              已安排 {assignedPartySize} / {table.capacity} 位
+                            </p>
+                          </div>
+
+                          <ProgressBar
+                            className="mt-2"
+                            label={`${seatingTableLabel(table)} 座位使用率`}
+                            value={assignedPartySize}
+                            max={table.capacity}
+                            tone={isOverCapacity ? "danger" : "brand"}
+                          />
+
+                          <button
+                            type="button"
+                            aria-label={`查看 ${seatingTableLabel(table)}`}
+                            onClick={() => setSelectedTableId(table.id)}
+                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-control border border-line-strong bg-surface-sunken/50 px-3 py-2 text-caption font-semibold text-clay-strong transition-colors hover:border-clay hover:bg-clay-soft/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2"
+                          >
+                            查看完整明細
+                          </button>
+                        </article>
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           ) : (
             <>
               <div className="mt-4 min-w-0 space-y-4">
@@ -566,11 +659,6 @@ export function SeatingPlan({
                     </Card>
                   );
                 })}
-                {canEdit && displayedTables.length === 0 ? (
-                  <p className="rounded-card border border-dashed border-line-strong bg-surface/60 px-5 py-8 text-center text-caption leading-6 text-ink-soft">
-                    請從場地配置選取要查看的桌次。
-                  </p>
-                ) : null}
               </div>
             </>
           )}
