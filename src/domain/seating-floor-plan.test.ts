@@ -192,12 +192,37 @@ describe("seating floor-plan layout", () => {
       ),
     ).toEqual([4, 3, 3, 4]);
 
-    // 每一排由左到右依序填入，桌次編號才不會在左右之間跳來跳去。
+    // 桌號先排完左側區塊，再接著排右側區塊。這樣賓客沿著同一側往下找桌時，
+    // 不會看到 8 號旁邊突然變成 18 號。
+    const readingOrder = (positions: typeof others) =>
+      [...positions]
+        .sort((left, right) => left.y - right.y || left.x - right.x)
+        .map((position) => position.tableId);
+    expect(readingOrder(left)).toEqual([
+      "table_1",
+      "table_2",
+      "table_3",
+      "table_4",
+      "table_5",
+      "table_6",
+      "table_7",
+    ]);
+    expect(readingOrder(right)).toEqual([
+      "table_8",
+      "table_9",
+      "table_10",
+      "table_11",
+      "table_12",
+      "table_13",
+      "table_14",
+    ]);
+
+    // 第二排仍然由左到右閱讀，但左右兩個區塊各自保持連續桌號。
     expect(
       others
         .filter((position) => position.y === 453)
         .map((position) => position.tableId),
-    ).toEqual(["table_3", "table_4", "table_5", "table_6"]);
+    ).toEqual(["table_2", "table_3", "table_9", "table_10"]);
   });
 
   it("packs every row but the main-table row so column counts stay even", () => {

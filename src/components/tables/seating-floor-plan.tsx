@@ -320,7 +320,7 @@ export function SeatingFloorPlan({
   // 哪一張桌子正跟著指標跑。跟著指標的那張不能有位移動畫，否則會慢半拍。
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
   const [swapSelectionId, setSwapSelectionId] = useState("");
-  // 「全部還原自動排列」會一次抹掉所有手動位置且無法復原，要先確認。
+  // 「依桌號重新排列」會一次抹掉所有手動位置且無法復原，要先確認。
   const [isConfirmingResetAll, setIsConfirmingResetAll] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -851,7 +851,7 @@ export function SeatingFloorPlan({
           {isConfirmingResetAll ? (
             <>
               <p className="min-w-0 text-caption font-semibold text-ink">
-                {`確定把 ${persistedDraftCount} 桌的手動位置全部還原成自動排列？這個動作無法復原。`}
+                {`確定把 ${persistedDraftCount} 桌的手動位置清除，並依桌號重新排列？這個動作無法復原。`}
               </p>
               <button
                 type="button"
@@ -859,7 +859,7 @@ export function SeatingFloorPlan({
                 onClick={persistResetAll}
                 className="inline-flex min-h-11 items-center justify-center rounded-control border border-danger/40 bg-surface px-3.5 text-sm font-semibold text-danger hover:border-danger hover:bg-danger-soft disabled:opacity-60"
               >
-                確定還原全部
+                確定重新排列
               </button>
               <button
                 type="button"
@@ -877,7 +877,7 @@ export function SeatingFloorPlan({
               onClick={() => setIsConfirmingResetAll(true)}
               className="inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3.5 text-sm font-semibold text-clay-strong hover:bg-clay-soft disabled:opacity-60"
             >
-              全部還原自動排列
+              依桌號重新排列
             </button>
           )}
         </div>
@@ -918,8 +918,8 @@ export function SeatingFloorPlan({
           </div>
           {/*
             兩側座位區是中性色，也不再標「女方親友」「男方親友」：桌次沒有
-            關係欄位，自動排列也只照閱讀順序左右交錯落位，位置跟賓客是誰
-            毫無關聯。把側別寫死在背景上，等於保證有些桌會被標錯邊。
+            關係欄位，自動排列只依桌號先排左區再排右區，位置跟賓客是誰毫無
+            關聯。把側別寫死在背景上，等於保證有些桌會被標錯邊。
             每一桌實際屬於哪一邊，改標在圓桌本身，由入座賓客推得。
           */}
           <div

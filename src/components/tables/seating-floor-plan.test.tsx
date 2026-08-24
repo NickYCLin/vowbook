@@ -85,13 +85,15 @@ describe("SeatingFloorPlan", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "全部還原自動排列" }),
+      screen.getByRole("button", { name: "依桌號重新排列" }),
     );
     // 打開確認列不等於執行：這個動作無法復原，要再按一次才會打伺服器。
     expect(resetLayouts).not.toHaveBeenCalled();
-    expect(screen.getByText(/確定把 1 桌的手動位置/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/確定把 1 桌的手動位置清除，並依桌號重新排列/),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "確定還原全部" }));
+    fireEvent.click(screen.getByRole("button", { name: "確定重新排列" }));
 
     // 樂觀更新：手動擺的那張桌子立刻回到自動排列，不等伺服器回應。
     expect(
@@ -123,7 +125,7 @@ describe("SeatingFloorPlan", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "全部還原自動排列" }),
+      screen.getByRole("button", { name: "依桌號重新排列" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "取消" }));
     expect(resetLayouts).not.toHaveBeenCalled();
@@ -146,7 +148,7 @@ describe("SeatingFloorPlan", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "全部還原自動排列" }),
+      screen.getByRole("button", { name: "依桌號重新排列" }),
     ).toBeDisabled();
   });
 
@@ -166,9 +168,9 @@ describe("SeatingFloorPlan", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "全部還原自動排列" }),
+      screen.getByRole("button", { name: "依桌號重新排列" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "確定還原全部" }));
+    fireEvent.click(screen.getByRole("button", { name: "確定重新排列" }));
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
