@@ -507,13 +507,17 @@ export function SeatingPlan({
                               這桌目前還沒安排賓客。
                             </p>
                           ) : (
-                            <ul className="mt-2 min-w-0 divide-y divide-line">
+                            <ul
+                              data-assigned-guest-grid
+                              className="mt-3 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] items-start gap-3"
+                            >
                               {table.guests.map((guest) => (
                                 <li
                                   key={guest.id}
-                                  className="min-w-0 py-2.5 first:pt-0"
+                                  data-assigned-guest-card
+                                  className="flex min-w-0 flex-col rounded-control border border-line bg-surface-sunken/55 px-3.5 py-3"
                                 >
-                                  <p className="text-caption font-medium break-words text-ink">
+                                  <p className="text-caption font-semibold break-words text-ink">
                                     {guest.name}・{guest.partySize} 位
                                   </p>
                                   {guest.notes ? (
@@ -522,13 +526,15 @@ export function SeatingPlan({
                                     </p>
                                   ) : null}
                                   {canEdit && (
-                                    <UnassignGuestForm
-                                      workspaceId={workspaceId}
-                                      guestId={guest.id}
-                                      guestName={guest.name}
-                                      onUnassignIntent={handleUnassignIntent}
-                                      onIntentRejected={handleIntentRejected}
-                                    />
+                                    <div className="mt-auto pt-1.5">
+                                      <UnassignGuestForm
+                                        workspaceId={workspaceId}
+                                        guestId={guest.id}
+                                        guestName={guest.name}
+                                        onUnassignIntent={handleUnassignIntent}
+                                        onIntentRejected={handleIntentRejected}
+                                      />
+                                    </div>
                                   )}
                                 </li>
                               ))}

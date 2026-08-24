@@ -364,7 +364,7 @@ describe("SeatingPlan", () => {
   });
 
   it("shows assigned party totals, notes, guests, and empty tables", () => {
-    render(
+    const { container } = render(
       <SeatingPlan
         workspaceId="workspace_internal"
         tables={[
@@ -385,6 +385,17 @@ describe("SeatingPlan", () => {
     expect(screen.getByText("王小明・3 位")).toBeInTheDocument();
     const guestNotes = screen.getByText("備註：素食，需兒童椅 靠近走道");
     expect(guestNotes).toHaveClass("break-words", "whitespace-pre-wrap");
+    expect(container.querySelector("[data-assigned-guest-grid]")).toHaveClass(
+      "grid",
+      "grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))]",
+      "gap-3",
+      "items-start",
+    );
+    expect(container.querySelector("[data-assigned-guest-card]")).toHaveClass(
+      "rounded-control",
+      "border",
+      "bg-surface-sunken/55",
+    );
     expect(screen.getByText("這桌目前還沒安排賓客。")).toBeInTheDocument();
     expect(screen.getByText("所有賓客都已安排桌次。")).toBeInTheDocument();
   });

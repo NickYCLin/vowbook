@@ -423,7 +423,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
             layoutX: index === 0 ? null : index === 1 ? 180 : 820,
             layoutY: index === 0 ? null : 720,
             name: index === 0 ? `${LONG_NAME.slice(0, 30)}長輩桌` : `宴客桌 ${index + 1}`,
-            capacity: 10,
+            capacity: index === 0 ? 12 : 10,
             notes: index === 0 ? LONG_URL_ISH : null,
             guests: [
               {
@@ -441,6 +441,24 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 side: index === 0 ? ("PARTNER_B" as const) : ("PARTNER_A" as const),
                 notes: null,
               },
+              ...(index === 0
+                ? [
+                    {
+                      id: `seated_${index}_c`,
+                      name: "親友賓客甲",
+                      partySize: 2,
+                      side: "PARTNER_A" as const,
+                      notes: "需要靠近走道",
+                    },
+                    {
+                      id: `seated_${index}_d`,
+                      name: "親友賓客乙",
+                      partySize: 1,
+                      side: "PARTNER_B" as const,
+                      notes: null,
+                    },
+                  ]
+                : []),
             ],
           }))}
           unassignedGuests={Array.from({ length: 4 }, (_, index) => ({
