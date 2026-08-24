@@ -60,7 +60,7 @@ export class SeatingFloorPlanLayoutConflictError extends Error {
 const MAIN_TABLE_POSITION = { x: 500, y: 220 } as const;
 /**
  * 自動排列刻意照著宴會廳的實際擺法：主桌居中面向舞台，其餘圓桌分成
- * 女方（左）與男方（右）兩塊，中央 320～680 留給主桌與中央動線。
+ * 左右兩塊，中央 320～680 留給主桌與中央動線。
  * 舊版是一片跨越整個場地的網格，圓桌會壓在動線和側別色塊上。
  */
 const LEFT_X_MIN = 60;
@@ -496,16 +496,37 @@ function outermostColumns(columns: number[], count: number): number[] {
     .sort((left, right) => left - right);
 }
 
+function automaticSlotsForSide(
+  columns: number[],
+  rowCount: number,
+  tableCount: number,
+): SeatingFloorPlanCoordinate[] {
+  if (columns.length === 0 || rowCount === 0 || tableCount === 0) return [];
+
+  // 下方各排維持滿桌，只有主桌同一排可以留白；不足的席位從靠近中央動線
+  // 的欄位開始空下來，避免零星缺口打斷同一側的連續桌號。
+  const mainRowCount = Math.max(
+    0,
+    tableCount - columns.length * (rowCount - 1),
+  );
+  const slots: SeatingFloorPlanCoordinate[] = [];
+  for (let row = 0; row < rowCount; row += 1) {
+    const take = row === 0 ? mainRowCount : columns.length;
+    for (const x of outermostColumns(columns, take)) {
+      slots.push({ x, y: rowCenterY(row, rowCount) });
+    }
+  }
+  return slots;
+}
+
 /**
- * 兩側賓客區的座位順序：由上而下一排一排，每排都排滿，唯一可能不滿的
- * 是「主桌那一排」，而且缺口一定落在最靠近中央動線的位置。
+ * 兩側賓客區的座位順序：桌號先由上而下排完左側，再接著排右側。婚宴賓客
+ * 通常會沿著同一側找桌；若逐排橫跨中央動線編號，畫面就會出現 8 號旁邊是
+ * 18 號這種難以辨認的結果。
  *
- * 不滿的排放最前面而不是最後面，是為了讓主桌維持在走道最前端、兩側只有
- * 最外圈的桌子——這才是實際宴會廳的樣子。以 15 桌為例，左到右每欄是
- * 4、3、3、4 桌；13 桌則剛好排滿成 3、3、3、3。
- *
- * 主桌那一排排滿時也不會撞到主桌：最內側的一欄在 320／680，離主桌 180 個
- * 座標單位（約 152px），大於任何標記層級所需的間距。
+ * 每一側只有「主桌那一排」可能不滿，而且缺口落在最靠近中央動線的位置。
+ * 以 15 桌為例，左、右各七張賓客桌；左側排 2～9（依跳號規則），右側再
+ * 接續 10～18。主桌那排即使排滿，最內欄與主桌仍有足夠標記間距。
  */
 function automaticSideSlots(
   metrics: SeatingFloorPlanMetrics,
@@ -516,15 +537,15 @@ function automaticSideSlots(
   if (columnsPerSide === 0 || rowCount === 0) return [];
 
   const columns = sideColumnCenters(columnsPerSide);
-  const mainRowCount = guestTableCount - columns.length * (rowCount - 1);
-  const slots: SeatingFloorPlanCoordinate[] = [];
-  for (let row = 0; row < rowCount; row += 1) {
-    const take = row === 0 ? mainRowCount : columns.length;
-    for (const x of outermostColumns(columns, take)) {
-      slots.push({ x, y: rowCenterY(row, rowCount) });
-    }
-  }
-  return slots;
+  const leftColumns = columns.slice(0, columnsPerSide);
+  const rightColumns = columns.slice(columnsPerSide);
+  const leftTableCount = Math.ceil(guestTableCount / 2);
+  const rightTableCount = guestTableCount - leftTableCount;
+
+  return [
+    ...automaticSlotsForSide(leftColumns, rowCount, leftTableCount),
+    ...automaticSlotsForSide(rightColumns, rowCount, rightTableCount),
+  ];
 }
 
 /** 拖曳時可以吸附的所有位置：主桌席位，加上兩側賓客區的完整格線。 */
