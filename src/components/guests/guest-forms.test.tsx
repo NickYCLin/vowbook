@@ -63,6 +63,12 @@ describe("guest forms", () => {
     expect(screen.queryByRole("option", { name: "新人一方" })).toBeNull();
     expect(screen.queryByRole("option", { name: "新人另一方" })).toBeNull();
     expect(screen.getByLabelText("出席狀態")).toBeInTheDocument();
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+    expect(screen.getByRole("option", { name: "長輩" })).toHaveValue("ELDER");
+    expect(screen.getByRole("option", { name: "平輩" })).toHaveValue("PEER");
+    expect(screen.getByRole("option", { name: "晚輩" })).toHaveValue("JUNIOR");
+    expect(screen.getByText("名單會先依輩份，再依姓氏筆劃排列；未設定會排在最後。"))
+      .toBeInTheDocument();
     expect(screen.getByLabelText("邀請人數（含本人）")).toHaveAttribute(
       "max",
       "20",
@@ -116,6 +122,7 @@ describe("guest forms", () => {
       target: { value: "COUPLE" },
     });
 
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("PEER");
     expect(screen.queryByLabelText("邀請人數（含本人）")).toBeNull();
     expect(screen.getByText("新人請一人建立一筆名單。"))
       .toBeInTheDocument();

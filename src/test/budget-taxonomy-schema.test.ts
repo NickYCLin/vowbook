@@ -42,7 +42,7 @@ describe("budget taxonomy forward migration contract", () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    expect(migrationNames.slice(-23)).toEqual([
+    expect(migrationNames.slice(-24)).toEqual([
       migrationName,
       "20260727220000_budget_attachments",
       "20260729083324_workspace_invitations",
@@ -66,6 +66,7 @@ describe("budget taxonomy forward migration contract", () => {
       "20260823155000_guest_details_invitation_reply_optional",
       "20260824004000_user_access_admin",
       "20260824213500_allow_family_party_size",
+      "20260825120000_guest_seniority",
     ]);
     const migration = fs.readFileSync(migrationPath, "utf8");
     expect(migration).toContain('CREATE TYPE "BudgetItemKind"');

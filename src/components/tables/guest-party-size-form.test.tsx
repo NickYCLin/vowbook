@@ -16,6 +16,7 @@ const guest: UnassignedSeatingGuest = {
   id: "guest_internal",
   name: "林小美",
   category: "GUEST",
+  seniority: "PEER",
   partySize: 2,
   version: 3,
   side: "PARTNER_A",
@@ -36,6 +37,7 @@ describe("EditGuestPartySizeForm", () => {
     expect(screen.getByLabelText("林小美的邀請人數（含本人）")).toHaveValue(2);
     expect(container.querySelector('[name="name"]')).toHaveValue("林小美");
     expect(container.querySelector('[name="category"]')).toHaveValue("GUEST");
+    expect(container.querySelector('[name="seniority"]')).toHaveValue("PEER");
     expect(container.querySelector('[name="side"]')).toHaveValue("PARTNER_A");
     expect(container.querySelector('[name="attendanceStatus"]')).toHaveValue(
       "UNDECIDED",

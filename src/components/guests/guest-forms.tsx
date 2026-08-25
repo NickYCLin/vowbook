@@ -11,10 +11,13 @@ import {
 import {
   GUEST_CATEGORIES,
   GUEST_CATEGORY_LABELS,
+  GUEST_SENIORITIES,
+  GUEST_SENIORITY_LABELS,
   GUEST_SIDES,
   guestIdentityLabel,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
+  type GuestSeniorityValue,
   type GuestSideValue,
 } from "@/domain/guest";
 import { Button, SubmitButton } from "@/components/ui/button";
@@ -37,6 +40,7 @@ type GuestFieldsProps = {
   initialValues?: {
     name: string;
     category: GuestCategoryValue;
+    seniority?: GuestSeniorityValue;
     side: GuestSideValue;
     attendanceStatus: GuestAttendanceStatusValue;
     partySize: number;
@@ -55,6 +59,10 @@ function GuestFields({
   );
   const [side, setSide] = useState<GuestSideValue>(
     initialValues?.side ?? "SHARED",
+  );
+  const [seniority, setSeniority] = useState<GuestSeniorityValue>(
+    initialValues?.seniority ??
+      (initialValues?.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
   );
   const sideOptions = category === "GUEST" ? GUEST_SIDES : GUEST_SIDES.slice(0, 2);
   const hasImportedFields = managedFields.length > 0;
@@ -97,6 +105,9 @@ function GuestFields({
               if (nextCategory !== "GUEST" && side === "SHARED") {
                 setSide("PARTNER_A");
               }
+              if (nextCategory === "COUPLE" && seniority === "UNSPECIFIED") {
+                setSeniority("PEER");
+              }
             }}
           >
             {GUEST_CATEGORIES.map((value) => (
@@ -121,6 +132,30 @@ function GuestFields({
               {sideOptions.map((optionSide) => (
                 <option key={optionSide} value={optionSide}>
                   {guestIdentityLabel(category, optionSide)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        <div className="min-w-0">
+          <Field
+            htmlFor={`${idPrefix}-seniority`}
+            label="賓客輩份"
+            hint="名單會先依輩份，再依姓氏筆劃排列；未設定會排在最後。"
+          >
+            <Select
+              id={`${idPrefix}-seniority`}
+              name="seniority"
+              required
+              value={seniority}
+              onChange={(event) =>
+                setSeniority(event.target.value as GuestSeniorityValue)
+              }
+            >
+              {GUEST_SENIORITIES.map((seniority) => (
+                <option key={seniority} value={seniority}>
+                  {GUEST_SENIORITY_LABELS[seniority]}
                 </option>
               ))}
             </Select>
@@ -486,6 +521,7 @@ function isSameEditGuestSnapshot(
     current.expectedVersion === latest.expectedVersion &&
     current.name === latest.name &&
     current.category === latest.category &&
+    current.seniority === latest.seniority &&
     current.side === latest.side &&
     current.attendanceStatus === latest.attendanceStatus &&
     current.partySize === latest.partySize &&
@@ -533,6 +569,7 @@ function EditGuestActionForm({
           initialValues={{
             name: snapshot.name,
             category: snapshot.category,
+            seniority: snapshot.seniority,
             side: snapshot.side,
             attendanceStatus: snapshot.attendanceStatus,
             partySize: snapshot.partySize,

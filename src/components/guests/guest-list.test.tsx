@@ -38,6 +38,7 @@ import { GuestList } from "./guest-list";
 
 const guest = {
   category: "GUEST" as const,
+  seniority: "ELDER" as const,
   id: "guest_1",
   version: 3,
   workspaceId: "workspace_1",
@@ -124,6 +125,7 @@ describe("GuestList", () => {
     );
     expect(card.getByText("出席")).toBeInTheDocument();
     expect(card.getByText("2 位")).toBeInTheDocument();
+    expect(card.getByText(/長輩/u)).toBeInTheDocument();
     expect(screen.getByText("需要兒童椅")).toBeInTheDocument();
     // 桌名可以重複，賓客要看的是幾號桌，桌名只是對照用的標籤。
     expect(screen.getByText(/桌次：1 號桌/u)).toBeInTheDocument();

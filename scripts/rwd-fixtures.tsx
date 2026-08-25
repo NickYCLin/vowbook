@@ -105,6 +105,7 @@ const guestFixture = (
   version: 1,
   name: index === 0 ? LONG_NAME : "賓客 " + index,
   category: "GUEST",
+  seniority: "UNSPECIFIED",
   side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[index % 3],
   attendanceStatus: (["UNDECIDED", "ATTENDING", "DECLINED"] as const)[index % 3],
   partySize: (index % 8) + 1,
@@ -475,6 +476,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
             attendanceStatus: "UNDECIDED" as const,
             notes: null,
             category: "GUEST" as const,
+            seniority: "UNSPECIFIED" as const,
           }))}
         />
       </WorkspacePage>
@@ -775,6 +777,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
               attendanceStatus: "UNDECIDED" as const,
               notes: null,
               category: "GUEST" as const,
+              seniority: "UNSPECIFIED" as const,
             },
           ]}
         />

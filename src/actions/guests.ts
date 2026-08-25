@@ -95,6 +95,7 @@ function guestInputFromFormData(formData: FormData): NormalizedGuestInput {
   return normalizeGuestInput({
     name: formData.get("name"),
     category: formData.get("category"),
+    seniority: formData.get("seniority"),
     side: formData.get("side"),
     attendanceStatus: formData.get("attendanceStatus"),
     partySize: formData.get("partySize"),

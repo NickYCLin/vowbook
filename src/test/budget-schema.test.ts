@@ -86,6 +86,7 @@ describe("budget schema, migration, and PostgreSQL runner contract", () => {
       "20260823155000_guest_details_invitation_reply_optional",
       "20260824004000_user_access_admin",
       "20260824213500_allow_family_party_size",
+      "20260825120000_guest_seniority",
     ]);
     expect(fs.existsSync(migrationPath)).toBe(true);
     expect(fs.existsSync(consistencyMigrationPath)).toBe(true);

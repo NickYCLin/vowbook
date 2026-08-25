@@ -1,5 +1,11 @@
 export const GUEST_SIDES = ["PARTNER_A", "PARTNER_B", "SHARED"] as const;
 export const GUEST_CATEGORIES = ["GUEST", "COUPLE", "FAMILY"] as const;
+export const GUEST_SENIORITIES = [
+  "ELDER",
+  "PEER",
+  "JUNIOR",
+  "UNSPECIFIED",
+] as const;
 export const GUEST_CATEGORY_LABELS = {
   GUEST: "一般賓客",
   COUPLE: "新人",
@@ -10,6 +16,12 @@ export const GUEST_SIDE_LABELS = {
   PARTNER_B: "女方親友",
   SHARED: "共同親友",
 } as const satisfies Record<(typeof GUEST_SIDES)[number], string>;
+export const GUEST_SENIORITY_LABELS = {
+  ELDER: "長輩",
+  PEER: "平輩",
+  JUNIOR: "晚輩",
+  UNSPECIFIED: "未設定",
+} as const satisfies Record<(typeof GUEST_SENIORITIES)[number], string>;
 /** 場地圖的圓桌只有幾十像素寬，「男方親友」四個字擠不下。 */
 export const GUEST_SIDE_SHORT_LABELS = {
   PARTNER_A: "男方",
@@ -24,6 +36,7 @@ export const GUEST_ATTENDANCE_STATUSES = [
 
 export type GuestSideValue = (typeof GUEST_SIDES)[number];
 export type GuestCategoryValue = (typeof GUEST_CATEGORIES)[number];
+export type GuestSeniorityValue = (typeof GUEST_SENIORITIES)[number];
 
 export function guestIdentityLabel(
   category: GuestCategoryValue,
@@ -45,6 +58,7 @@ export type GuestAttendanceStatusValue =
 export type GuestInput = {
   name: unknown;
   category?: unknown;
+  seniority?: unknown;
   side: unknown;
   attendanceStatus: unknown;
   partySize: unknown;
@@ -54,6 +68,7 @@ export type GuestInput = {
 export type NormalizedGuestInput = {
   name: string;
   category: GuestCategoryValue;
+  seniority?: GuestSeniorityValue;
   side: GuestSideValue;
   attendanceStatus: GuestAttendanceStatusValue;
   partySize: number;
@@ -142,6 +157,13 @@ function isGuestSide(value: unknown): value is GuestSideValue {
   );
 }
 
+function isGuestSeniority(value: unknown): value is GuestSeniorityValue {
+  return (
+    typeof value === "string" &&
+    (GUEST_SENIORITIES as readonly string[]).includes(value)
+  );
+}
+
 function isGuestAttendanceStatus(
   value: unknown,
 ): value is GuestAttendanceStatusValue {
@@ -165,6 +187,11 @@ export function normalizeGuestInput(input: GuestInput): NormalizedGuestInput {
     throw new GuestValidationError("請選擇有效的出席狀態。");
   }
 
+  const seniority = input.seniority == null ? undefined : input.seniority;
+  if (seniority !== undefined && !isGuestSeniority(seniority)) {
+    throw new GuestValidationError("請選擇有效的賓客輩份。");
+  }
+
   const partySize = normalizePartySize(input.partySize);
   if (category !== "GUEST" && input.side === "SHARED") {
     throw new GuestValidationError("新人與家人需選擇新郎或新娘一方。");
@@ -176,9 +203,45 @@ export function normalizeGuestInput(input: GuestInput): NormalizedGuestInput {
   return {
     name: normalizeName(input.name),
     category,
+    ...(seniority === undefined ? {} : { seniority }),
     side: input.side,
     attendanceStatus: input.attendanceStatus,
     partySize,
     notes: normalizeNotes(input.notes),
   };
+}
+
+const guestNameStrokeCollator = new Intl.Collator("zh-Hant-u-co-stroke", {
+  usage: "sort",
+  sensitivity: "variant",
+  numeric: true,
+});
+
+const guestSeniorityRank = Object.fromEntries(
+  GUEST_SENIORITIES.map((seniority, index) => [seniority, index]),
+) as Record<GuestSeniorityValue, number>;
+
+type SortableGuest = {
+  id: string;
+  name: string;
+  seniority: GuestSeniorityValue;
+};
+
+/**
+ * 中文姓名通常以姓氏開頭，因此以繁體中文筆劃校對完整姓名，會先比較姓氏；
+ * 同姓時再自然比較名字。ID 只用來讓完全同名的結果固定不跳動。
+ */
+export function compareGuestsBySeniorityThenSurnameStroke(
+  left: SortableGuest,
+  right: SortableGuest,
+): number {
+  const seniorityDifference =
+    guestSeniorityRank[left.seniority] - guestSeniorityRank[right.seniority];
+  if (seniorityDifference !== 0) return seniorityDifference;
+
+  const nameDifference = guestNameStrokeCollator.compare(
+    left.name.normalize("NFKC").trim(),
+    right.name.normalize("NFKC").trim(),
+  );
+  return nameDifference !== 0 ? nameDifference : left.id.localeCompare(right.id);
 }

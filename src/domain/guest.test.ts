@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  compareGuestsBySeniorityThenSurnameStroke,
   GUEST_CATEGORY_LABELS,
+  GUEST_SENIORITY_LABELS,
   guestIdentityLabel,
   GUEST_SIDE_LABELS,
   GuestValidationError,
@@ -9,6 +11,28 @@ import {
 } from "./guest";
 
 describe("guest domain contract", () => {
+  it("sorts guests by seniority before Traditional Chinese surname strokes", () => {
+    const guests = [
+      { id: "junior", name: "王小朋友", seniority: "JUNIOR" as const },
+      { id: "elder-chen", name: "陳伯父", seniority: "ELDER" as const },
+      { id: "peer-lin", name: "林同學", seniority: "PEER" as const },
+      { id: "elder-wang", name: "王伯父", seniority: "ELDER" as const },
+      { id: "unset", name: "李先生", seniority: "UNSPECIFIED" as const },
+    ];
+
+    expect(guests.sort(compareGuestsBySeniorityThenSurnameStroke).map((guest) => guest.id))
+      .toEqual(["elder-wang", "elder-chen", "peer-lin", "junior", "unset"]);
+  });
+
+  it("defines editable seniority labels with unspecified entries last", () => {
+    expect(GUEST_SENIORITY_LABELS).toEqual({
+      ELDER: "長輩",
+      PEER: "平輩",
+      JUNIOR: "晚輩",
+      UNSPECIFIED: "未設定",
+    });
+  });
+
   it("defines the confirmed human-facing labels for every guest side", () => {
     expect(GUEST_SIDE_LABELS).toEqual({
       PARTNER_A: "男方親友",
@@ -44,6 +68,7 @@ describe("guest domain contract", () => {
       normalizeGuestInput({
         name: "  王小明   與家人  ",
         category: "GUEST",
+        seniority: "ELDER",
         side: "SHARED",
         attendanceStatus: "ATTENDING",
         partySize: "3",
@@ -52,11 +77,25 @@ describe("guest domain contract", () => {
     ).toEqual({
       name: "王小明 與家人",
       category: "GUEST",
+      seniority: "ELDER",
       side: "SHARED",
       attendanceStatus: "ATTENDING",
       partySize: 3,
       notes: "需要兒童椅",
     });
+  });
+
+  it("rejects an unknown seniority without guessing from relationship text", () => {
+    expect(() =>
+      normalizeGuestInput({
+        name: "王媽媽",
+        seniority: "PARENT",
+        side: "PARTNER_A",
+        attendanceStatus: "ATTENDING",
+        partySize: "1",
+        notes: "",
+      }),
+    ).toThrow("請選擇有效的賓客輩份");
   });
 
   it("keeps newlyweds individual while allowing family companions", () => {
