@@ -17,10 +17,7 @@ import {
   DeleteGuestForm,
   EditGuestForm,
 } from "./guest-forms";
-import type {
-  GuestDetailsDto,
-  GuestListItemDto,
-} from "@/lib/guest-list";
+import type { GuestListItemDto } from "@/lib/guest-list";
 import { Badge, BadgeDot, type BadgeTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -50,137 +47,10 @@ type GuestListProps = {
   canEdit: boolean;
 };
 
-type InvitationDelivery = Exclude<
-  GuestDetailsDto["invitationDelivery"],
-  null
->;
-
-const invitationLabels: Record<InvitationDelivery, string> = {
-  PAPER: "紙本喜帖",
-  DIGITAL: "電子喜帖",
-  NONE: "不需寄送",
-  UNKNOWN: "未填寫",
-};
-
 type GuestFeedback = {
   message: string;
   revision: number;
 };
-
-function ceremonyLabel(value: boolean): string {
-  return value ? "出席" : "不出席";
-}
-
-function GuestDetails({ details }: { details: GuestDetailsDto }) {
-  return (
-    <details className="group mt-1 min-w-0">
-      <summary className="inline-flex min-h-11 w-fit max-w-full cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-caption font-semibold break-words text-clay-strong transition hover:bg-clay-soft [&::-webkit-details-marker]:hidden">
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="size-3 transition-transform group-open:rotate-90"
-        >
-          <path d="M6 3l5 5-5 5" />
-        </svg>
-        聯絡與回覆資料
-      </summary>
-      <dl className="mt-3 grid min-w-0 gap-x-6 gap-y-3 rounded-control border border-line bg-surface-sunken p-4 text-caption sm:grid-cols-[8rem_minmax(0,1fr)]">
-          {details.contactPhone && (
-            <>
-              <dt className="font-semibold text-ink">聯絡電話</dt>
-              <dd className="min-w-0 break-words text-ink-soft">
-                {details.contactPhone}
-              </dd>
-            </>
-          )}
-
-          {details.contactEmail && (
-            <>
-              <dt className="font-semibold text-ink">電子信箱</dt>
-              <dd className="min-w-0 break-all text-ink-soft">
-                {details.contactEmail}
-              </dd>
-            </>
-          )}
-
-          {details.relationshipLabel && (
-            <>
-              <dt className="font-semibold text-ink">關係補充</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
-                {details.relationshipLabel}
-              </dd>
-            </>
-          )}
-
-          {details.attendanceReply && (
-            <>
-              <dt className="font-semibold text-ink">出席回覆補充</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
-                {details.attendanceReply}
-              </dd>
-            </>
-          )}
-
-          {details.ceremonyAttendance !== null && (
-            <>
-              <dt className="font-semibold text-ink">證婚儀式</dt>
-              <dd className="text-ink-soft">
-                {ceremonyLabel(details.ceremonyAttendance)}
-              </dd>
-            </>
-          )}
-
-          {details.childSeatCount !== null && (
-            <>
-              <dt className="font-semibold text-ink">兒童座椅</dt>
-              <dd className="text-ink-soft">{details.childSeatCount} 張</dd>
-            </>
-          )}
-
-          {details.vegetarianCount !== null && (
-            <>
-              <dt className="font-semibold text-ink">素食人數</dt>
-              <dd className="text-ink-soft">{details.vegetarianCount} 位</dd>
-            </>
-          )}
-
-          {details.invitationDelivery !== null && (
-            <>
-              <dt className="font-semibold text-ink">喜帖方式</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
-                {invitationLabels[details.invitationDelivery]}
-                {details.invitationReply ? ` · ${details.invitationReply}` : ""}
-              </dd>
-            </>
-          )}
-
-          {details.mailingAddress && (
-            <>
-              <dt className="font-semibold text-ink">寄送地址</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
-                {details.mailingAddress}
-              </dd>
-            </>
-          )}
-
-          {details.guestMessage && (
-            <>
-              <dt className="font-semibold text-ink">賓客留言</dt>
-              <dd className="min-w-0 whitespace-pre-wrap break-words text-ink-soft">
-                {details.guestMessage}
-              </dd>
-            </>
-          )}
-
-      </dl>
-    </details>
-  );
-}
 
 type GuestRequirementNeed = {
   id: string;
@@ -821,17 +691,6 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                           </p>
                         )}
 
-                        {guest.details ? (
-                          <GuestDetails details={guest.details} />
-                        ) : null}
-
-                        {guest.importRecords.some(
-                          (record) => record.details === null,
-                        ) && (
-                          <p className="mt-1 text-caption leading-6 text-ink-faint">
-                            聯絡與回覆資料限可編輯成員查看
-                          </p>
-                        )}
                       </article>
                     </li>
                     </Fragment>

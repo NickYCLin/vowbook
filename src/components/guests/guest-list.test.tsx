@@ -7,14 +7,17 @@ vi.mock("@/components/guests/guest-forms", () => ({
   EditGuestForm: ({
     name,
     managedFields,
+    details,
     onSuccess,
   }: {
     name: string;
     managedFields: GuestManagedField[];
+    details: { contactPhone: string | null } | null;
     onSuccess?: (message: string) => void;
   }) => (
     <button
       data-managed-fields={managedFields.join(",")}
+      data-contact-phone={details?.contactPhone ?? ""}
       onClick={() => onSuccess?.("已更新賓客。")}
     >
       編輯 {name}
@@ -492,7 +495,7 @@ describe("GuestList", () => {
     expect(screen.getByText("桌次：尚未安排")).toBeInTheDocument();
   });
 
-  it("gives VIEWER a generic privacy marker without source brands or PII details", () => {
+  it("hides contact and reply details from VIEWER guest cards", () => {
     const importedGuest = {
       ...guest,
       id: "guest_imported",
@@ -552,8 +555,8 @@ describe("GuestList", () => {
     expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
     expect(
-      screen.getAllByText("聯絡與回覆資料限可編輯成員查看"),
-    ).toHaveLength(2);
+      screen.queryByText("聯絡與回覆資料限可編輯成員查看"),
+    ).not.toBeInTheDocument();
     expect(container.querySelector("details")).toBeNull();
     expect(container).not.toHaveTextContent("PII_PHONE_SENTINEL");
     expect(container).not.toHaveTextContent("PII_EMAIL_SENTINEL");
@@ -562,7 +565,7 @@ describe("GuestList", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("shows one generic editable detail section and keeps provenance internal", () => {
+  it("hides contact and reply details from the list while preserving them for editing", () => {
     const importedGuest = {
       ...guest,
       id: "guest_imported",
@@ -639,30 +642,19 @@ describe("GuestList", () => {
       />,
     );
 
-    const details = screen.getByText("聯絡與回覆資料").closest("details");
-    expect(details).not.toBeNull();
-    expect(details).not.toHaveAttribute("open");
-    expect(screen.getByText("聯絡與回覆資料")).toHaveClass("min-h-11");
-    const importedDetails = within(details as HTMLElement);
-    expect(
-      importedDetails.getByText("不克出席，但仍希望收到喜餅"),
-    ).toBeInTheDocument();
-    expect((details as HTMLElement).textContent).toContain(
-      "大學  同學\n同社團",
-    );
-    const relationshipValue = Array.from(
-      (details as HTMLElement).querySelectorAll("dd"),
-    ).find((element) => element.textContent === "大學  同學\n同社團");
-    expect(relationshipValue).toHaveClass("whitespace-pre-wrap");
-    expect(importedDetails.getByText("0900-000-000")).toBeInTheDocument();
-    expect(importedDetails.getByText("祝福新人")).toBeInTheDocument();
-    expect(importedDetails.getByText("未填寫")).toBeInTheDocument();
+    expect(screen.queryByText("聯絡與回覆資料")).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("不克出席，但仍希望收到喜餅");
+    expect(container).not.toHaveTextContent("大學  同學\n同社團");
+    expect(container).not.toHaveTextContent("0900-000-000");
+    expect(container).not.toHaveTextContent("祝福新人");
     expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "編輯 王小明" })).toHaveAttribute(
+    const editButton = screen.getByRole("button", { name: "編輯 王小明" });
+    expect(editButton).toHaveAttribute(
       "data-managed-fields",
       "NAME,SIDE,ATTENDANCE_STATUS",
     );
+    expect(editButton).toHaveAttribute("data-contact-phone", "0900-000-000");
     expect(
       screen.getByRole("button", { name: "刪除 王小明 匯入" }),
     ).toBeInTheDocument();
