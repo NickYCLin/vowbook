@@ -531,55 +531,45 @@ describe("GuestList", () => {
       within(invitations).getByText("不需寄送 1 組 · 尚未設定 1 組"),
     ).toBeInTheDocument();
 
-    const paper = within(invitations).getByText("紙本喜帖").closest("details");
-    expect(paper).not.toBeNull();
-    expect(within(paper as HTMLElement).getByText("2 份")).toBeInTheDocument();
-    const paperRecipientTrigger = within(paper as HTMLElement).getByRole(
+    const paperSummary = within(invitations).getByRole(
       "button",
-      { name: "查看 紙本賓客 的紙本喜帖資訊" },
+      { name: "查看 2 份紙本喜帖完整資訊" },
     );
+    expect(within(paperSummary).getByText("紙本喜帖")).toBeInTheDocument();
+    expect(within(paperSummary).getByText("2 份")).toBeInTheDocument();
     expect(
-      screen.queryByRole("dialog", { name: "紙本賓客" }),
+      screen.queryByRole("dialog", { name: "紙本喜帖完整資訊" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(paperRecipientTrigger);
-    const paperRecipientDialog = screen.getByRole("dialog", {
-      name: "紙本賓客",
+    fireEvent.click(paperSummary);
+    const paperDialog = screen.getByRole("dialog", {
+      name: "紙本喜帖完整資訊",
     });
     expect(
-      within(paperRecipientDialog).getByText("0900-123-456"),
+      within(paperDialog).getByText("0900-123-456"),
     ).toBeInTheDocument();
-    expect(paperRecipientDialog.textContent).toContain(
+    expect(paperDialog.textContent).toContain(
       "台北市幸福路 1 號\n幸福大樓 2 樓",
     );
     expect(
-      within(paperRecipientDialog).getByText("姓名"),
+      within(paperDialog).getByText("紙本賓客"),
     ).toBeInTheDocument();
     expect(
-      within(paperRecipientDialog).getAllByText("紙本賓客"),
+      within(paperDialog).getByText("不出席仍寄紙本"),
+    ).toBeInTheDocument();
+    expect(
+      within(paperDialog).getAllByText("聯絡電話"),
     ).toHaveLength(2);
     expect(
-      within(paperRecipientDialog).getByText("寄送地址"),
-    ).toBeInTheDocument();
-    expect(
-      within(paperRecipientDialog).getByText("聯絡電話"),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      within(paperRecipientDialog).getByRole("button", {
-        name: "關閉 紙本賓客 的紙本喜帖資訊",
-      }),
-    );
-
-    fireEvent.click(
-      within(paper as HTMLElement).getByRole("button", {
-        name: "查看 不出席仍寄紙本 的紙本喜帖資訊",
-      }),
-    );
-    const missingPaperRecipientDialog = screen.getByRole("dialog", {
-      name: "不出席仍寄紙本",
-    });
-    expect(
-      within(missingPaperRecipientDialog).getAllByText("未填寫"),
+      within(paperDialog).getAllByText("寄送地址"),
     ).toHaveLength(2);
+    expect(
+      within(paperDialog).getAllByText("未填寫"),
+    ).toHaveLength(2);
+    expect(
+      within(paperDialog).queryByRole("button", {
+        name: /查看 .* 的紙本喜帖資訊/u,
+      }),
+    ).not.toBeInTheDocument();
 
     const digital = within(invitations)
       .getByText("電子喜帖")
