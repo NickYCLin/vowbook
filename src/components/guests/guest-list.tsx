@@ -66,6 +66,23 @@ type GuestRequirementSummary = {
   pendingGuests: GuestRequirementNeed[];
 };
 
+type InvitationRecipient = {
+  id: string;
+  name: string;
+};
+
+type InvitationDeliverySummary = {
+  total: number;
+  recipients: InvitationRecipient[];
+};
+
+type InvitationPlanSummary = {
+  paper: InvitationDeliverySummary;
+  digital: InvitationDeliverySummary;
+  noneCount: number;
+  unsetCount: number;
+};
+
 function summariseRequirement(
   guests: readonly GuestListItem[],
   field: "childSeatCount" | "vegetarianCount",
@@ -101,6 +118,35 @@ function summariseRequirement(
     pendingTotal,
     confirmedGuests,
     pendingGuests,
+  };
+}
+
+function summariseInvitations(
+  guests: readonly GuestListItem[],
+): InvitationPlanSummary {
+  const paper: InvitationRecipient[] = [];
+  const digital: InvitationRecipient[] = [];
+  let noneCount = 0;
+  let unsetCount = 0;
+
+  for (const guest of guests) {
+    const delivery = guest.details?.invitationDelivery ?? null;
+    if (delivery === "PAPER") {
+      paper.push({ id: guest.id, name: guest.name });
+    } else if (delivery === "DIGITAL") {
+      digital.push({ id: guest.id, name: guest.name });
+    } else if (delivery === "NONE") {
+      noneCount += 1;
+    } else {
+      unsetCount += 1;
+    }
+  }
+
+  return {
+    paper: { total: paper.length, recipients: paper },
+    digital: { total: digital.length, recipients: digital },
+    noneCount,
+    unsetCount,
   };
 }
 
@@ -194,6 +240,60 @@ function RequirementSummary({
   );
 }
 
+function InvitationSummary({
+  label,
+  summary,
+}: {
+  label: string;
+  summary: InvitationDeliverySummary;
+}) {
+  return (
+    <details className="group min-w-0 rounded-control border border-line bg-surface-sunken">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-control px-4 py-3 transition hover:bg-clay-soft/50 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <p className="font-serif text-body font-semibold text-ink">{label}</p>
+          <p className="mt-0.5 text-caption text-ink-soft">
+            已登記 {summary.total} 組名單
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="font-serif text-xl font-semibold tabular-nums text-clay-strong">
+            {summary.total} 份
+          </p>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-4 text-ink-faint transition-transform group-open:rotate-90"
+          >
+            <path d="M6 3l5 5-5 5" />
+          </svg>
+        </div>
+      </summary>
+      <div className="border-t border-line px-4 py-4">
+        {summary.total === 0 ? (
+          <p className="text-caption text-ink-faint">目前沒有登記名單。</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-control border border-line bg-surface">
+            {summary.recipients.map((recipient) => (
+              <li
+                key={recipient.id}
+                className="min-w-0 px-3.5 py-2.5 text-caption break-words text-ink"
+              >
+                {recipient.name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
   const [feedback, setFeedback] = useState<GuestFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
@@ -265,6 +365,7 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
     }),
     [guests],
   );
+  const invitations = useMemo(() => summariseInvitations(guests), [guests]);
   const filteredGuests = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
 
@@ -411,36 +512,71 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
         )}
 
         {guests.length > 0 && canEdit ? (
-          <Card className="mb-4">
-            <section
-              aria-labelledby="guest-requirements-heading"
-              className="px-5 py-5 sm:px-6"
-            >
-              <div>
-                <h3
-                  id="guest-requirements-heading"
-                  className="font-serif text-title font-semibold text-ink"
-                >
-                  宴席特殊需求
-                </h3>
-                <p className="mt-1 text-caption leading-6 text-ink-soft">
-                  總數包含已確認出席與尚未確認；不出席不計入。
-                </p>
-              </div>
-              <div className="mt-4 grid min-w-0 gap-3 @3xl:grid-cols-2">
-                <RequirementSummary
-                  label="兒童座椅需求"
-                  unit="張"
-                  summary={requirements.childSeats}
-                />
-                <RequirementSummary
-                  label="素食餐需求"
-                  unit="位"
-                  summary={requirements.vegetarianMeals}
-                />
-              </div>
-            </section>
-          </Card>
+          <>
+            <Card className="mb-4">
+              <section
+                aria-labelledby="guest-requirements-heading"
+                className="px-5 py-5 sm:px-6"
+              >
+                <div>
+                  <h3
+                    id="guest-requirements-heading"
+                    className="font-serif text-title font-semibold text-ink"
+                  >
+                    宴席特殊需求
+                  </h3>
+                  <p className="mt-1 text-caption leading-6 text-ink-soft">
+                    總數包含已確認出席與尚未確認；不出席不計入。
+                  </p>
+                </div>
+                <div className="mt-4 grid min-w-0 gap-3 @3xl:grid-cols-2">
+                  <RequirementSummary
+                    label="兒童座椅需求"
+                    unit="張"
+                    summary={requirements.childSeats}
+                  />
+                  <RequirementSummary
+                    label="素食餐需求"
+                    unit="位"
+                    summary={requirements.vegetarianMeals}
+                  />
+                </div>
+              </section>
+            </Card>
+
+            <Card className="mb-4">
+              <section
+                aria-labelledby="guest-invitations-heading"
+                className="px-5 py-5 sm:px-6"
+              >
+                <div>
+                  <h3
+                    id="guest-invitations-heading"
+                    className="font-serif text-title font-semibold text-ink"
+                  >
+                    喜帖安排
+                  </h3>
+                  <p className="mt-1 text-caption leading-6 text-ink-soft">
+                    每筆名單依目前喜帖方式計 1 份，不受出席狀態影響。
+                  </p>
+                  <p className="mt-0.5 text-caption leading-6 text-ink-faint">
+                    不需寄送 {invitations.noneCount} 組 · 尚未設定{" "}
+                    {invitations.unsetCount} 組
+                  </p>
+                </div>
+                <div className="mt-4 grid min-w-0 gap-3 @3xl:grid-cols-2">
+                  <InvitationSummary
+                    label="紙本喜帖"
+                    summary={invitations.paper}
+                  />
+                  <InvitationSummary
+                    label="電子喜帖"
+                    summary={invitations.digital}
+                  />
+                </div>
+              </section>
+            </Card>
+          </>
         ) : null}
 
         {guests.length === 0 ? (
