@@ -19,11 +19,7 @@ vi.mock("@/actions/seating-tables", () => ({
 
 import { SeatingFloorPlan } from "./seating-floor-plan";
 import { seatingTableNumber } from "@/domain/seating-table";
-import {
-  getSeatingFloorPlanMetrics,
-  getSeatingFloorPlanSafeCoordinateBounds,
-  resolveSeatingFloorPlanPositions,
-} from "@/domain/seating-floor-plan";
+import { getSeatingFloorPlanMetrics } from "@/domain/seating-floor-plan";
 
 const tables = [
   {
@@ -288,7 +284,7 @@ describe("SeatingFloorPlan", () => {
     expect(bottomRight).toHaveStyle({ width: "112px", height: "112px" });
   });
 
-  it("offers editor selection and directional alternatives that persist one CAS move", async () => {
+  it("keeps the selected table number and slot fixed while offering content exchange only", () => {
     render(
       <SeatingFloorPlan
         workspaceId="workspace_internal"
@@ -305,25 +301,18 @@ describe("SeatingFloorPlan", () => {
     expect(mainCard).toHaveAttribute("data-layout-x", "500");
     expect(mainCard).toHaveAttribute("data-layout-y", "220");
     expect(mainCard).toHaveStyle({ left: "50%", top: "26.92%" });
-    const controls = screen.getByRole("group", { name: "1 號桌 主桌位置調整" });
-    await fireEvent.click(
-      within(controls).getByRole("button", { name: "將 1 號桌 主桌 向右移動" }),
-    );
-
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const formData = updateLayout.mock.calls[0][3] as FormData;
-    expect(updateLayout.mock.calls[0].slice(0, 3)).toEqual([
-      "workspace_internal",
-      "table_internal_main",
-      { status: "idle" },
-    ]);
-    expect(formData.get("layoutX")).toBe("550");
-    expect(formData.get("layoutY")).toBe("220");
-    expect(formData.get("expectedVersion")).toBe("3");
-    await waitFor(() => expect(mainCard).toHaveAttribute("data-layout-x", "550"));
+    const controls = screen.getByRole("group", {
+      name: "1 號桌 主桌內容交換",
+    });
+    expect(controls).toHaveTextContent("桌號與位置固定，只交換桌名與賓客");
+    expect(within(controls).queryByRole("button", { name: /向.+移動/ })).toBeNull();
+    expect(
+      within(controls).queryByRole("button", { name: /還原.+自動排列/ }),
+    ).toBeNull();
+    expect(updateLayout).not.toHaveBeenCalled();
   });
 
-  it("preserves a non-centre pointer grab offset and submits one exact CAS move on release", async () => {
+  it("keeps the numbered slot fixed when a drag ends on empty floor space", () => {
     render(
       <SeatingFloorPlan
         workspaceId="workspace_internal"
@@ -345,9 +334,13 @@ describe("SeatingFloorPlan", () => {
       height: 800,
       toJSON: () => ({}),
     });
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
+    const handle = screen.getByRole("button", {
+      name: "選取並拖曳交換 1 號桌 主桌",
+    });
+    const mainCard = screen.getByRole("article", {
+      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
+    });
 
-    // 主桌中心是 (600, 415.36)，從中心右 30px、上 20px 的位置開始拖曳。
     fireEvent.pointerDown(handle, {
       pointerId: 7,
       isPrimary: true,
@@ -360,12 +353,8 @@ describe("SeatingFloorPlan", () => {
       clientX: 730,
       clientY: 475.36,
     });
-    // 跟著指標跑的那張不能補間，否則圓桌會拖在手指後面。
-    expect(
-      screen.getByRole("article", {
-        name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
-      }).className,
-    ).not.toContain("transition-[box-shadow,left,top]");
+    expect(mainCard).toHaveAttribute("data-layout-x", "500");
+    expect(mainCard).toHaveAttribute("data-layout-y", "220");
     expect(updateLayout).not.toHaveBeenCalled();
     fireEvent.pointerUp(handle, {
       pointerId: 7,
@@ -373,51 +362,10 @@ describe("SeatingFloorPlan", () => {
       clientY: 475.36,
     });
 
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const formData = updateLayout.mock.calls[0][3] as FormData;
-    expect(updateLayout.mock.calls[0].slice(0, 3)).toEqual([
-      "workspace_internal",
-      "table_internal_main",
-      { status: "idle" },
-    ]);
-    expect(formData.get("layoutX")).toBe("614");
-    expect(formData.get("layoutY")).toBe("336");
-    expect(formData.get("expectedVersion")).toBe("3");
-  });
-
-  it("reports a finished move without scrolling away from the table being adjusted", async () => {
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-
-    await fireEvent.click(
-      screen.getByRole("button", { name: "將 1 號桌 主桌 向右移動" }),
-    );
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-
-    // 訊息在場地圖下方，聚焦不能連帶把畫面捲過去，否則微調位置時每按
-    // 一次方向鍵就會看不到那張桌子。
-    const feedback = await screen.findByRole("status");
-    const focus = vi.spyOn(feedback, "focus");
-    // 預設的 mock 每次都回傳同一個物件，狀態沒換身分就不會重跑聚焦效果。
-    updateLayout.mockResolvedValueOnce({
-      status: "success",
-      message: "已更新場地位置。",
-    });
-    // 方向鍵在送出期間是 disabled，對 disabled 的按鈕點下去不會有任何事。
-    // 前一次移動的 isPending 還沒放掉就點，這一段會整個變成空轉。
-    const moveLeft = screen.getByRole("button", { name: "將 1 號桌 主桌 向左移動" });
-    await waitFor(() => expect(moveLeft).toBeEnabled());
-    fireEvent.click(moveLeft);
-
-    await waitFor(() => expect(focus).toHaveBeenCalled());
-    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(mainCard).toHaveAttribute("data-layout-x", "500");
+    expect(mainCard).toHaveAttribute("data-layout-y", "220");
+    expect(updateLayout).not.toHaveBeenCalled();
+    expect(swapContents).not.toHaveBeenCalled();
   });
 
   it("swaps table names and guests while fixed numbers stay in place", async () => {
@@ -442,7 +390,9 @@ describe("SeatingFloorPlan", () => {
       height: 800,
       toJSON: () => ({}),
     });
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
+    const handle = screen.getByRole("button", {
+      name: "選取並拖曳交換 1 號桌 主桌",
+    });
     const mainCard = screen.getByRole("article", {
       name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
     });
@@ -521,7 +471,7 @@ describe("SeatingFloorPlan", () => {
       />,
     );
 
-    const controls = screen.getByRole("group", { name: "1 號桌 主桌位置調整" });
+    const controls = screen.getByRole("group", { name: "1 號桌 主桌內容交換" });
     fireEvent.change(
       within(controls).getByLabelText("與其他桌交換桌名與賓客"),
       { target: { value: "table_internal_friends" } },
@@ -539,170 +489,6 @@ describe("SeatingFloorPlan", () => {
     expect(formData.get("targetExpectedVersion")).toBe("4");
   });
 
-  it("snaps a drag that lands near a layout slot so the plan stays aligned", async () => {
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-    const venue = screen.getByTestId("seating-floor-plan-board");
-    vi.spyOn(venue, "getBoundingClientRect").mockReturnValue({
-      x: 100,
-      y: 200,
-      left: 100,
-      top: 200,
-      right: 1100,
-      bottom: 1000,
-      width: 1000,
-      height: 800,
-      toJSON: () => ({}),
-    });
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
-
-    // 從主桌中心 (600, 415.36) 拖到 (336, 429.1)，換算後是 (200, 240)：
-    // 離女方區席位 (190, 220) 不到半個圓桌，放開時要吸附過去。
-    fireEvent.pointerDown(handle, {
-      pointerId: 9,
-      isPrimary: true,
-      button: 0,
-      clientX: 600,
-      clientY: 415.36,
-    });
-    fireEvent.pointerMove(handle, { pointerId: 9, clientX: 336, clientY: 429.1 });
-    fireEvent.pointerUp(handle, { pointerId: 9, clientX: 336, clientY: 429.1 });
-
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const formData = updateLayout.mock.calls[0][3] as FormData;
-    expect(formData.get("layoutX")).toBe("190");
-    expect(formData.get("layoutY")).toBe("220");
-    expect(
-      screen.getByRole("article", {
-        name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
-      }),
-    ).toHaveAttribute("data-layout-x", "190");
-  });
-
-  it("clamps a pointer edge move before rendering or persisting an optimistic position", async () => {
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-    const venue = screen.getByTestId("seating-floor-plan-board");
-    vi.spyOn(venue, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 960,
-      bottom: 960,
-      width: 960,
-      height: 960,
-      toJSON: () => ({}),
-    });
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
-    const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
-    });
-    const safeBounds = getSeatingFloorPlanSafeCoordinateBounds(tables.length);
-
-    fireEvent.pointerDown(handle, {
-      pointerId: 11,
-      isPrimary: true,
-      button: 0,
-      clientX: 480,
-      clientY: 258.432,
-    });
-    fireEvent.pointerMove(handle, {
-      pointerId: 11,
-      clientX: 0,
-      clientY: 0,
-    });
-
-    expect(updateLayout).not.toHaveBeenCalled();
-    expect(mainCard).toHaveAttribute("data-layout-x", String(safeBounds.minX));
-    expect(mainCard).toHaveAttribute("data-layout-y", String(safeBounds.minY));
-    expect(mainCard).toHaveAttribute("data-layout-x", "0");
-    expect(mainCard).toHaveAttribute("data-layout-y", "0");
-
-    fireEvent.pointerUp(handle, {
-      pointerId: 11,
-      clientX: 0,
-      clientY: 0,
-    });
-
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const formData = updateLayout.mock.calls[0][3] as FormData;
-    expect(formData.get("layoutX")).toBe(String(safeBounds.minX));
-    expect(formData.get("layoutY")).toBe(String(safeBounds.minY));
-  });
-
-  it("maps an existing rendered coordinate back to the same stored coordinate", async () => {
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_friends"
-        onSelectTable={vi.fn()}
-      />,
-    );
-    const venue = screen.getByTestId("seating-floor-plan-board");
-    vi.spyOn(venue, "getBoundingClientRect").mockReturnValue({
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: 1000,
-      bottom: 1000,
-      width: 1000,
-      height: 1000,
-      toJSON: () => ({}),
-    });
-    const handle = screen.getByRole("button", {
-      name: "選取並移動 2 號桌 摯友桌",
-    });
-
-    // (240, 720) renders at (27.12%, 69.92%). Cross the threshold, then
-    // return to that exact rendered centre before releasing.
-    fireEvent.pointerDown(handle, {
-      pointerId: 9,
-      isPrimary: true,
-      button: 0,
-      clientX: 271.2,
-      clientY: 699.2,
-    });
-    fireEvent.pointerMove(handle, {
-      pointerId: 9,
-      clientX: 275.2,
-      clientY: 699.2,
-    });
-    fireEvent.pointerMove(handle, {
-      pointerId: 9,
-      clientX: 271.2,
-      clientY: 699.2,
-    });
-    fireEvent.pointerUp(handle, {
-      pointerId: 9,
-      clientX: 271.2,
-      clientY: 699.2,
-    });
-
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const formData = updateLayout.mock.calls[0][3] as FormData;
-    expect(formData.get("layoutX")).toBe("240");
-    expect(formData.get("layoutY")).toBe("720");
-    expect(formData.get("expectedVersion")).toBe("4");
-  });
-
   it("selects a table without writing layout coordinates when the pointer does not move", () => {
     const onSelectTable = vi.fn();
     render(
@@ -714,7 +500,9 @@ describe("SeatingFloorPlan", () => {
         onSelectTable={onSelectTable}
       />,
     );
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
+    const handle = screen.getByRole("button", {
+      name: "選取並拖曳交換 1 號桌 主桌",
+    });
 
     fireEvent.pointerDown(handle, {
       pointerId: 8,
@@ -740,7 +528,9 @@ describe("SeatingFloorPlan", () => {
         onSelectTable={onSelectTable}
       />,
     );
-    const handle = screen.getByRole("button", { name: "選取並移動 1 號桌 主桌" });
+    const handle = screen.getByRole("button", {
+      name: "選取並拖曳交換 1 號桌 主桌",
+    });
 
     fireEvent.pointerDown(handle, {
       pointerId: 12,
@@ -797,7 +587,7 @@ describe("SeatingFloorPlan", () => {
       name: "253 號桌 婚宴桌 200，已安排 0 / 10 位",
     });
     const lastButton = within(lastCard).getByRole("button", {
-      name: "選取並移動 253 號桌 婚宴桌 200",
+      name: "選取並拖曳交換 253 號桌 婚宴桌 200",
     });
     expect(lastCard).toHaveStyle({ width: "44px", height: "44px" });
     expect(lastButton).toHaveClass("min-h-11", "min-w-11");
@@ -807,196 +597,4 @@ describe("SeatingFloorPlan", () => {
     expect(lastButton).not.toHaveTextContent("婚宴桌 200");
   });
 
-  it("resets persisted coordinates and refreshes authoritative props after a stale error", async () => {
-    const { rerender } = render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_friends"
-        onSelectTable={vi.fn()}
-      />,
-    );
-    const controls = screen.getByRole("group", { name: "2 號桌 摯友桌位置調整" });
-    await fireEvent.click(
-      within(controls).getByRole("button", { name: "還原 2 號桌 摯友桌 自動排列" }),
-    );
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    const resetData = updateLayout.mock.calls[0][3] as FormData;
-    expect(resetData.get("layoutX")).toBe("");
-    expect(resetData.get("layoutY")).toBe("");
-    expect(resetData.get("expectedVersion")).toBe("4");
-
-    updateLayout.mockResolvedValueOnce({
-      status: "error",
-      message: "桌次已由其他人更新，請重新載入後再試。",
-    });
-    rerender(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-    await fireEvent.click(
-      screen.getByRole("button", { name: "將 1 號桌 主桌 向左移動" }),
-    );
-    await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "桌次已由其他人更新",
-      );
-    });
-  });
-
-  it("replaces a full optimistic snapshot when authoritative table changes recompute automatic slots", async () => {
-    const { rerender } = render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-
-    await fireEvent.click(
-      screen.getByRole("button", { name: "將 1 號桌 主桌 向右移動" }),
-    );
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-
-    const refreshedTables = [
-      {
-        ...tables[0],
-        version: tables[0].version + 1,
-        layoutX: 550,
-        layoutY: 220,
-      },
-      tables[1],
-      {
-        id: "table_internal_new",
-        number: 3,
-        position: 3,
-        version: 0,
-        layoutX: null,
-        layoutY: null,
-        name: "新親友桌",
-        capacity: 8,
-        guests: [],
-      },
-    ];
-    const expected = new Map(
-      resolveSeatingFloorPlanPositions(refreshedTables).map((position) => [
-        position.tableId,
-        position,
-      ]),
-    );
-    rerender(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={refreshedTables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-
-    for (const table of refreshedTables) {
-      const expectedPosition = expected.get(table.id);
-      const assignedPartySize = table.guests.reduce(
-        (total, guest) => total + guest.partySize,
-        0,
-      );
-      const assignedChildSeats = table.guests.reduce(
-        (total, guest) => total + (guest.childSeatCount ?? 0),
-        0,
-      );
-      const card = screen.getByRole("article", {
-        name: `${table.number} 號桌 ${table.name}，${
-          table.guests.length > 0 ? "男方親友，" : ""
-        }已安排 ${assignedPartySize} / ${table.capacity} 位${
-          assignedChildSeats > 0 ? `，兒童椅 ${assignedChildSeats} 張` : ""
-        }`,
-      });
-      expect(card).toHaveAttribute("data-layout-x", String(expectedPosition?.x));
-      expect(card).toHaveAttribute("data-layout-y", String(expectedPosition?.y));
-    }
-  });
-
-  it("optimistically resolves a safe fallback when reset preferred slot is persisted by another table", async () => {
-    const blockedResetTables = [
-      {
-        ...tables[0],
-        layoutX: 0,
-        layoutY: 0,
-      },
-      {
-        ...tables[1],
-        layoutX: 500,
-        layoutY: 220,
-      },
-    ];
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={blockedResetTables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-
-    const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
-    });
-    const blockerCard = screen.getByRole("article", {
-      name: "2 號桌 摯友桌，已安排 0 / 8 位",
-    });
-    await fireEvent.click(
-      screen.getByRole("button", { name: "還原 1 號桌 主桌 自動排列" }),
-    );
-
-    await waitFor(() => expect(updateLayout).toHaveBeenCalledTimes(1));
-    expect(mainCard).toHaveAttribute("data-layout-source", "automatic");
-    // 主桌偏好的 (500, 220) 被佔走，退到後備池的第一個候選：摯友桌自己的
-    // 偏好席位，也就是女方區唯一那一欄（兩桌時每側只排得下一欄）。
-    expect(mainCard).toHaveAttribute("data-layout-x", "190");
-    expect(mainCard).toHaveAttribute("data-layout-y", "220");
-    expect(blockerCard).toHaveAttribute("data-layout-x", "500");
-    expect(blockerCard).toHaveAttribute("data-layout-y", "220");
-  });
-
-  it("rolls back an optimistic move and refreshes once when the server reports a layout conflict", async () => {
-    updateLayout.mockResolvedValueOnce({
-      status: "error",
-      message: "目前場地配置無法安全排列，請調整桌次位置後再試。",
-    });
-    render(
-      <SeatingFloorPlan
-        workspaceId="workspace_internal"
-        tables={tables}
-        canEdit
-        selectedTableId="table_internal_main"
-        onSelectTable={vi.fn()}
-      />,
-    );
-
-    const mainCard = screen.getByRole("article", {
-      name: "1 號桌 主桌，男方親友，已安排 3 / 10 位，兒童椅 2 張",
-    });
-    await fireEvent.click(
-      screen.getByRole("button", { name: "將 1 號桌 主桌 向右移動" }),
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        "目前場地配置無法安全排列",
-      );
-      expect(refresh).toHaveBeenCalledTimes(1);
-      expect(mainCard).toHaveAttribute("data-layout-x", "500");
-    });
-    expect(updateLayout).toHaveBeenCalledTimes(1);
-  });
 });
