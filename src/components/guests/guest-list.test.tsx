@@ -452,7 +452,101 @@ describe("GuestList", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps special-requirement totals private for VIEWER", () => {
+  it("summarises paper and digital invitations with their recipient lists", () => {
+    const details = (
+      invitationDelivery: "PAPER" | "DIGITAL" | "NONE" | "UNKNOWN" | null,
+    ) => ({
+      relationshipLabel: null,
+      contactPhone: null,
+      contactEmail: null,
+      ceremonyAttendance: null,
+      childSeatCount: null,
+      vegetarianCount: null,
+      invitationDelivery,
+      mailingAddress: null,
+      guestMessage: null,
+      attendanceReply: null,
+      invitationReply: null,
+    });
+
+    render(
+      <GuestList
+        workspaceId="workspace_1"
+        guests={[
+          {
+            ...guest,
+            id: "paper-attending",
+            name: "紙本賓客",
+            details: details("PAPER"),
+          },
+          {
+            ...guest,
+            id: "paper-declined",
+            name: "不出席仍寄紙本",
+            attendanceStatus: "DECLINED",
+            seatingTable: null,
+            details: details("PAPER"),
+          },
+          {
+            ...guest,
+            id: "digital-pending",
+            name: "電子喜帖賓客",
+            attendanceStatus: "UNDECIDED",
+            seatingTable: null,
+            details: details("DIGITAL"),
+          },
+          {
+            ...guest,
+            id: "no-invitation",
+            name: "不需寄送賓客",
+            details: details("NONE"),
+          },
+          {
+            ...guest,
+            id: "unknown-invitation",
+            name: "尚未設定賓客",
+            details: details(null),
+          },
+        ]}
+        canEdit
+      />,
+    );
+
+    const invitations = screen.getByRole("region", { name: "喜帖安排" });
+    expect(
+      within(invitations).getByText(
+        "每筆名單依目前喜帖方式計 1 份，不受出席狀態影響。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(invitations).getByText("不需寄送 1 組 · 尚未設定 1 組"),
+    ).toBeInTheDocument();
+
+    const paper = within(invitations).getByText("紙本喜帖").closest("details");
+    expect(paper).not.toBeNull();
+    expect(within(paper as HTMLElement).getByText("2 份")).toBeInTheDocument();
+    expect(within(paper as HTMLElement).getByText("紙本賓客")).toBeInTheDocument();
+    expect(
+      within(paper as HTMLElement).getByText("不出席仍寄紙本"),
+    ).toBeInTheDocument();
+
+    const digital = within(invitations)
+      .getByText("電子喜帖")
+      .closest("details");
+    expect(digital).not.toBeNull();
+    expect(within(digital as HTMLElement).getByText("1 份")).toBeInTheDocument();
+    expect(
+      within(digital as HTMLElement).getByText("電子喜帖賓客"),
+    ).toBeInTheDocument();
+    expect(
+      within(invitations).queryByText("不需寄送賓客"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(invitations).queryByText("尚未設定賓客"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps planning summaries private for VIEWER", () => {
     render(
       <GuestList
         workspaceId="workspace_1"
@@ -480,6 +574,9 @@ describe("GuestList", () => {
 
     expect(
       screen.queryByRole("region", { name: "宴席特殊需求" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "喜帖安排" }),
     ).not.toBeInTheDocument();
   });
 
