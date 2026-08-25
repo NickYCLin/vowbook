@@ -140,6 +140,7 @@ function unassigned(guest: {
     ...guest,
     version: 1,
     category: "GUEST" as const,
+    seniority: "UNSPECIFIED" as const,
     side: guest.side ?? ("SHARED" as const),
     attendanceStatus: "UNDECIDED" as const,
     notes: null,

@@ -8,6 +8,7 @@ import {
 import type {
   GuestAttendanceStatusValue,
   GuestCategoryValue,
+  GuestSeniorityValue,
   GuestSideValue,
 } from "@/domain/guest";
 import { ActionFeedback } from "@/components/ui/action-feedback";
@@ -20,6 +21,7 @@ export type UnassignedSeatingGuest = {
   id: string;
   name: string;
   category: GuestCategoryValue;
+  seniority: GuestSeniorityValue;
   partySize: number;
   version: number;
   side: GuestSideValue;
@@ -118,6 +120,7 @@ export function EditGuestPartySizeForm({
       */}
       <input type="hidden" name="name" value={guest.name} />
       <input type="hidden" name="category" value={guest.category} />
+      <input type="hidden" name="seniority" value={guest.seniority} />
       <input type="hidden" name="side" value={guest.side} />
       <input
         type="hidden"

@@ -146,6 +146,19 @@ describe("guest server actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("persists an explicitly selected seniority for sorting", async () => {
+    const formData = validGuestFormData();
+    formData.set("seniority", "ELDER");
+
+    await expect(
+      createGuestAction("workspace_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已新增賓客。" });
+
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ seniority: "ELDER" }),
+    });
+  });
+
   it("returns a clear conflict when the same newlywed role already exists", async () => {
     const formData = validGuestFormData();
     formData.set("name", "另一位新郎");

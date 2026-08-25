@@ -6,6 +6,7 @@ import {
   GUEST_CATEGORY_LABELS,
   GUEST_SIDES,
   GUEST_SIDE_LABELS,
+  GUEST_SENIORITY_LABELS,
   guestIdentityLabel,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
@@ -729,6 +730,9 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                           <div className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-ink-soft @4xl:contents">
                             <span className="min-w-0 break-words">
                               {guestIdentityLabel(guest.category, guest.side)}
+                              <span className="text-ink-faint">
+                                {" · "}{GUEST_SENIORITY_LABELS[guest.seniority]}
+                              </span>
                             </span>
                             <span className="tabular-nums">
                               {guest.partySize} 位
@@ -781,6 +785,7 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                                 expectedVersion={guest.version}
                                 name={guest.name}
                                 category={guest.category}
+                                seniority={guest.seniority}
                                 side={guest.side}
                                 attendanceStatus={guest.attendanceStatus}
                                 partySize={guest.partySize}

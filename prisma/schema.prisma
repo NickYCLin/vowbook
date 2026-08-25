@@ -39,6 +39,13 @@ enum GuestCategory {
   FAMILY
 }
 
+enum GuestSeniority {
+  ELDER
+  PEER
+  JUNIOR
+  UNSPECIFIED
+}
+
 enum GuestAttendanceStatus {
   UNDECIDED
   ATTENDING
@@ -185,6 +192,7 @@ model Guest {
   workspaceId      String                @map("workspace_id")
   name             String
   category         GuestCategory         @default(GUEST)
+  seniority        GuestSeniority        @default(UNSPECIFIED)
   side             GuestSide
   attendanceStatus GuestAttendanceStatus @default(UNDECIDED) @map("attendance_status")
   partySize        Int                   @default(1) @map("party_size")
@@ -200,6 +208,7 @@ model Guest {
   @@unique([id, workspaceId])
   @@index([workspaceId])
   @@index([workspaceId, category])
+  @@index([workspaceId, seniority])
   @@index([workspaceId, seatingTableId])
   @@map("guests")
 }

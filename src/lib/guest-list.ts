@@ -1,10 +1,12 @@
 import "server-only";
 
 import type { GuestManagedField, WeddingWorkspace } from "@prisma/client";
-import type {
-  GuestAttendanceStatusValue,
-  GuestCategoryValue,
-  GuestSideValue,
+import {
+  compareGuestsBySeniorityThenSurnameStroke,
+  type GuestAttendanceStatusValue,
+  type GuestCategoryValue,
+  type GuestSeniorityValue,
+  type GuestSideValue,
 } from "@/domain/guest";
 import { withSeatingTableNumbers } from "@/domain/seating-table";
 import {
@@ -68,6 +70,7 @@ export type GuestListItemDto = {
   version: number;
   name: string;
   category: GuestCategoryValue;
+  seniority: GuestSeniorityValue;
   side: GuestSideValue;
   attendanceStatus: GuestAttendanceStatusValue;
   partySize: number;
@@ -83,6 +86,7 @@ const baseGuestSelect = {
   version: true,
   name: true,
   category: true,
+  seniority: true,
   side: true,
   attendanceStatus: true,
   partySize: true,
@@ -245,6 +249,7 @@ export async function listGuestsForWorkspace(workspaceId: string) {
           details: null,
         })),
       }));
+      viewerGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
       return { ...access, guests: viewerGuests };
     }
 
@@ -291,6 +296,7 @@ export async function listGuestsForWorkspace(workspaceId: string) {
       })),
     }));
 
+    editorGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
     return { ...access, guests: editorGuests };
   } catch {
     throw new GuestDataError("目前無法載入賓客名單，請稍後再試。");

@@ -131,6 +131,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("migration_name = ${guestDetailsMigration}");
     expect(runner).toContain("migration_name = ${userAccessMigration}");
     expect(runner).toContain("migration_name = ${familyPartySizeMigration}");
+    expect(runner).toContain("migration_name = ${guestSeniorityMigration}");
     expect(runner).toContain(
       "preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP",
     );
@@ -143,7 +144,10 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 32");
+    expect(runner).toContain("migrationEntries.length !== 33");
+    expect(runner).toContain(
+      'guestSeniorityMigration !== "20260825120000_guest_seniority"',
+    );
     expect(runner).toContain(
       'familyPartySizeMigration !==\n    "20260824213500_allow_family_party_size"',
     );

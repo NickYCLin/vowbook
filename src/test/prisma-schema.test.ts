@@ -61,14 +61,39 @@ describe("Prisma schema contract", () => {
     expect(schema).toMatch(/enum GuestSide\s*{[\s\S]*PARTNER_A[\s\S]*PARTNER_B[\s\S]*SHARED/);
     expect(schema).toMatch(/enum GuestAttendanceStatus\s*{[\s\S]*UNDECIDED[\s\S]*ATTENDING[\s\S]*DECLINED/);
     expect(schema).toMatch(/enum GuestCategory\s*{[\s\S]*GUEST[\s\S]*COUPLE[\s\S]*FAMILY/);
+    expect(schema).toMatch(/enum GuestSeniority\s*{[\s\S]*ELDER[\s\S]*PEER[\s\S]*JUNIOR[\s\S]*UNSPECIFIED/);
     expect(schema).toMatch(/model Guest\s*{/);
     expect(schema).toMatch(/workspaceId\s+String\s+@map\("workspace_id"\)/);
     expect(schema).toMatch(/partySize\s+Int\s+@default\(1\)/);
     expect(schema).toMatch(/category\s+GuestCategory\s+@default\(GUEST\)/);
+    expect(schema).toMatch(/seniority\s+GuestSeniority\s+@default\(UNSPECIFIED\)/);
     expect(schema).toMatch(/notes\s+String\?/);
     expect(schema).toMatch(/@@index\(\[workspaceId\]\)/);
     expect(schema).toMatch(
       /workspace\s+WeddingWorkspace\s+@relation\([^\n]*onDelete:\s*Cascade/,
+    );
+  });
+
+  it("ships a backwards-compatible guest seniority migration", () => {
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20260825120000_guest_seniority",
+        "migration.sql",
+      ),
+      "utf8",
+    );
+
+    expect(migration).toContain(
+      `CREATE TYPE "GuestSeniority" AS ENUM ('ELDER', 'PEER', 'JUNIOR', 'UNSPECIFIED')`,
+    );
+    expect(migration).toMatch(
+      /ADD COLUMN "seniority" "GuestSeniority" NOT NULL DEFAULT 'UNSPECIFIED'/u,
+    );
+    expect(migration).toMatch(
+      /UPDATE "guests"\s+SET "seniority" = 'PEER'\s+WHERE "category" = 'COUPLE'/u,
     );
   });
 

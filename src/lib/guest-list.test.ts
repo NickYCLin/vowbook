@@ -39,6 +39,7 @@ describe("listGuestsForWorkspace", () => {
         version: 0,
         name: "唯讀賓客",
         category: "GUEST",
+        seniority: "ELDER",
         side: "PARTNER_A",
         attendanceStatus: "ATTENDING",
         partySize: 2,
@@ -70,6 +71,7 @@ describe("listGuestsForWorkspace", () => {
           version: 0,
           name: "唯讀賓客",
           category: "GUEST",
+          seniority: "ELDER",
           side: "PARTNER_A",
           attendanceStatus: "ATTENDING",
           partySize: 2,
@@ -112,6 +114,7 @@ describe("listGuestsForWorkspace", () => {
         version: true,
         name: true,
         category: true,
+        seniority: true,
         side: true,
         attendanceStatus: true,
         partySize: true,
@@ -143,6 +146,40 @@ describe("listGuestsForWorkspace", () => {
     );
   });
 
+  it("returns every guest in seniority and surname-stroke order", async () => {
+    findMany.mockResolvedValue(
+      [
+        ["junior", "王小朋友", "JUNIOR"],
+        ["elder_chen", "陳伯父", "ELDER"],
+        ["peer_lin", "林同學", "PEER"],
+        ["elder_wang", "王伯父", "ELDER"],
+        ["unset_li", "李先生", "UNSPECIFIED"],
+      ].map(([id, name, seniority]) => ({
+        id,
+        version: 0,
+        name,
+        category: "GUEST",
+        seniority,
+        side: "SHARED",
+        attendanceStatus: "ATTENDING",
+        partySize: 1,
+        notes: null,
+        seatingTable: null,
+        importRecords: [],
+      })),
+    );
+
+    const result = await listGuestsForWorkspace("workspace_1");
+
+    expect(result.guests.map((guest) => guest.id)).toEqual([
+      "elder_wang",
+      "elder_chen",
+      "peer_lin",
+      "junior",
+      "unset_li",
+    ]);
+  });
+
   it("maps multiple editor-visible import records once per Guest and preserves nullable details", async () => {
     requireWorkspaceAccess.mockResolvedValue({
       role: "PLANNER",
@@ -155,6 +192,7 @@ describe("listGuestsForWorkspace", () => {
         version: 0,
         name: "可編輯賓客",
         category: "GUEST",
+        seniority: "PEER",
         side: "PARTNER_B",
         attendanceStatus: "DECLINED",
         partySize: 1,
@@ -311,6 +349,7 @@ describe("listGuestsForWorkspace", () => {
         version: 2,
         name: "已人工修正",
         category: "GUEST",
+        seniority: "PEER",
         side: "SHARED",
         attendanceStatus: "ATTENDING",
         partySize: 2,
@@ -394,6 +433,7 @@ describe("listGuestsForWorkspace", () => {
         version: 0,
         name: "已入席賓客",
         category: "GUEST",
+        seniority: "PEER",
         side: "PARTNER_A",
         attendanceStatus: "ATTENDING",
         partySize: 2,
@@ -406,6 +446,7 @@ describe("listGuestsForWorkspace", () => {
         version: 0,
         name: "指到不存在桌次的賓客",
         category: "GUEST",
+        seniority: "PEER",
         side: "SHARED",
         attendanceStatus: "ATTENDING",
         partySize: 1,
