@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GuestManagedField } from "@prisma/client";
+import { installModalDialogPolyfill } from "@/test/modal-dialog";
+
+installModalDialogPolyfill();
 
 vi.mock("@/components/guests/guest-forms", () => ({
   CreateGuestDialog: () => <button>新增賓客表單</button>,
@@ -455,15 +458,17 @@ describe("GuestList", () => {
   it("summarises paper and digital invitations with their recipient lists", () => {
     const details = (
       invitationDelivery: "PAPER" | "DIGITAL" | "NONE" | "UNKNOWN" | null,
+      contactPhone: string | null = null,
+      mailingAddress: string | null = null,
     ) => ({
       relationshipLabel: null,
-      contactPhone: null,
+      contactPhone,
       contactEmail: null,
       ceremonyAttendance: null,
       childSeatCount: null,
       vegetarianCount: null,
       invitationDelivery,
-      mailingAddress: null,
+      mailingAddress,
       guestMessage: null,
       attendanceReply: null,
       invitationReply: null,
@@ -477,7 +482,11 @@ describe("GuestList", () => {
             ...guest,
             id: "paper-attending",
             name: "紙本賓客",
-            details: details("PAPER"),
+            details: details(
+              "PAPER",
+              "0900-123-456",
+              "台北市幸福路 1 號\n幸福大樓 2 樓",
+            ),
           },
           {
             ...guest,
@@ -525,10 +534,52 @@ describe("GuestList", () => {
     const paper = within(invitations).getByText("紙本喜帖").closest("details");
     expect(paper).not.toBeNull();
     expect(within(paper as HTMLElement).getByText("2 份")).toBeInTheDocument();
-    expect(within(paper as HTMLElement).getByText("紙本賓客")).toBeInTheDocument();
+    const paperRecipientTrigger = within(paper as HTMLElement).getByRole(
+      "button",
+      { name: "查看 紙本賓客 的紙本喜帖資訊" },
+    );
     expect(
-      within(paper as HTMLElement).getByText("不出席仍寄紙本"),
+      screen.queryByRole("dialog", { name: "紙本賓客" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(paperRecipientTrigger);
+    const paperRecipientDialog = screen.getByRole("dialog", {
+      name: "紙本賓客",
+    });
+    expect(
+      within(paperRecipientDialog).getByText("0900-123-456"),
     ).toBeInTheDocument();
+    expect(paperRecipientDialog.textContent).toContain(
+      "台北市幸福路 1 號\n幸福大樓 2 樓",
+    );
+    expect(
+      within(paperRecipientDialog).getByText("姓名"),
+    ).toBeInTheDocument();
+    expect(
+      within(paperRecipientDialog).getAllByText("紙本賓客"),
+    ).toHaveLength(2);
+    expect(
+      within(paperRecipientDialog).getByText("寄送地址"),
+    ).toBeInTheDocument();
+    expect(
+      within(paperRecipientDialog).getByText("聯絡電話"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(paperRecipientDialog).getByRole("button", {
+        name: "關閉 紙本賓客 的紙本喜帖資訊",
+      }),
+    );
+
+    fireEvent.click(
+      within(paper as HTMLElement).getByRole("button", {
+        name: "查看 不出席仍寄紙本 的紙本喜帖資訊",
+      }),
+    );
+    const missingPaperRecipientDialog = screen.getByRole("dialog", {
+      name: "不出席仍寄紙本",
+    });
+    expect(
+      within(missingPaperRecipientDialog).getAllByText("未填寫"),
+    ).toHaveLength(2);
 
     const digital = within(invitations)
       .getByText("電子喜帖")
@@ -538,6 +589,11 @@ describe("GuestList", () => {
     expect(
       within(digital as HTMLElement).getByText("電子喜帖賓客"),
     ).toBeInTheDocument();
+    expect(
+      within(digital as HTMLElement).queryByRole("button", {
+        name: "查看 電子喜帖賓客 的紙本喜帖資訊",
+      }),
+    ).not.toBeInTheDocument();
     expect(
       within(invitations).queryByText("不需寄送賓客"),
     ).not.toBeInTheDocument();
