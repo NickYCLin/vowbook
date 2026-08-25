@@ -939,15 +939,17 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await expect(stableFloorCard).toHaveAttribute("data-layout-y", "220");
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
     await floorPlan
-      .getByRole("button", { name: `選取並移動${fixture.stableTableName}` })
+      .getByRole("button", {
+        name: `選取並拖曳交換${fixture.stableTableName}`,
+      })
       .click();
     const stableFloorButton = floorPlan.getByRole("button", {
-      name: `選取並移動${fixture.stableTableName}`,
+      name: `選取並拖曳交換${fixture.stableTableName}`,
     });
     const stableFloorButtonBox = await stableFloorButton.boundingBox();
     const floorPlanBox = await floorPlan.boundingBox();
     if (!stableFloorButtonBox || !floorPlanBox) {
-      throw new Error("Expected the stable floor-plan table and board to be visibly draggable.");
+      throw new Error("Expected the stable floor-plan table and board to be visible.");
     }
     const dragDistance = (floorPlanBox.width - 2) * 0.05;
     await page.mouse.move(
@@ -963,17 +965,10 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await page.mouse.up();
     await expect(
       page.getByRole("status").filter({ hasText: "已更新場地位置。" }),
-    ).toBeVisible();
-    await expect(stableFloorCard).toHaveAttribute("data-layout-source", "persisted");
-    const draggedLayoutX = await stableFloorCard.getAttribute("data-layout-x");
-    expect(draggedLayoutX).toMatch(/^\d+$/u);
-    const draggedLayoutXNumber = Number(draggedLayoutX);
-    // The browser owns the final integer rounding (border widths and viewport
-    // differ between desktop and the horizontally-scrollable mobile board),
-    // but a real drag must travel right from 500 and remain inside the 112px
-    // marker's safe 56–944 center range.
-    expect(draggedLayoutXNumber).toBeGreaterThan(500);
-    expect(draggedLayoutXNumber).toBeLessThanOrEqual(944);
+    ).toHaveCount(0);
+    // 拖到空白處不會改變固定桌號的席位；只有拖到另一桌才交換內容。
+    await expect(stableFloorCard).toHaveAttribute("data-layout-source", "automatic");
+    await expect(stableFloorCard).toHaveAttribute("data-layout-x", "500");
     await expect(stableFloorCard).toHaveAttribute("data-layout-y", "220");
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
 
@@ -982,11 +977,8 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     stableFloorCard = floorPlan.getByRole("article", {
       name: `${fixture.stableTableName}，已安排 0 / 6 位`,
     });
-    await expect(stableFloorCard).toHaveAttribute("data-layout-source", "persisted");
-    await expect(stableFloorCard).toHaveAttribute(
-      "data-layout-x",
-      String(draggedLayoutXNumber),
-    );
+    await expect(stableFloorCard).toHaveAttribute("data-layout-source", "automatic");
+    await expect(stableFloorCard).toHaveAttribute("data-layout-x", "500");
     await expect(stableFloorCard).toHaveAttribute("data-layout-y", "220");
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
     await expectNoPageOverflow(page);
@@ -1023,7 +1015,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     ).toBeVisible();
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
     await floorPlan
-      .getByRole("button", { name: `選取並移動${fixture.createdTableName}` })
+      .getByRole("button", {
+        name: `選取並拖曳交換${fixture.createdTableName}`,
+      })
       .click();
     const createdTableArticle = page
       .getByRole("heading", { name: fixture.createdTableName, exact: true })
@@ -1084,7 +1078,7 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     floorPlan = page.getByRole("region", { name: "宴會場地配置" });
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
     await floorPlan
-      .getByRole("button", { name: "選取並移動待命名桌 A" })
+      .getByRole("button", { name: "選取並拖曳交換待命名桌 A" })
       .click();
     const generatedTableArticle = page
       .getByRole("heading", { name: "待命名桌 A", exact: true })

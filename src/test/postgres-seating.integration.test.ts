@@ -10,10 +10,6 @@ vi.mock("@/lib/current-user", () => ({
 vi.mock("next/cache", () => ({ revalidatePath }));
 
 import { updateGuestAction } from "@/actions/guests";
-import {
-  getSeatingFloorPlanSafeCoordinateBounds,
-  resolveSeatingFloorPlanPositions,
-} from "@/domain/seating-floor-plan";
 import { getSeatingPlan } from "@/lib/seating-plan";
 import {
   adjustSeatingTablesAction,
@@ -400,78 +396,26 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
     ).resolves.toMatchObject({ status: "success" });
   });
 
-  it("persists, CAS-protects, resets, and tenant-scopes paired floor-plan coordinates", async () => {
+  it("rejects legacy coordinate writes so table numbers keep fixed slots", async () => {
     const owner = await createWorkspace("場地座標操作方");
     const table = await createTable(owner.workspace.id, "主桌", 10);
-    const blocker = await createTable(owner.workspace.id, "親友桌", 10);
-    await prisma.seatingTable.update({
-      where: { id: blocker.id },
-      data: { layoutX: 240, layoutY: 680 },
-    });
-    const safeBounds = getSeatingFloorPlanSafeCoordinateBounds(2);
 
     await expect(
       updateSeatingTableLayoutAction(
         owner.workspace.id,
         table.id,
         idleState,
-        layoutForm(240, 680, 0),
+        layoutForm(240, 680, table.version),
       ),
     ).resolves.toEqual({
       status: "error",
-      message: "目前場地配置無法安全排列，請調整桌次位置後再試。",
+      message: "桌號與位置固定，請改用交換桌名與賓客。",
     });
     await expect(
       prisma.seatingTable.findUniqueOrThrow({ where: { id: table.id } }),
     ).resolves.toMatchObject({ layoutX: null, layoutY: null, version: 0 });
 
-    await expect(
-      updateSeatingTableLayoutAction(
-        owner.workspace.id,
-        table.id,
-        idleState,
-        layoutForm(safeBounds.minX, safeBounds.minY, 0),
-      ),
-    ).resolves.toEqual({ status: "success", message: "已更新場地位置。" });
-    await expect(
-      prisma.seatingTable.findUniqueOrThrow({ where: { id: table.id } }),
-    ).resolves.toMatchObject({
-      layoutX: safeBounds.minX,
-      layoutY: safeBounds.minY,
-      version: 1,
-    });
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        owner.workspace.id,
-        table.id,
-        idleState,
-        layoutForm(800, 200, 0),
-      ),
-    ).resolves.toMatchObject({
-      status: "error",
-      message: "桌次已由其他人更新，請重新載入後再試。",
-    });
-    await expect(
-      prisma.seatingTable.findUniqueOrThrow({ where: { id: table.id } }),
-    ).resolves.toMatchObject({
-      layoutX: safeBounds.minX,
-      layoutY: safeBounds.minY,
-      version: 1,
-    });
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        owner.workspace.id,
-        table.id,
-        idleState,
-        layoutForm(null, null, 1),
-      ),
-    ).resolves.toEqual({ status: "success", message: "已還原自動排列。" });
-    await expect(
-      prisma.seatingTable.findUniqueOrThrow({ where: { id: table.id } }),
-    ).resolves.toMatchObject({ layoutX: null, layoutY: null, version: 2 });
-
+    // 儲存層仍保留成對座標約束，供既有資料用整體重新排列清除。
     await expect(
       prisma.seatingTable.update({
         where: { id: table.id },
@@ -484,40 +428,6 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         data: { layoutX: 1001, layoutY: 500 },
       }),
     ).rejects.toBeDefined();
-
-    const target = await createWorkspace("場地座標目標方");
-    const targetTable = await createTable(target.workspace.id, "目標桌", 8);
-    authState.userId = owner.user.id;
-    await expect(
-      updateSeatingTableLayoutAction(
-        owner.workspace.id,
-        targetTable.id,
-        idleState,
-        layoutForm(100, 100, 0),
-      ),
-    ).resolves.toMatchObject({ status: "error" });
-    await expect(
-      prisma.seatingTable.findUniqueOrThrow({ where: { id: targetTable.id } }),
-    ).resolves.toMatchObject({ layoutX: null, layoutY: null, version: 0 });
-
-    await prisma.membership.create({
-      data: {
-        workspaceId: target.workspace.id,
-        userId: owner.user.id,
-        role: "VIEWER",
-      },
-    });
-    await expect(
-      updateSeatingTableLayoutAction(
-        target.workspace.id,
-        targetTable.id,
-        idleState,
-        layoutForm(100, 100, 0),
-      ),
-    ).resolves.toMatchObject({ status: "error" });
-    await expect(
-      prisma.seatingTable.findUniqueOrThrow({ where: { id: targetTable.id } }),
-    ).resolves.toMatchObject({ layoutX: null, layoutY: null, version: 0 });
   });
 
   it("keeps fixed table slots while atomically swapping names and assigned guests", async () => {
@@ -616,162 +526,6 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
     await expect(
       prisma.guest.findUniqueOrThrow({ where: { id: guestB.id } }),
     ).resolves.toMatchObject({ seatingTableId: tableB.id, version: guestB.version });
-  });
-
-  it("keeps stored endpoint coordinates valid through an actual 16 to 15 count reduction", async () => {
-    const { workspace } = await createWorkspace("場地密度轉換");
-    await expect(
-      adjustSeatingTablesAction(
-        workspace.id,
-        idleState,
-        adjustmentForm(16, 10),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-    const initialTables = await prisma.seatingTable.findMany({
-      where: { workspaceId: workspace.id },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-    });
-    expect(initialTables).toHaveLength(16);
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        workspace.id,
-        initialTables[0]!.id,
-        idleState,
-        layoutForm(0, 0, initialTables[0]!.version),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-    await expect(
-      updateSeatingTableLayoutAction(
-        workspace.id,
-        initialTables[1]!.id,
-        idleState,
-        layoutForm(1000, 1000, initialTables[1]!.version),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-
-    const preview = await adjustSeatingTablesAction(
-      workspace.id,
-      idleState,
-      adjustmentForm(15, 10),
-    );
-    expect(preview).toMatchObject({
-      status: "confirmation",
-      confirmation: { canConfirm: true, targetTableCount: 15 },
-    });
-    if (preview.status !== "confirmation") {
-      throw new Error("expected endpoint density-transition preview");
-    }
-    await expect(
-      adjustSeatingTablesAction(
-        workspace.id,
-        preview,
-        adjustmentForm(
-          15,
-          10,
-          preview.confirmation.fingerprint,
-        ),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-
-    const storedTables = await prisma.seatingTable.findMany({
-      where: { workspaceId: workspace.id },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-    });
-    expect(storedTables).toHaveLength(15);
-    expect(storedTables[0]).toMatchObject({ layoutX: 0, layoutY: 0 });
-    expect(storedTables[1]).toMatchObject({ layoutX: 1000, layoutY: 1000 });
-    expect(() => resolveSeatingFloorPlanPositions(storedTables)).not.toThrow();
-  });
-
-  it("refreshes a queued Serializable layout move after a 16-to-15 table reduction", async () => {
-    const { workspace } = await createWorkspace("場地縮減後重讀位置");
-    await expect(
-      adjustSeatingTablesAction(
-        workspace.id,
-        idleState,
-        adjustmentForm(16, 10),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-    const tables = await prisma.seatingTable.findMany({
-      where: { workspaceId: workspace.id },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-    });
-    const anchor = tables[0]!;
-    const moving = tables[1]!;
-    await expect(
-      updateSeatingTableLayoutAction(
-        workspace.id,
-        anchor.id,
-        idleState,
-        layoutForm(0, 0, anchor.version),
-      ),
-    ).resolves.toMatchObject({ status: "success" });
-
-    const preview = await adjustSeatingTablesAction(
-      workspace.id,
-      idleState,
-      adjustmentForm(15, 10),
-    );
-    if (preview.status !== "confirmation" || !preview.confirmation.canConfirm) {
-      throw new Error("expected an empty 16-to-15 shrink preview");
-    }
-
-    const barrier = await createDatabaseLockBarrier(
-      async (transaction) => {
-        await transaction.$executeRaw`
-          SELECT pg_advisory_xact_lock(
-            hashtextextended(${`vowbook:seating:${workspace.id}`}, 0)
-          )
-        `;
-      },
-      { advisoryOnly: true },
-    );
-    const shrink = adjustSeatingTablesAction(
-      workspace.id,
-      preview,
-      adjustmentForm(15, 10, preview.confirmation.fingerprint),
-    );
-    let move:
-      | ReturnType<typeof updateSeatingTableLayoutAction>
-      | undefined;
-    let barrierError: unknown;
-    try {
-      await barrier.waitForWaiters(1);
-      move = updateSeatingTableLayoutAction(
-        workspace.id,
-        moving.id,
-        idleState,
-        layoutForm(0, 110, moving.version),
-      );
-      await barrier.waitForWaiters(2);
-    } catch (error) {
-      barrierError = error;
-    } finally {
-      await barrier.release();
-    }
-
-    const [shrinkResult, moveResult] = await Promise.all([
-      shrink,
-      move ?? Promise.reject(new Error("queued layout move did not start")),
-    ]);
-    if (barrierError) throw barrierError;
-    expect(shrinkResult).toMatchObject({ status: "success" });
-    expect(moveResult).toEqual({
-      status: "error",
-      message: "目前場地配置無法安全排列，請調整桌次位置後再試。",
-    });
-
-    const storedTables = await prisma.seatingTable.findMany({
-      where: { workspaceId: workspace.id },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-    });
-    expect(storedTables).toHaveLength(15);
-    expect(storedTables.find((table) => table.id === moving.id)).toMatchObject({
-      layoutX: null,
-      layoutY: null,
-    });
-    expect(() => resolveSeatingFloorPlanPositions(storedTables)).not.toThrow();
   });
 
   it("allows at most one concurrent assignment when only one group fits", async () => {

@@ -11,11 +11,9 @@ import {
   MAX_SEATING_TABLE_COUNT,
   normalizeSeatingTableAdjustmentInput,
   normalizeSeatingTableInput,
-  normalizeSeatingTableLayoutInput,
   normalizeSeatingTableVersion,
   type NormalizedSeatingTableAdjustmentInput,
   type NormalizedSeatingTableInput,
-  type NormalizedSeatingTableLayoutInput,
   SeatingTableValidationError,
 } from "@/domain/seating-table";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
@@ -921,80 +919,21 @@ export async function updateSeatingTableLayoutAction(
   _previousState: SeatingTableMutationState,
   formData: FormData,
 ): Promise<SeatingTableMutationState> {
+  void tableId;
   void _previousState;
+  void formData;
   const authorization = await authorizeSeatingMutation(workspaceId);
   if (typeof authorization !== "string") {
     return authorization;
   }
 
-  let input: NormalizedSeatingTableLayoutInput;
-  let expectedVersion: number;
-  try {
-    input = normalizeSeatingTableLayoutInput({
-      layoutX: formData.get("layoutX"),
-      layoutY: formData.get("layoutY"),
-    });
-    expectedVersion = normalizeSeatingTableVersion(
-      formData.get("expectedVersion"),
-    );
-  } catch (error) {
-    return validationState(error);
-  }
-
-  try {
-    await runSerializableTransaction(async (transaction) => {
-      await lockSeatingTableSequence(transaction, workspaceId);
-      await requireLockedWorkspaceAccess(
-        workspaceId,
-        authorization,
-        "edit",
-        transaction,
-      );
-      const tables = await seatingSnapshotTables(transaction, workspaceId);
-      const table = tables.find((candidate) => candidate.id === tableId);
-      if (!table) {
-        throw new SeatingRecordNotFoundError();
-      }
-      if (table.version !== expectedVersion) {
-        throw new SeatingTableStaleError();
-      }
-
-      validateSeatingFloorPlanCandidate(
-        tables.map((candidate) =>
-          candidate.id === tableId
-            ? {
-                ...candidate,
-                layoutX: input.layoutX,
-                layoutY: input.layoutY,
-              }
-            : candidate,
-        ),
-      );
-
-      const update = await transaction.seatingTable.updateMany({
-        where: { id: tableId, workspaceId, version: expectedVersion },
-        data: {
-          layoutX: input.layoutX,
-          layoutY: input.layoutY,
-          version: { increment: 1 },
-        },
-      });
-      if (update.count !== 1) {
-        throw new SeatingTableStaleError();
-      }
-      await advanceSeatingTableSequence(transaction, workspaceId);
-    });
-  } catch (error) {
-    return capacityOrConflictState(
-      error,
-      "目前無法更新場地位置，請稍後再試。",
-    );
-  }
-
-  revalidatePath(tablesPath(workspaceId));
-  return input.layoutX === null
-    ? { status: "success", message: "已還原自動排列。" }
-    : { status: "success", message: "已更新場地位置。" };
+  // 保留匯出名稱，讓尚未重新載入的舊分頁得到明確錯誤；桌號代表固定席位，
+  // 因此任何逐桌座標寫入都不得進入 transaction。既有手動座標只能透過下方
+  // 的整體重新排列動作一次清除。
+  return {
+    status: "error",
+    message: "桌號與位置固定，請改用交換桌名與賓客。",
+  };
 }
 
 /**

@@ -13,7 +13,6 @@ import { useRouter } from "next/navigation";
 import {
   resetSeatingTableLayoutsAction,
   swapSeatingTableContentsAction,
-  updateSeatingTableLayoutAction,
   type SeatingTableMutationState,
 } from "@/actions/seating-tables";
 import {
@@ -23,7 +22,6 @@ import {
   seatingFloorPlanBoardPointToCoordinate,
   seatingFloorPlanCoordinateToBoardPercent,
   seatingFloorPlanCoordinateToBoardPoint,
-  snapSeatingFloorPlanCoordinate,
   findSeatingFloorPlanSwapTarget,
   type SeatingFloorPlanCoordinate,
 } from "@/domain/seating-floor-plan";
@@ -80,23 +78,15 @@ type DragState = {
   grabOffsetClientX: number;
   grabOffsetClientY: number;
   moved: boolean;
-  // 拖曳開始時的版面。交換要以「還沒拖之前」的位置為準：拖曳中的預覽會把
-  // 被拖的桌子移到別的席位，也可能把自動排列的桌次擠開，直接讀當下的
-  // draft 會拿到預覽值，和伺服器實際交換的來源對不起來。
-  startOverrides: Record<string, DraftPosition>;
-  startPositions: Record<string, SeatingFloorPlanCoordinate>;
 } | null;
 
 /** 拖到別張桌子上時的交換預覽：固定桌位原地顯示對方的桌名與賓客。 */
 type SwapPreview = {
   draggedTableId: string;
   targetTableId: string;
-  draggedTo: SeatingFloorPlanCoordinate;
-  targetTo: SeatingFloorPlanCoordinate;
 };
 
 const idleState: SeatingTableMutationState = { status: "idle" };
-const DIRECTION_STEP = 50;
 
 function layoutSnapshotKey(tables: SeatingFloorPlanTable[]): string {
   return [...tables]
@@ -323,19 +313,16 @@ export function SeatingFloorPlan({
     [contentOverrides, contentSnapshotKey, tables],
   );
   const [feedback, setFeedback] = useState<SeatingTableMutationState>(idleState);
-  // 拖曳中壓在哪一張桌子上；放開時要交換而不是移動。
+  // 拖曳中壓在哪一張桌子上；桌號與席位永遠不移動，放開只交換內容。
   const [swapPreview, setSwapPreview] = useState<SwapPreview | null>(null);
-  // 哪一張桌子正跟著指標跑。跟著指標的那張不能有位移動畫，否則會慢半拍。
-  const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
   const [swapSelectionId, setSwapSelectionId] = useState("");
   // 「依桌號重新排列」會一次抹掉所有手動位置且無法復原，要先確認。
   const [isConfirmingResetAll, setIsConfirmingResetAll] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    // preventScroll 是必要的：這段訊息在場地圖下方，移動完圓桌就聚焦會把
-    // 畫面捲離剛才那張桌子，正在微調位置時尤其惱人。role 已經是 status／
-    // alert，輔助技術照樣會朗讀。
+    // preventScroll 是必要的：這段訊息在場地圖下方，交換完桌次就聚焦會把
+    // 畫面捲離剛才操作的位置。role 已經是 status／alert，輔助技術照樣會朗讀。
     if (feedback.status !== "idle") {
       feedbackRef.current?.focus({ preventScroll: true });
     }
@@ -384,24 +371,6 @@ export function SeatingFloorPlan({
       }));
   }
 
-  /**
-   * 吸附到版面席位，桌子才不會因為拖曳而歪掉。其他桌目前佔住的席位要
-   * 排除，否則會吸到一個放不下的位置，預覽就停在原地不動。
-   */
-  function snapToLayout(
-    coordinate: SeatingFloorPlanCoordinate,
-    draggedTableId: string,
-  ) {
-    return clampSeatingFloorPlanCoordinateToSafeBounds(
-      snapSeatingFloorPlanCoordinate(
-        coordinate,
-        metrics,
-        otherPositions(draggedTableId),
-      ),
-      metrics,
-    );
-  }
-
   function swapTargetAt(
     coordinate: SeatingFloorPlanCoordinate,
     draggedTableId: string,
@@ -411,101 +380,6 @@ export function SeatingFloorPlan({
       otherPositions(draggedTableId),
       metrics,
     );
-  }
-
-  function optimisticPosition(
-    table: SeatingFloorPlanTable,
-    layoutX: number | null,
-    layoutY: number | null,
-  ) {
-    setDraftOverrides((currentOverrides) => {
-      const current = mergeDraftPositions(baseDrafts, currentOverrides);
-      const virtualTables = tables.map((candidate) => {
-        const draft = current[candidate.id];
-        return candidate.id === table.id
-          ? { ...candidate, layoutX, layoutY }
-          : {
-              ...candidate,
-              layoutX: draft ? draft.layoutX : candidate.layoutX,
-              layoutY: draft ? draft.layoutY : candidate.layoutY,
-            };
-      });
-      try {
-        const resolved = new Map(
-          resolveSeatingFloorPlanPositions(virtualTables).map((position) => [
-            position.tableId,
-            position,
-          ]),
-        );
-        return Object.fromEntries(
-          virtualTables.map((candidate) => {
-            const position = resolved.get(candidate.id);
-            if (!position) throw new Error("Missing floor-plan position.");
-            return [
-              candidate.id,
-              {
-                ...current[candidate.id],
-                x: position.x,
-                y: position.y,
-                source: position.source,
-                layoutX: candidate.layoutX,
-                layoutY: candidate.layoutY,
-              },
-            ];
-          }),
-        );
-      } catch {
-        return currentOverrides;
-      }
-    });
-  }
-
-  function persistPosition(
-    table: SeatingFloorPlanTable,
-    layoutX: number | null,
-    layoutY: number | null,
-  ) {
-    if (isPending) return;
-    const expectedVersion = drafts[table.id]?.version ?? table.version;
-    optimisticPosition(table, layoutX, layoutY);
-    const formData = new FormData();
-    formData.set("layoutX", layoutX === null ? "" : String(layoutX));
-    formData.set("layoutY", layoutY === null ? "" : String(layoutY));
-    formData.set("expectedVersion", String(expectedVersion));
-
-    startTransition(async () => {
-      let result: SeatingTableMutationState;
-      try {
-        result = await updateSeatingTableLayoutAction(
-          workspaceId,
-          table.id,
-          idleState,
-          formData,
-        );
-      } catch {
-        result = {
-          status: "error",
-          message: "目前無法更新場地位置，請稍後再試。",
-        };
-      }
-
-      setFeedback(result);
-      if (result.status === "success") {
-        setDraftOverrides((currentOverrides) => {
-          const current = mergeDraftPositions(baseDrafts, currentOverrides);
-          return {
-            ...currentOverrides,
-            [table.id]: {
-              ...current[table.id],
-              version: expectedVersion + 1,
-            },
-          };
-        });
-      } else {
-        setDraftOverrides({});
-        router.refresh();
-      }
-    });
   }
 
   /**
@@ -609,13 +483,6 @@ export function SeatingFloorPlan({
       grabOffsetClientX: event.clientX - renderedCenter.x,
       grabOffsetClientY: event.clientY - renderedCenter.y,
       moved: false,
-      startOverrides: draftOverrides,
-      startPositions: Object.fromEntries(
-        Object.entries(drafts).map(([tableId, position]) => [
-          tableId,
-          { x: position.x, y: position.y },
-        ]),
-      ),
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
@@ -634,7 +501,6 @@ export function SeatingFloorPlan({
         Math.abs(event.clientY - drag.startClientY) > 3)
     ) {
       drag.moved = true;
-      setDraggingTableId(table.id);
     }
     if (!drag.moved) return;
     const coordinate = pointToCoordinate(
@@ -643,12 +509,7 @@ export function SeatingFloorPlan({
     );
     if (!coordinate) return;
     const swapTarget = swapTargetAt(coordinate, table.id);
-    const draggedOrigin = drag.startPositions[table.id];
-    const targetOrigin = swapTarget ? drag.startPositions[swapTarget] : null;
-    if (swapTarget && draggedOrigin && targetOrigin) {
-      // 交換是「兩張互換」而已，拖曳途中被擠開的其他桌次要先還原，預覽才
-      // 等於放開後的結果。傳回同一個參照，React 會自己略過不必要的重繪。
-      setDraftOverrides(drag.startOverrides);
+    if (swapTarget) {
       setSwapPreview((current) =>
         current?.draggedTableId === table.id &&
         current.targetTableId === swapTarget
@@ -656,18 +517,12 @@ export function SeatingFloorPlan({
           : {
               draggedTableId: table.id,
               targetTableId: swapTarget,
-              draggedTo: targetOrigin,
-              targetTo: draggedOrigin,
             },
       );
       return;
     }
+    // 拖到空白處不移動任何桌子；移出另一桌後也立即取消交換預覽。
     setSwapPreview(null);
-    // Drag preview shares the full-layout resolver with keyboard moves and
-    // server writes. A rejected candidate leaves the last valid preview in
-    // place instead of briefly painting one round table over another.
-    const snapped = snapToLayout(coordinate, table.id);
-    optimisticPosition(table, snapped.x, snapped.y);
   }
 
   function handlePointerUp(
@@ -691,18 +546,9 @@ export function SeatingFloorPlan({
     );
     const swapTarget = coordinate ? swapTargetAt(coordinate, table.id) : null;
     setSwapPreview(null);
-    setDraggingTableId(null);
-    const draggedOrigin = drag.startPositions[table.id];
-    const targetOrigin = swapTarget ? drag.startPositions[swapTarget] : null;
-    if (swapTarget && draggedOrigin && targetOrigin) {
+    if (swapTarget) {
       // 桌位保持原狀，放開後只提交兩桌的內容交換。
-      setDraftOverrides(drag.startOverrides);
       persistSwap(table, swapTarget);
-      return;
-    }
-    if (coordinate) {
-      const snapped = snapToLayout(coordinate, table.id);
-      persistPosition(table, snapped.x, snapped.y);
     }
   }
 
@@ -715,13 +561,9 @@ export function SeatingFloorPlan({
     dragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     setSwapPreview(null);
-    setDraggingTableId(null);
-    // 還原成拖曳前的版面，而不是清空：清空會連同先前已經存檔成功的樂觀
-    // 位置一起丟掉，那些桌子會倒退回還沒重新驗證的伺服器座標。
-    setDraftOverrides(drag.startOverrides);
   }
 
-  /** 目前有幾桌是手動擺的。樂觀預覽也算進去，按鈕的可用狀態才會即時。 */
+  /** 目前有幾桌仍保留舊版手動座標；可用整體重排一次清除。 */
   const persistedDraftCount = tables.filter((table) => {
     const draft = drafts[table.id];
     const layoutX = draft ? draft.layoutX : table.layoutX;
@@ -731,7 +573,7 @@ export function SeatingFloorPlan({
 
   /**
    * 全部還原自動排列。這是絕對語意，不送逐桌版本；伺服器只會動到還有
-   * 手動座標的桌次，成功後把那些桌次的版本樂觀加一，之後的單桌操作
+   * 手動座標的桌次，成功後把那些桌次的版本樂觀加一，之後的內容交換
    * 才不會拿舊版本去撞 CAS。
    */
   function persistResetAll() {
@@ -822,17 +664,6 @@ export function SeatingFloorPlan({
     });
   }
 
-  function moveSelected(deltaX: number, deltaY: number) {
-    if (!selectedTable) return;
-    const current = drafts[selectedTable.id];
-    if (!current) return;
-    const candidate = clampSeatingFloorPlanCoordinateToSafeBounds(
-      { x: current.x + deltaX, y: current.y + deltaY },
-      metrics,
-    );
-    persistPosition(selectedTable, candidate.x, candidate.y);
-  }
-
   return (
     <section aria-labelledby="floor-plan-heading" className="min-w-0">
       <div className="flex min-h-11 flex-wrap items-baseline justify-between gap-3">
@@ -849,7 +680,7 @@ export function SeatingFloorPlan({
         </div>
         <p className="text-caption leading-6 text-ink-soft">
           {canEdit
-            ? "拖曳圓桌可調整位置；壓在另一桌時，桌號與位置固定，只交換桌名與入座賓客。"
+            ? "桌號與位置固定；拖曳一桌至另一桌，或從下方選擇桌次，只交換桌名與入座賓客。"
             : "桌名與入席人數依目前配置顯示。"}
         </p>
       </div>
@@ -988,11 +819,6 @@ export function SeatingFloorPlan({
             }`;
             // 交換時固定桌位不移動，只預覽對方的桌名與入座賓客。
             const rendered = draft;
-            const isSwapPreview =
-              swapPreview?.draggedTableId === table.id ||
-              swapPreview?.targetTableId === table.id;
-            const followsPointer =
-              draggingTableId === table.id && !isSwapPreview;
             const boardPercent =
               seatingFloorPlanCoordinateToBoardPercent(rendered);
             const isDense = metrics.markerSizePx <= 64;
@@ -1008,10 +834,7 @@ export function SeatingFloorPlan({
                   swapPreview?.targetTableId === table.id ? "true" : undefined
                 }
                 className={cn(
-                  "absolute z-10 grid min-h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 bg-surface text-center shadow-card",
-                  followsPointer
-                    ? "transition-[box-shadow]"
-                    : "transition-[box-shadow,left,top] duration-200 ease-out motion-reduce:transition-[box-shadow]",
+                  "absolute z-10 grid min-h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 bg-surface text-center shadow-card transition-[box-shadow,left,top] duration-200 ease-out motion-reduce:transition-[box-shadow]",
                   // 拖曳中壓住的那一張要看得出來「放開會跟它換」。
                   swapPreview?.targetTableId === table.id
                     ? "border-dashed border-clay ring-4 ring-clay/35"
@@ -1042,7 +865,7 @@ export function SeatingFloorPlan({
                 {canEdit ? (
                   <button
                     type="button"
-                    aria-label={`選取並移動 ${seatingTableLabel(contentTable)}`}
+                    aria-label={`選取並拖曳交換 ${seatingTableLabel(contentTable)}`}
                     title={label}
                     aria-pressed={isSelected}
                     disabled={isPending}
@@ -1090,38 +913,15 @@ export function SeatingFloorPlan({
       {canEdit && selectedTable ? (
         <div
           role="group"
-          aria-label={`${seatingTableLabel(selectedTable)}位置調整`}
+          aria-label={`${seatingTableLabel(selectedTable)}內容交換`}
           className="mt-4 flex min-w-0 flex-wrap items-center gap-2 rounded-card border border-line bg-surface px-4 py-3"
         >
           <p className="mr-1 min-w-0 flex-1 text-caption font-semibold break-words text-ink">
             已選取：{seatingTableLabel(selectedTable)}
+            <span className="mt-1 block font-normal text-ink-soft">
+              桌號與位置固定，只交換桌名與賓客。
+            </span>
           </p>
-          {[
-            ["上", 0, -DIRECTION_STEP],
-            ["下", 0, DIRECTION_STEP],
-            ["左", -DIRECTION_STEP, 0],
-            ["右", DIRECTION_STEP, 0],
-          ].map(([label, deltaX, deltaY]) => (
-            <button
-              key={String(label)}
-              type="button"
-              aria-label={`將 ${seatingTableLabel(selectedTable)} 向${label}移動`}
-              disabled={isPending}
-              onClick={() => moveSelected(Number(deltaX), Number(deltaY))}
-              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3 text-sm font-semibold text-clay-strong hover:bg-clay-soft disabled:opacity-60"
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            type="button"
-            aria-label={`還原 ${seatingTableLabel(selectedTable)} 自動排列`}
-            disabled={isPending || drafts[selectedTable.id]?.source === "automatic"}
-            onClick={() => persistPosition(selectedTable, null, null)}
-            className="inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3.5 text-sm font-semibold text-clay-strong hover:bg-clay-soft disabled:opacity-60"
-          >
-            還原自動排列
-          </button>
           {/*
             交換不能只有拖曳一種做法：鍵盤與輔助技術的使用者拖不動圓桌。
             這一組選單＋按鈕是同一個伺服器動作的等價入口。

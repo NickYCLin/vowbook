@@ -953,95 +953,33 @@ describe("seating table server actions", () => {
     expect(tableUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("persists paired layout coordinates with transaction-local access and workspace-scoped CAS", async () => {
-    tableFindMany.mockResolvedValueOnce(layoutTableRows);
+  it("rejects legacy per-table layout writes so table numbers keep fixed slots", async () => {
+    const crafted = layoutFormData("250", "750");
+    crafted.set("workspaceId", "workspace_attacker");
+    crafted.set("userId", "attacker");
+    crafted.set("role", "OWNER");
 
     await expect(
       updateSeatingTableLayoutAction(
         "workspace_1",
         "table_1",
         idleState,
-        layoutFormData("250", "750"),
+        crafted,
       ),
-    ).resolves.toEqual({ status: "success", message: "已更新場地位置。" });
-
-    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: "Serializable",
+    ).resolves.toEqual({
+      status: "error",
+      message: "桌號與位置固定，請改用交換桌名與賓客。",
     });
-    expect(requireLockedWorkspaceAccess).toHaveBeenCalledWith(
+
+    expect(requireWorkspaceAccess).toHaveBeenCalledWith(
       "workspace_1",
       "session_user",
       "edit",
-      transactionClient,
     );
-    expect(executeRaw).toHaveBeenCalledTimes(2);
-    expect(executeRaw.mock.calls[0][0].join(" ")).toContain(
-      "pg_advisory_xact_lock",
-    );
-    expect(executeRaw.mock.calls[1]?.[0].strings.join(" ")).toContain(
-      'UPDATE "wedding_workspaces"',
-    );
-    expect(executeRaw.mock.calls[0][1]).toBe(
-      "vowbook:seating:workspace_1",
-    );
-    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      requireLockedWorkspaceAccess.mock.invocationCallOrder[0],
-    );
-    expect(executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      tableFindMany.mock.invocationCallOrder[0],
-    );
-    expect(tableFindMany).toHaveBeenCalledWith({
-      where: { workspaceId: "workspace_1" },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-      select: {
-        id: true,
-        workspaceId: true,
-        position: true,
-        version: true,
-        name: true,
-        capacity: true,
-        notes: true,
-        layoutX: true,
-        layoutY: true,
-      },
-    });
-    expect(tableUpdateMany).toHaveBeenCalledWith({
-      where: { id: "table_1", workspaceId: "workspace_1", version: 0 },
-      data: { layoutX: 250, layoutY: 750, version: { increment: 1 } },
-    });
-    expect(revalidatePath).toHaveBeenCalledTimes(1);
-    expect(revalidatePath).toHaveBeenCalledWith(
-      "/workspaces/workspace_1/tables",
-    );
-  });
-
-  it("resets both layout coordinates to null", async () => {
-    tableFindMany.mockResolvedValueOnce([
-      {
-        ...layoutTableRows[0],
-        layoutX: 500,
-        layoutY: 710,
-      },
-      {
-        ...layoutTableRows[1],
-        layoutX: 500,
-        layoutY: 220,
-      },
-    ]);
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_1",
-        idleState,
-        layoutFormData("", ""),
-      ),
-    ).resolves.toEqual({ status: "success", message: "已還原自動排列。" });
-
-    expect(tableUpdateMany).toHaveBeenCalledWith({
-      where: { id: "table_1", workspaceId: "workspace_1", version: 0 },
-      data: { layoutX: null, layoutY: null, version: { increment: 1 } },
-    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(tableFindMany).not.toHaveBeenCalled();
+    expect(tableUpdateMany).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("resets every manually placed table in one absolute bulk update", async () => {
@@ -1228,111 +1166,6 @@ describe("seating table server actions", () => {
 
     expect(tableUpdateMany).not.toHaveBeenCalled();
     expect(guestUpdateMany).not.toHaveBeenCalled();
-  });
-
-  it("rejects reset before write when another persisted pair keeps the full layout unresolvable", async () => {
-    tableFindMany.mockResolvedValueOnce([
-      {
-        ...layoutTableRows[0],
-        layoutX: 0,
-        layoutY: 0,
-      },
-      ...invalidPersistedLayoutRows.map((table, index) => ({
-        ...table,
-        id: `invalid_${index}`,
-        position: index + 2,
-      })),
-    ]);
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_1",
-        idleState,
-        layoutFormData("", ""),
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      message: layoutConflictMessage,
-    });
-
-    expect(tableUpdateMany).not.toHaveBeenCalled();
-  });
-
-  it("rejects stale, cross-workspace, and partially specified layout writes", async () => {
-    tableFindMany.mockResolvedValueOnce([
-      { ...layoutTableRows[0], version: 4 },
-      layoutTableRows[1],
-    ]);
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_1",
-        idleState,
-        layoutFormData("500", "710", 3),
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      message: "桌次已由其他人更新，請重新載入後再試。",
-    });
-
-    tableFindMany.mockResolvedValueOnce([]);
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_from_workspace_2",
-        idleState,
-        layoutFormData("250", "750"),
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      message: "桌次不存在或已被移除，請重新整理後再試。",
-    });
-
-    const partial = layoutFormData("250", "");
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_1",
-        idleState,
-        partial,
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      message: "場地座標必須成對設定。",
-    });
-    expect(tableUpdateMany).not.toHaveBeenCalled();
-  });
-
-  it("rejects a crafted invalid full layout after locking the workspace and before CAS update", async () => {
-    tableFindMany.mockResolvedValueOnce([
-      layoutTableRows[0],
-      {
-        ...layoutTableRows[1],
-        layoutX: 500,
-        layoutY: 710,
-      },
-    ]);
-    const crafted = layoutFormData("500", "710");
-    crafted.set("workspaceId", "workspace_attacker");
-    crafted.set("userId", "attacker");
-    crafted.set("role", "OWNER");
-
-    await expect(
-      updateSeatingTableLayoutAction(
-        "workspace_1",
-        "table_1",
-        idleState,
-        crafted,
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      message: layoutConflictMessage,
-    });
-
-    expect(executeRaw).toHaveBeenCalledTimes(1);
-    expect(tableFindMany).toHaveBeenCalledTimes(1);
-    expect(tableUpdateMany).not.toHaveBeenCalled();
   });
 
   it("rejects a stale table edit with a clear message and no write", async () => {
