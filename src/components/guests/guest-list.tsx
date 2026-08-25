@@ -252,11 +252,9 @@ function RequirementSummary({
 function InvitationSummary({
   label,
   summary,
-  showDeliveryDetails = false,
 }: {
   label: string;
   summary: InvitationDeliverySummary;
-  showDeliveryDetails?: boolean;
 }) {
   return (
     <details className="group min-w-0 rounded-control border border-line bg-surface-sunken">
@@ -290,21 +288,14 @@ function InvitationSummary({
           <p className="text-caption text-ink-faint">目前沒有登記名單。</p>
         ) : (
           <ul className="divide-y divide-line rounded-control border border-line bg-surface">
-            {summary.recipients.map((recipient) =>
-              showDeliveryDetails ? (
-                <PaperInvitationRecipient
-                  key={recipient.id}
-                  recipient={recipient}
-                />
-              ) : (
-                <li
-                  key={recipient.id}
-                  className="min-w-0 px-3.5 py-2.5 text-caption break-words text-ink"
-                >
-                  {recipient.name}
-                </li>
-              ),
-            )}
+            {summary.recipients.map((recipient) => (
+              <li
+                key={recipient.id}
+                className="min-w-0 px-3.5 py-2.5 text-caption break-words text-ink"
+              >
+                {recipient.name}
+              </li>
+            ))}
           </ul>
         )}
       </div>
@@ -312,29 +303,36 @@ function InvitationSummary({
   );
 }
 
-function PaperInvitationRecipient({
-  recipient,
+function PaperInvitationSummary({
+  summary,
 }: {
-  recipient: InvitationRecipient;
+  summary: InvitationDeliverySummary;
 }) {
   const titleId = useId();
   const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
 
   return (
-    <li className="min-w-0 text-caption text-ink">
+    <>
       <button
         ref={triggerRef}
         type="button"
         aria-haspopup="dialog"
-        aria-label={`查看 ${recipient.name} 的紙本喜帖資訊`}
+        aria-label={`查看 ${summary.total} 份紙本喜帖完整資訊`}
         onClick={open}
-        className="flex min-h-11 w-full min-w-0 items-center justify-between gap-3 rounded-control px-3.5 py-2.5 text-left transition hover:bg-clay-soft/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-clay"
+        className="group flex min-h-11 w-full min-w-0 items-center justify-between gap-4 rounded-control border border-line bg-surface-sunken px-4 py-3 text-left transition hover:bg-clay-soft/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay"
       >
-        <span className="min-w-0 break-words font-medium">
-          {recipient.name}
+        <span className="min-w-0">
+          <span className="block font-serif text-body font-semibold text-ink">
+            紙本喜帖
+          </span>
+          <span className="mt-0.5 block text-caption text-ink-soft">
+            已登記 {summary.total} 組名單
+          </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-clay-strong">
-          完整資訊
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="font-serif text-xl font-semibold tabular-nums text-clay-strong">
+            {summary.total} 份
+          </span>
           <svg
             aria-hidden="true"
             viewBox="0 0 16 16"
@@ -343,7 +341,7 @@ function PaperInvitationRecipient({
             strokeWidth="1.6"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="size-3.5"
+            className="size-4 text-ink-faint transition-transform group-hover:translate-x-0.5"
           >
             <path d="M6 3l5 5-5 5" />
           </svg>
@@ -353,42 +351,52 @@ function PaperInvitationRecipient({
       <Dialog
         dialogRef={dialogRef}
         titleId={titleId}
-        title={recipient.name}
-        eyebrow="紙本喜帖寄送資訊"
-        description="確認寄送前，請再次核對姓名、聯絡電話與地址。"
-        closeLabel={`關閉 ${recipient.name} 的紙本喜帖資訊`}
-        size="sm"
+        title="紙本喜帖完整資訊"
+        eyebrow={`共 ${summary.total} 份`}
+        description="一次核對所有紙本喜帖的姓名、聯絡電話與寄送地址。"
+        closeLabel="關閉紙本喜帖完整資訊"
+        size="lg"
         onClose={close}
         onRestoreFocus={restoreFocus}
       >
         <div className="px-5 py-5 sm:px-6">
-          <dl className="grid min-w-0 gap-4">
-            <div className="min-w-0 rounded-control border border-line bg-surface-sunken px-4 py-3.5">
-              <dt className="text-caption font-semibold text-ink-soft">姓名</dt>
-              <dd className="mt-1 min-w-0 font-serif text-body font-semibold break-words text-ink">
-                {recipient.name}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-control border border-line bg-surface-sunken px-4 py-3.5">
-              <dt className="text-caption font-semibold text-ink-soft">
-                聯絡電話
-              </dt>
-              <dd className="mt-1 min-w-0 break-words text-ink">
-                {recipient.contactPhone || "未填寫"}
-              </dd>
-            </div>
-            <div className="min-w-0 rounded-control border border-line bg-surface-sunken px-4 py-3.5">
-              <dt className="text-caption font-semibold text-ink-soft">
-                寄送地址
-              </dt>
-              <dd className="mt-1 min-w-0 whitespace-pre-wrap break-words text-ink">
-                {recipient.mailingAddress || "未填寫"}
-              </dd>
-            </div>
-          </dl>
+          {summary.total === 0 ? (
+            <p className="text-caption text-ink-faint">目前沒有紙本喜帖名單。</p>
+          ) : (
+            <ul className="grid min-w-0 gap-3">
+              {summary.recipients.map((recipient) => (
+                <li
+                  key={recipient.id}
+                  className="min-w-0 rounded-control border border-line bg-surface-sunken px-4 py-4"
+                >
+                  <h3 className="font-serif text-body font-semibold break-words text-ink">
+                    {recipient.name}
+                  </h3>
+                  <dl className="mt-3 grid min-w-0 gap-4 sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <dt className="text-caption font-semibold text-ink-soft">
+                        聯絡電話
+                      </dt>
+                      <dd className="mt-1 min-w-0 break-words text-ink">
+                        {recipient.contactPhone || "未填寫"}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-caption font-semibold text-ink-soft">
+                        寄送地址
+                      </dt>
+                      <dd className="mt-1 min-w-0 whitespace-pre-wrap break-words text-ink">
+                        {recipient.mailingAddress || "未填寫"}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </Dialog>
-    </li>
+    </>
   );
 }
 
@@ -663,11 +671,7 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                   </p>
                 </div>
                 <div className="mt-4 grid min-w-0 gap-3 @3xl:grid-cols-2">
-                  <InvitationSummary
-                    label="紙本喜帖"
-                    summary={invitations.paper}
-                    showDeliveryDetails
-                  />
+                  <PaperInvitationSummary summary={invitations.paper} />
                   <InvitationSummary
                     label="電子喜帖"
                     summary={invitations.digital}
