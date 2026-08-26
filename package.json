@@ -1,6 +1,7 @@
 {
   "name": "vowbook",
   "version": "0.1.0",
+  "description": "A collaborative wedding planning app for guest lists, seating, budgets, tasks, and timelines.",
   "private": true,
   "scripts": {
     "dev": "next dev",

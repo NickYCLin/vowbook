@@ -2,7 +2,17 @@
 
 VowBook 是一套以工作區為核心的婚宴規劃網站。使用者透過 Google 登入後，可以建立婚宴工作區，邀請伴侶或婚顧協作，並共同管理賓客、桌次、任務、花費、工作人員與婚禮流程。
 
+VowBook is a self-hostable, collaborative wedding planning app for couples and wedding planners. It brings guest lists, RSVP details, seating charts, wedding budgets, task checklists, staff assignments, and wedding-day timelines into one workspace.
+
 > **線上正式版：** [立即使用 VowBook](https://ycspace.myvnc.com/VowBook)
+
+## 快速導覽
+
+- 想直接規劃婚宴：[開啟線上正式版](https://ycspace.myvnc.com/VowBook)
+- 想先確認能做什麼：[查看功能](#功能)
+- 想在自己的環境架設：[Docker Compose 自架](#docker-compose-自架)
+- 想參與開發：[本機開發](#本機開發)與 [貢獻指南](CONTRIBUTING.md)
+- 要回報安全問題：[安全政策](SECURITY.md)
 
 ## 線上使用
 
