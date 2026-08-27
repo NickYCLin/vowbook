@@ -19,6 +19,10 @@
 
 使用者可見文字預設使用繁體中文。Commit message 建議使用繁體中文 Conventional Commits，例如：fix(guests): 修正賓客篩選條件。
 
+## 貢獻授權
+
+送出貢獻即表示你確認有權提供該內容，並同意依 [Mozilla Public License 2.0](LICENSE) 授權該貢獻。第三方程式碼或素材必須清楚標註來源與相容授權。
+
 ## 問題與功能建議
 
 一般錯誤與功能建議可以建立 GitHub Issue。安全問題請依 SECURITY.md 私下回報。

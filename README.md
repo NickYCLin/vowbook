@@ -172,4 +172,6 @@ Compose 會在檔案存在時把 `.env.admin` 只載入 app container；沒有�
 
 ## 授權
 
-目前尚未指定開源授權。公開程式碼僅供檢視；除非另有書面授權，否則保留所有權利。
+除另有註明外，本 repository 的原始碼依 [Mozilla Public License 2.0](LICENSE) 授權。
+
+VowBook 名稱、Logo 與品牌識別不因本授權授予商標權。
