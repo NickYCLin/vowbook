@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">誓約簿 VowBook：一起把婚宴準備好</title>
+  <desc id="desc">產品功能導覽圖，非操作畫面。三張卡片分別介紹賓客與桌次、花費與待辦、人員與流程。以 Google 帳號登入，和伴侶或婚顧共用婚宴工作區。</desc>
+  <defs>
+    <pattern id="paper" width="12" height="12" patternUnits="userSpaceOnUse">
+      <path d="M0 12H12" stroke="#8a5d42" stroke-opacity=".025"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="660" rx="24" fill="#f7f2ea"/>
+  <rect width="1200" height="660" rx="24" fill="url(#paper)"/>
+  <rect x="20" y="20" width="1160" height="620" rx="14" fill="none" stroke="#e4d9ca"/>
+  <g font-family="'Microsoft JhengHei', 'Noto Sans TC', sans-serif">
+    <path d="M56 73h38" stroke="#8a5d42" stroke-width="2"/>
+    <text x="108" y="80" font-size="21" letter-spacing="4" fill="#8a5d42">誓約簿 / VOWBOOK</text>
+    <text x="56" y="164" font-size="52" font-weight="700" fill="#2b2521">一起把婚宴準備好。</text>
+    <text x="58" y="211" font-size="24" fill="#675c54">賓客、桌次、花費與流程，留在彼此找得到的地方。</text>
+    <rect x="58" y="245" width="334" height="42" rx="21" fill="#e7ede8"/>
+    <text x="79" y="273" font-size="19" fill="#53645a">Google 登入 · 和伴侶、婚顧協作</text>
+    <g transform="translate(867 66) rotate(6 105 100)">
+      <rect x="10" y="12" width="206" height="230" rx="12" fill="#cdbca7" opacity=".35"/>
+      <rect width="206" height="230" rx="12" fill="#dfcdbb" stroke="#cdbca7"/>
+      <path d="M15 0v230" stroke="#b99c83"/>
+      <rect x="25" y="14" width="166" height="201" rx="5" fill="#fffdf9"/>
+      <path d="M89 57h36M51 148h114M51 165h114M51 182h114" stroke="#cdbca7"/>
+      <text x="109" y="101" text-anchor="middle" font-size="24" fill="#2b2521">我們的婚宴</text>
+      <text x="109" y="126" text-anchor="middle" font-size="11" letter-spacing="2" fill="#8a5d42">OUR WEDDING</text>
+    </g>
+    <path d="M56 326h1088" stroke="#e4d9ca"/>
+    <g transform="translate(56 352)">
+      <rect width="348" height="224" rx="16" fill="#fffdf9" stroke="#e4d9ca"/>
+      <text x="26" y="42" font-size="16" letter-spacing="2" fill="#8a5d42">01 / 賓客與桌次</text>
+      <text x="26" y="88" font-size="30" font-weight="700" fill="#2b2521">誰會來，坐哪桌</text>
+      <text x="26" y="134" font-size="21" fill="#675c54">整理出席與飲食需求</text>
+      <text x="26" y="168" font-size="21" fill="#675c54">安排座位、確認桌次容量</text>
+      <path d="M26 197h44" stroke="#8a5d42" stroke-width="3"/>
+    </g>
+    <g transform="translate(426 352)">
+      <rect width="348" height="224" rx="16" fill="#fffdf9" stroke="#e4d9ca"/>
+      <text x="26" y="42" font-size="16" letter-spacing="2" fill="#8a5d42">02 / 花費與待辦</text>
+      <text x="26" y="88" font-size="30" font-weight="700" fill="#2b2521">花多少，還缺什麼</text>
+      <text x="26" y="134" font-size="21" fill="#675c54">記錄訂金、尾款與附件</text>
+      <text x="26" y="168" font-size="21" fill="#675c54">用任務清單追蹤籌備進度</text>
+      <path d="M26 197h44" stroke="#8a5d42" stroke-width="3"/>
+    </g>
+    <g transform="translate(796 352)">
+      <rect width="348" height="224" rx="16" fill="#e7ede8" stroke="#cfdbd1"/>
+      <text x="26" y="42" font-size="16" letter-spacing="2" fill="#53645a">03 / 人員與流程</text>
+      <text x="26" y="88" font-size="30" font-weight="700" fill="#2b2521">何時做，找誰幫忙</text>
+      <text x="26" y="134" font-size="21" fill="#53645a">排好當天流程與工作人員</text>
+      <text x="26" y="168" font-size="21" fill="#53645a">讓協作者查看同一份資料</text>
+      <path d="M26 197h44" stroke="#53645a" stroke-width="3"/>
+    </g>
+    <text x="56" y="613" font-size="17" fill="#675c54">給正在籌備婚宴的你們</text>
+    <text x="1144" y="613" text-anchor="end" font-size="15" fill="#675c54">產品功能導覽 / 非操作畫面</text>
+  </g>
+</svg>

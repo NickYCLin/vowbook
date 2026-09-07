@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="930" viewBox="0 0 600 930" role="img" aria-labelledby="title desc">
+  <title id="title">誓約簿 VowBook 功能導覽</title>
+  <desc id="desc">三張直式卡片：誰會來、坐哪桌；花多少、還缺什麼；何時做、找誰幫忙。產品功能導覽圖，非操作畫面。</desc>
+  <rect width="600" height="930" rx="24" fill="#f7f2ea"/>
+  <rect x="16" y="16" width="568" height="898" rx="14" fill="none" stroke="#e4d9ca"/>
+  <g font-family="'Microsoft JhengHei', 'Noto Sans TC', sans-serif">
+    <text x="40" y="70" font-size="25" letter-spacing="3" fill="#8a5d42">誓約簿 / VOWBOOK</text>
+    <text x="40" y="133" font-size="42" font-weight="700" fill="#2b2521">一起把婚宴準備好。</text>
+    <text x="40" y="181" font-size="25" fill="#675c54">Google 登入，和伴侶、婚顧協作。</text>
+    <g transform="translate(40 223)">
+      <rect width="520" height="196" rx="16" fill="#fffdf9" stroke="#e4d9ca"/>
+      <text x="26" y="41" font-size="22" fill="#8a5d42">01 / 賓客與桌次</text>
+      <text x="26" y="90" font-size="34" font-weight="700" fill="#2b2521">誰會來，坐哪桌</text>
+      <text x="26" y="134" font-size="25" fill="#675c54">整理出席與飲食需求</text>
+      <text x="26" y="169" font-size="25" fill="#675c54">安排座位、確認桌次容量</text>
+    </g>
+    <g transform="translate(40 439)">
+      <rect width="520" height="196" rx="16" fill="#fffdf9" stroke="#e4d9ca"/>
+      <text x="26" y="41" font-size="22" fill="#8a5d42">02 / 花費與待辦</text>
+      <text x="26" y="90" font-size="34" font-weight="700" fill="#2b2521">花多少，還缺什麼</text>
+      <text x="26" y="134" font-size="25" fill="#675c54">記錄訂金、尾款與附件</text>
+      <text x="26" y="169" font-size="25" fill="#675c54">用任務清單追蹤籌備進度</text>
+    </g>
+    <g transform="translate(40 655)">
+      <rect width="520" height="196" rx="16" fill="#e7ede8" stroke="#cfdbd1"/>
+      <text x="26" y="41" font-size="22" fill="#53645a">03 / 人員與流程</text>
+      <text x="26" y="90" font-size="34" font-weight="700" fill="#2b2521">何時做，找誰幫忙</text>
+      <text x="26" y="134" font-size="25" fill="#53645a">排好當天流程與工作人員</text>
+      <text x="26" y="169" font-size="25" fill="#53645a">讓協作者查看同一份資料</text>
+    </g>
+    <text x="40" y="891" font-size="21" fill="#675c54">產品功能導覽 / 非操作畫面</text>
+  </g>
+</svg>

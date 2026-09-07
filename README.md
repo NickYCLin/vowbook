@@ -1,177 +1,94 @@
 # 誓約簿 VowBook
 
-VowBook 是一套以工作區為核心的婚宴規劃網站。使用者透過 Google 登入後，可以建立婚宴工作區，邀請伴侶或婚顧協作，並共同管理賓客、桌次、任務、花費、工作人員與婚禮流程。
+**把賓客、桌次和花費整理好，和伴侶一起準備婚宴。**
 
-VowBook is a self-hostable, collaborative wedding planning app for couples and wedding planners. It brings guest lists, RSVP details, seating charts, wedding budgets, task checklists, staff assignments, and wedding-day timelines into one workspace.
+VowBook 是給新人、伴侶與婚顧使用的婚宴規劃網站。從確認誰會來、安排坐哪桌，到記錄訂金、待辦與當天流程，都能放在同一個婚宴工作區，讓一起籌備的人查看與更新。
 
-> **線上正式版：** [立即使用 VowBook](https://ycspace.myvnc.com/VowBook)
+A wedding planning app for couples and planners to manage guests, seating, budgets, and timelines together. Available as a hosted service or for self-hosting.
 
-## 快速導覽
+[開啟 VowBook](https://ycspace.myvnc.com/VowBook) · [查看功能](#功能) · [本機開發](docs/development.md#本機開發) · [給開發者與 AI](#給開發者與-ai)
 
-- 想直接規劃婚宴：[開啟線上正式版](https://ycspace.myvnc.com/VowBook)
-- 想先確認能做什麼：[查看功能](#功能)
-- 想在自己的環境架設：[Docker Compose 自架](#docker-compose-自架)
-- 想參與開發：[本機開發](#本機開發)與 [貢獻指南](CONTRIBUTING.md)
-- 要回報安全問題：[安全政策](SECURITY.md)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/assets/product-overview-mobile.svg">
+  <img src="docs/assets/product-overview.svg" alt="VowBook 功能導覽：整理賓客與桌次、掌握花費與待辦、協作安排人員與流程。">
+</picture>
 
-## 線上使用
+*功能導覽示意圖；下方有完整文字說明。*
 
-VowBook 目前已有持續運作中的公開託管版本，歡迎正在籌備婚禮的新人、伴侶與婚顧直接使用，不需要自行安裝或架設伺服器。
+## 籌備婚宴時，這些事可以放在一起
 
-1. 開啟 [VowBook 線上正式版](https://ycspace.myvnc.com/VowBook)。
-2. 使用 Google 帳號登入。
-3. 建立自己的婚宴工作區，開始整理賓客、桌次、任務、花費與婚禮流程。
-4. 視需要邀請伴侶或婚顧加入同一個工作區協作。
+### 01 ／ 名單與座位一起整理
 
-每個婚宴工作區的資料彼此隔離，只有該工作區的成員可以存取。線上服務仍會持續更新；若遇到不涉及個資或安全漏洞的一般問題，歡迎透過 GitHub Issues 回報。
+親友會來幾位、需不需要素食或兒童椅，先記在賓客名單。安排桌次時可以查看容量與尚未入席的賓客，減少在人名表與座位表之間來回核對。
+
+### 02 ／ 花費與待辦有地方追蹤
+
+婚紗、場地與婚禮小物各花了多少，訂金付了沒、尾款還剩多少，都能按項目整理。把要完成的事列進任務清單，再為每項工作設定到期日。
+
+### 03 ／ 和伴侶、婚顧共用一份資料
+
+各自用 Google 帳號登入同一個工作區，查看任務、聯絡名單與婚禮流程。需要協助編輯的人給編輯權限，只需參考的人則設為檢視者。
 
 ## 功能
 
-- Google OAuth 登入與 JWT session
-- 多婚宴工作區及 OWNER、PARTNER、PLANNER、VIEWER 成員權限
-- 賓客名單、出席狀態、邀請人數與通用聯絡／回覆資料
-- 桌次容量、賓客安排與場地平面配置
-- 婚宴任務、工作人員與婚禮流程
-- 階層式婚禮花費、狀態追蹤與附件
-- 工作區邀請及成員管理
-- LINEIN RSVP 與 Notion 花費的一次性離線匯入工具
+以下介紹這份公開原始碼已提供的 7 個工作區功能頁；線上服務可能採用不同版本，功能以實際畫面為準。
 
-所有婚宴資料都直接歸屬 WeddingWorkspace。伺服器端每次讀寫都會從登入 session 取得目前使用者，再檢查該使用者的 Membership；不信任 client 傳入的使用者 ID、角色或 workspace 所有權。
-
-### 賓客聯絡與回覆資料
-
-手動建立與外部匯入的賓客都使用同一份聯絡與回覆表單，可補充電話、Email、關係、證婚儀式、兒童座椅、素食、喜帖、寄送地址與留言。畫面不以特定匯入品牌區分這些欄位；原始來源只保留於內部 provenance，人工儲存的目前資料優先顯示，也不會在重新匯入時被覆寫。
-
-## 技術架構
-
-- Next.js 16 App Router、React 19、TypeScript、Tailwind CSS
-- NextAuth 4 與 Google OAuth
-- PostgreSQL 17、Prisma 6
-- Vitest、Testing Library、Playwright
-- Docker Compose 與 non-root standalone container image
-
-## 本機開發
-
-需求：Node.js 20.9 以上、npm，以及 Docker Compose。
-
-1. 安裝套件並建立本機環境設定：
-
-       npm install
-       cp .env.example .env
-
-2. 將 .env 中所有 replace-with-* 假值換成本機值。AUTH_SECRET 應為各環境獨立的高熵隨機值，例如：
-
-       openssl rand -base64 32
-
-3. 在 Google Cloud Console 建立 OAuth 2.0 Web application，加入本機 redirect URI：
-
-       http://localhost:3000/api/auth/callback/google
-
-4. 啟動 PostgreSQL、套用 migration 並產生 Prisma Client：
-
-       docker compose up -d postgres
-       npx prisma migrate dev
-       npm run db:generate
-
-5. 啟動開發伺服器：
-
-       npm run dev
-
-開啟 http://localhost:3000。首次登入後會進入工作區建立流程。
-
-## Docker Compose 自架
-
-完成 .env 設定後執行：
-
-    docker compose up -d --build app
-
-預設只在 127.0.0.1:3000 提供服務，適合放在自行管理的 HTTPS reverse proxy 後方。若部署在子路徑，請讓下列設定使用一致的 path：
-
-    VOWBOOK_BASE_PATH="/VowBook"
-    VOWBOOK_NEXTAUTH_URL="https://example.com/VowBook/api/auth"
-
-對應的 Google OAuth redirect URI 為：
-
-    https://example.com/VowBook/api/auth/callback/google
-
-Compose 會等待 PostgreSQL healthy、完成一次性 prisma migrate deploy，再啟動 non-root app container。正式環境請自行配置 TLS、備份、監控及 secrets 管理，不要提交 .env 或任何資料庫匯出檔。
-
-## 環境變數
-
-| 變數 | 用途 |
+| 功能 | 可以做什麼 |
 | --- | --- |
-| DATABASE_URL | host 本機 Prisma PostgreSQL 連線字串 |
-| POSTGRES_DB | Docker PostgreSQL 資料庫名稱 |
-| POSTGRES_USER | Docker PostgreSQL 使用者 |
-| POSTGRES_PASSWORD | Docker PostgreSQL 密碼 |
-| POSTGRES_PORT | PostgreSQL 綁定於 127.0.0.1 的連接埠 |
-| VOWBOOK_PORT | App 綁定於 127.0.0.1 的連接埠 |
-| GOOGLE_CLIENT_ID | Google OAuth Client ID |
-| GOOGLE_CLIENT_SECRET | Google OAuth Client Secret |
-| AUTH_SECRET | NextAuth JWT／cookie 簽章秘密 |
-| VOWBOOK_ADMIN_EMAIL_HASHES | 系統管理者信箱正規化後的 SHA-256；可用逗號分隔多位管理者，未設定時不開放管理後台 |
-| NEXT_PUBLIC_BASE_PATH | host 本機 build/runtime base path |
-| NEXTAUTH_URL | host 本機 NextAuth canonical API URL |
-| VOWBOOK_BASE_PATH | Compose build/runtime base path |
-| VOWBOOK_NEXTAUTH_URL | Compose 對外 NextAuth canonical API URL |
-| VOWBOOK_DATABASE_URL | Compose 容器內 PostgreSQL URL |
-| TEST_DATABASE_URL | 僅供隔離 PostgreSQL integration tests 使用的 localhost 測試資料庫 |
+| **賓客** | 整理邀請名單、出席回覆、人數、素食與兒童椅需求。 |
+| **桌次** | 安排賓客入席、檢查桌次容量，編排場地平面配置與列印座位圖。 |
+| **任務** | 列出待辦、設定到期日，追蹤進行中與已完成的事項。 |
+| **花費** | 按分類記錄訂金、尾款與付款狀態，將報價、收據或合約附件放在對應項目。 |
+| **工作人員** | 整理工作角色、聯絡方式與備註，讓當天需要找的人有一份共同名單。 |
+| **總流程** | 排好婚禮當天的時間、地點、內容與工作人員，依需要套用午宴流程範本。 |
+| **協作者** | 邀請伴侶、婚顧或檢視者加入；由擁有者管理成員角色與存取權。 |
 
-### 系統管理者與使用者存取
+花費附件與桌次平面配置包含在各自的功能內。支援的花費附件為 PDF、JPEG、PNG 與 WebP，單檔上限 10 MiB。
 
-一般 Google 使用者仍可直接註冊，建立後的帳號狀態預設為 `ACTIVE`。只有信箱雜湊列在 `VOWBOOK_ADMIN_EMAIL_HASHES` 的使用中帳號，才會在帳號選單看到「使用者管理」並能開啟 `/admin/users`。未授權帳號直接存取該路徑會得到 404，管理者本身也不能被後台停權或移除。
+## 如何開始
 
-管理後台提供註冊時間、最近登入、工作區與成員角色，並支援三種可逆狀態：
+1. 開啟 [VowBook](https://ycspace.myvnc.com/VowBook)，使用 Google 帳號登入。
+2. 建立婚宴工作區，填入婚宴的基本資訊。
+3. 先整理賓客、花費或任務，依自己的籌備進度逐步補齊。
+4. 由工作區擁有者建立協作邀請，讓對方使用受邀的 Google 帳號加入。
 
-- `ACTIVE`：可正常登入；新註冊預設使用此狀態。
-- `SUSPENDED`：暫時停權，既有 session 會在下一次頁面或 API 請求失效。
-- `REMOVED`：撤銷登入權限，但保留婚宴資料與成員紀錄，之後可恢復。
+使用線上服務不需要自行安裝。想自行保管與維護服務，可參考 [開發與自架指南](docs/development.md)；自架需要 PostgreSQL、Google OAuth 設定與 HTTPS 服務環境。
 
-請先將管理者 Google 信箱去除前後空白、轉為小寫，再計算 SHA-256。Docker 部署可把雜湊寫入不會提交的 `.env.admin`：
+## 誰可以查看與修改
 
-```text
-VOWBOOK_ADMIN_EMAIL_HASHES="replace-with-64-character-lowercase-sha256"
-```
+每場婚宴有自己的工作區，只有加入該工作區的成員才能存取。成員以各自的帳號協作。
 
-Compose 會在檔案存在時把 `.env.admin` 只載入 app container；沒有設定或格式錯誤時管理後台會維持關閉。多位管理者可用逗號分隔雜湊。本機直接執行 `npm run dev` 時，則把相同變數放在被 git 忽略的 `.env.local` 或 shell 環境。
+| 角色 | 婚宴資料 | 邀請與管理成員 |
+| --- | --- | --- |
+| 擁有者 `OWNER` | 查看與編輯 | 可以 |
+| 伴侶 `PARTNER` | 查看與編輯 | 不可以 |
+| 婚顧 `PLANNER` | 查看與編輯 | 不可以 |
+| 檢視者 `VIEWER` | 僅查看 | 不可以 |
 
-## 驗證
+伺服器每次讀寫都會檢查目前帳號的成員權限。下述一次性離線匯入另有操作者授權限制，不是網站登入方式。
 
-    npm run lint
-    npm run typecheck
-    npm test
-    npm run db:validate
-    npm run db:generate
-    npm run build
+## 使用前先知道
 
-需要 disposable localhost PostgreSQL 的完整整合測試：
+- **出席回覆由籌備者管理。** 目前沒有提供賓客自行填寫的公開 RSVP 表單，也不會自動寄送喜帖、邀請信或提醒信。
+- **協作邀請與賓客邀請不同。** 前者讓伴侶或婚顧加入工作區；建立一筆賓客資料不會邀請該賓客登入。
+- **花費用來記帳與追蹤。** 標示已付訂金或已付清，不會替你執行付款。
+- **匯入工具需由操作者執行。** LINEIN RSVP 與 Notion 花費工具只處理經 OWNER 授權的一次性離線匯入，不會自動連線來源服務，也沒有排程或雙向同步。
 
-    TEST_DATABASE_URL="postgresql://vowbook_test:vowbook_test@127.0.0.1:5432/vowbook_test" npm run test:db
+## 給開發者與 AI
 
-瀏覽器與 RWD 驗證：
+想快速了解專案，可以先讀 [產品與程式索引](docs/product-context.md)。它列出功能對應的路由、資料模型與程式入口，也說明容易混淆的名詞及尚未提供的能力。
 
-    npm run e2e:install
-    npm run test:e2e
-    npm run rwd:audit
+| 想了解的內容 | 文件 |
+| --- | --- |
+| 產品範圍、功能與程式入口 | [產品與程式索引](docs/product-context.md) |
+| 環境設定、架構與驗證命令 | [開發與自架指南](docs/development.md) |
+| 參與開發 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 回報安全問題 | [SECURITY.md](SECURITY.md) |
 
-## 專案結構
+技術組成：Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、NextAuth 4 Google OAuth、PostgreSQL 與 Prisma 6；測試使用 Vitest、Testing Library 與 Playwright。實際版本和命令以 [package.json](package.json) 為準。
 
-    prisma/          Prisma schema 與 migrations
-    src/actions/     Server Actions
-    src/app/         App Router 頁面與 API routes
-    src/components/  UI 與領域元件
-    src/domain/      不依賴資料庫的輸入與領域契約
-    src/lib/         授權、資料存取與安全輔助工具
-    src/test/        共用測試與 schema 契約測試
-    e2e/             Playwright 驗收測試
-    scripts/         Prisma、PostgreSQL、RWD 與離線匯入工具
+## 參與與授權
 
-## 安全性
+一般錯誤與功能建議可至 [GitHub Issues](https://github.com/NickYCLin/vowbook/issues) 回報；請勿附上真實賓客資料。安全問題請依 [安全政策](SECURITY.md) 回報。
 
-請不要在公開 Issue 張貼未修補漏洞、憑證、個資或正式資料。回報方式請參閱 SECURITY.md。
-
-## 授權
-
-除另有註明外，本 repository 的原始碼依 [Mozilla Public License 2.0](LICENSE) 授權。
-
-VowBook 名稱、Logo 與品牌識別不因本授權授予商標權。
+除另有註明外，原始碼依 [Mozilla Public License 2.0](LICENSE) 授權。VowBook 名稱、Logo 與品牌識別不因本授權授予商標權。
