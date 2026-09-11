@@ -27,7 +27,7 @@
     "@napi-rs/canvas": "0.1.100",
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "6.19.3",
-    "next": "16.2.11",
+    "next": "16.3.4",
     "next-auth": "4.24.15",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "5.4.530",
