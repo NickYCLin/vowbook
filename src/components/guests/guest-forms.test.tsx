@@ -950,18 +950,19 @@ describe("guest forms", () => {
   });
 });
 
-it("offers grouped family titles while preserving custom text, side and seniority", () => {
+it("searches family titles in one field while preserving side and seniority", () => {
   render(<CreateGuestDialog workspaceId="workspace_internal" />);
   fireEvent.click(screen.getByRole("button", { name: "新增名單成員" }));
   fireEvent.change(screen.getByLabelText("名單身份"), { target: { value: "FAMILY" } });
   fireEvent.change(screen.getByLabelText("家人所屬"), { target: { value: "PARTNER_B" } });
-  fireEvent.change(screen.getByLabelText(/家人關係稱謂/), { target: { value: "舅母" } });
-  expect(screen.getByLabelText(/關係補充/)).toHaveValue("舅母");
+  const relation = screen.getByRole("combobox", {name:/家人關係稱謂/});
+  fireEvent.change(relation, {target:{value:"舅媽"}});
+  fireEvent.click(screen.getByRole("option", {name:/舅母（舅媽、妗母）/}));
+  expect(relation).toHaveValue("舅母");
+  expect(screen.queryByLabelText(/關係補充/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("家人所屬")).toHaveValue("PARTNER_B");
   expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
-  fireEvent.change(screen.getByLabelText(/關係補充/), { target: { value: "二舅媽" } });
-  expect(screen.getByLabelText(/家人關係稱謂/)).toHaveValue("");
+  fireEvent.change(relation, {target:{value:"二舅媽"}});
   fireEvent.change(screen.getByLabelText("名單身份"), { target: { value: "GUEST" } });
-  expect(screen.queryByLabelText(/家人關係稱謂/)).not.toBeInTheDocument();
   expect(screen.getByLabelText(/關係補充/)).toHaveValue("二舅媽");
 });

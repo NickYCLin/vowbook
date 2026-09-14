@@ -1,6 +1,6 @@
 "use client";
 
-import { FAMILY_RELATIONSHIP_GROUPS, FAMILY_RELATIONSHIP_VALUES } from "@/domain/family-relationship";
+import { RelationshipCombobox } from "./relationship-combobox";
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import type { GuestManagedField } from "@prisma/client";
@@ -331,48 +331,17 @@ function GuestFields({
         </div>
 
         <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-2">
-          {category === "FAMILY" ? (
-            <Field
-              htmlFor={`${idPrefix}-family-relationship`}
-              label="家人關係稱謂"
-              optional
-              hint="以家人所屬的新郎／新娘為稱呼基準。選擇後會填入下方「關係補充」，也可自行改成二舅、大姨丈等慣用稱呼；輩份請另外確認。"
-              className="sm:col-span-2"
-            >
-              <Select
-                id={`${idPrefix}-family-relationship`}
-                value={FAMILY_RELATIONSHIP_VALUES.includes(values.relationshipLabel) ? values.relationshipLabel : ""}
-                onChange={(event) => {
-                  if (event.target.value) updateValue("relationshipLabel", event.target.value);
-                }}
-              >
-                <option value="">選擇常用稱謂，或直接填寫關係補充</option>
-                {FAMILY_RELATIONSHIP_GROUPS.map((group) => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.options.map(([value, aliases]) => (
-                      <option key={value} value={value}>{value}{aliases ? `（${aliases}）` : ""}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
           <Field
             htmlFor={`${idPrefix}-relationship-label`}
-            label="關係補充"
+            label={category === "FAMILY" ? "家人關係稱謂" : "關係補充"}
             optional
+            hint={category === "FAMILY" ? "以家人所屬的新郎／新娘為稱呼基準。可搜尋稱謂、別稱或部分文字，例如爸爸、舅媽、外父；也可自訂二舅等稱呼。輩份請另外確認。" : undefined}
+            className={category === "FAMILY" ? "sm:col-span-2" : undefined}
           >
-            <Input
-              id={`${idPrefix}-relationship-label`}
-              name="relationshipLabel"
-              maxLength={100}
-              type="text"
-              autoComplete="off"
-              value={values.relationshipLabel}
-              onChange={(event) =>
-                updateValue("relationshipLabel", event.target.value)
-              }
-            />
+            {category === "FAMILY" ? <RelationshipCombobox id={`${idPrefix}-relationship-label`} value={values.relationshipLabel} onChange={value=>updateValue("relationshipLabel",value)}/> : <Input
+              id={`${idPrefix}-relationship-label`} name="relationshipLabel" maxLength={100} type="text" autoComplete="off"
+              value={values.relationshipLabel} onChange={event=>updateValue("relationshipLabel",event.target.value)}
+            />}
           </Field>
 
           <Field htmlFor={`${idPrefix}-contact-phone`} label="聯絡電話" optional>
