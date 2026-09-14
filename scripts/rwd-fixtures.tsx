@@ -376,7 +376,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
   { name:"gift-print", element:<AppShell><HouseholdPrintSheet workspaceName={LONG_NAME} kind="gifts" rows={[
     {key:"a",group:"GROOM_FAMILY",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:""},
     {key:"b",group:"GROOM_FRIENDS",names:"朋友一家",relationships:"新郎的朋友",exempt:false,notes:""},
-    {key:"c",group:"BRIDE_FAMILY",names:"阿姨一家",relationships:"新娘的姨母",exempt:true,notes:"不收禮金、會送餅"},
+    {key:"c",group:"BRIDE_FAMILY",names:"阿姨一家",relationships:"新娘的姨母",giftReceived:true,notes:""},
     {key:"d",group:"BRIDE_FRIENDS",names:"朋友一家",relationships:"新娘的朋友",exempt:false,notes:""},
     {key:"e",group:"SHARED",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:LONG_NAME},
   ]}/></AppShell> },

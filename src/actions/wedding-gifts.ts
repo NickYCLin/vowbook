@@ -184,6 +184,11 @@ async function revalidateViews(workspaceId: string): Promise<boolean> {
     console.error("禮金頁面重新驗證失敗。");
     revalidated = false;
   }
+  try {
+    await revalidatePath(`/workspaces/${workspaceId}/gifts/print`);
+  } catch {
+    revalidated = false;
+  }
   return revalidated;
 }
 
@@ -490,7 +495,7 @@ export async function setGuestGiftExemptionAction(
     return failureAfterPossibleRevalidation(workspaceId, error, "目前無法更新賓客標記，請稍後再試。");
   }
   let revalidated = await revalidateViews(workspaceId);
-  for (const view of ["guests", "tables", "gifts/print"]) {
+  for (const view of ["guests", "tables"]) {
     try {
       await revalidatePath(`/workspaces/${workspaceId}/${view}`);
     } catch {

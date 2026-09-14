@@ -2,7 +2,7 @@ import {render,screen,within} from "@testing-library/react";
 import {expect,it,vi} from "vitest";
 import {WorkspaceAccessDeniedError} from "@/domain/workspace";
 const {get,notFound}=vi.hoisted(()=>({get:vi.fn(),notFound:vi.fn(()=>{throw new Error("NOT_FOUND");})}));
-vi.mock("@/lib/wedding-cakes",()=>({getWeddingCakes:get}));
+vi.mock("@/lib/wedding-cakes",()=>({getWeddingGiftPrint:get}));
 vi.mock("next/navigation",()=>({notFound}));
 import GiftPrintPage from "./page";
 it("loads the authorized household roster and offers printing with blank amounts",async()=>{

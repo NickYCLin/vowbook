@@ -1,7 +1,7 @@
 import {expect,it} from "vitest";
 import {giftPrintRows} from "./wedding-gift-print";
 import {cakeRows,type CakeGuest} from "./wedding-cake";
-const guest=(id:string,extra:Partial<CakeGuest>&{giftExemptWithCake?:boolean}={})=>({id,name:id,category:"GUEST" as const,side:"PARTNER_A" as const,seniority:"PEER" as const,attendanceStatus:"ATTENDING",checkedIn:false,relationshipLabel:null,cakeHouseholdId:null,...extra});
+const guest=(id:string,extra:Partial<CakeGuest>&{giftExemptWithCake?:boolean;giftReceived?:boolean}={})=>({id,name:id,category:"GUEST" as const,side:"PARTNER_A" as const,seniority:"PEER" as const,attendanceStatus:"ATTENDING",checkedIn:false,relationshipLabel:null,cakeHouseholdId:null,...extra});
 it("uses the same household, includes gift-only guests, and excludes newlyweds",()=>{
  const rows=giftPrintRows([guest("a",{cakeHouseholdId:"h"}),guest("b",{cakeHouseholdId:"h",attendanceStatus:"DECLINED"}),guest("c",{attendanceStatus:"UNDECIDED"}),guest("groom",{category:"COUPLE"})]);
  expect(rows).toHaveLength(2);expect(rows[0]).toMatchObject({key:"household:h",names:"a、b",group:"GROOM_FRIENDS"});
@@ -33,4 +33,12 @@ it("retains other household members, classification and exemptions after excludi
  expect(rows.find(r=>r.key==="household:h")).toMatchObject({group:"SHARED",names:"relative",exempt:false,notes:""});
  expect(rows.some(r=>r.key==="household:only")).toBe(false);
  expect(rows.map(r=>r.names)).toEqual(expect.arrayContaining(["cousin","inlaw","unknown"]));
+});
+
+it("marks a household received once without exposing amounts, and leaves unrecorded households blank",()=>{
+ const rows=giftPrintRows([guest("a",{cakeHouseholdId:"h",giftReceived:true}),guest("b",{cakeHouseholdId:"h",giftReceived:true}),guest("c")]);
+ expect(rows).toHaveLength(2);
+ expect(rows.find(r=>r.key==="household:h")).toMatchObject({giftReceived:true});
+ expect(rows.find(r=>r.key==="guest:c")).toMatchObject({giftReceived:false});
+ expect(rows.every(r=>!("amount" in r))).toBe(true);
 });

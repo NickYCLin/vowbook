@@ -496,7 +496,7 @@ describe("wedding gift actions", () => {
       gift: { id: "gift_1", amount: 3600, notes: "更新", version: 5 },
     });
     expect(mocks.giftUpdateMany).toHaveBeenCalledOnce();
-    expect(mocks.revalidatePath).toHaveBeenCalledTimes(2);
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(3);
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/overview",
     );

@@ -13,3 +13,13 @@ it("prints gift households with a blank amount column and exemption notes",()=>{
  expect(screen.getByText("不收禮金、會送餅")).toBeInTheDocument();
  expect(screen.queryByRole("img",{name:"領取勾選框"})).not.toBeInTheDocument();
 });
+
+it("replaces the amount blank with a polite receipt label for received households",()=>{
+ const {container}=render(<HouseholdPrintSheet workspaceName="婚宴" kind="gifts" rows={[
+  {key:"a",group:"GROOM_FRIENDS",names:"已收一家",relationships:"朋友",giftReceived:true},
+  {key:"b",group:"BRIDE_FRIENDS",names:"未登記一家",relationships:"朋友",giftReceived:false},
+ ]}/>);
+ expect(screen.getByText("禮金已收訖")).toBeInTheDocument();
+ expect(container.querySelectorAll('[data-gift-amount-blank]')).toHaveLength(1);
+ expect(within(screen.getByRole("region",{name:"新郎的朋友"})).getByRole("cell",{name:"禮金已收訖"})).toBeInTheDocument();
+});
