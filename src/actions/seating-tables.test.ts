@@ -314,7 +314,7 @@ describe("seating table server actions", () => {
     });
 
     expect(tableCreate).toHaveBeenCalledOnce();
-    expect(revalidatePath).toHaveBeenCalledTimes(4);
+    expect(revalidatePath).toHaveBeenCalledTimes(5);
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/guests",
     );

@@ -77,6 +77,7 @@ export default async function TablesPage({ params }: TablesPageProps) {
         }
       />
 
+      <div className="my-5"><Link href={`/workspaces/${workspaceId}/tables/print`} className={buttonClassName({variant:"secondary"})}>列印帶位名單</Link></div>
       <SeatingPlan
         workspaceId={workspaceId}
         tables={data.tables}
