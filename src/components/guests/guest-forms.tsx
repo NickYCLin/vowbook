@@ -447,7 +447,7 @@ function GuestFields({
             />
           </Field>
 
-          <Field htmlFor={`${idPrefix}-mailing-address`} label="寄送地址" optional>
+          <Field htmlFor={`${idPrefix}-mailing-address`} label="寄送地址" optional hint="親送或由長輩協助發送時可留空；可在喜帖回覆補充註記由誰發送。">
             <Textarea
               id={`${idPrefix}-mailing-address`}
               name="mailingAddress"

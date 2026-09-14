@@ -152,12 +152,6 @@ export function normalizeGuestDetailsInput(
   };
 
   if (
-    normalized.invitationDelivery === "PAPER" &&
-    normalized.mailingAddress === null
-  ) {
-    throw new GuestValidationError("選擇紙本喜帖時請填寫寄送地址。");
-  }
-  if (
     normalized.invitationReply !== null &&
     (normalized.invitationDelivery === null ||
       normalized.invitationDelivery === "UNKNOWN")

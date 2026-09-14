@@ -359,7 +359,7 @@ function PaperInvitationSummary({
         titleId={titleId}
         title="紙本喜帖完整資訊"
         eyebrow={`共 ${summary.total} 份`}
-        description="一次核對所有紙本喜帖的姓名、聯絡電話與寄送地址。"
+        description="一次核對所有紙本喜帖的姓名、聯絡電話與寄送地址；親送或由長輩協助發送時，地址可留空。"
         closeLabel="關閉紙本喜帖完整資訊"
         size="lg"
         onClose={close}

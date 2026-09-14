@@ -56,6 +56,12 @@ describe("guest contact and RSVP details", () => {
     expect(Object.values(details).every((value) => value === null)).toBe(true);
   });
 
+  it.each([undefined, null, "", "   "])("allows paper invitations without a mailing address: %s", (mailingAddress) => {
+    expect(normalizeGuestDetailsInput({ invitationDelivery: "PAPER", mailingAddress, invitationReply: "由長輩協助發送" })).toMatchObject({
+      invitationDelivery: "PAPER", mailingAddress: null, invitationReply: "由長輩協助發送",
+    });
+  });
+
   it.each([
     [
       { contactEmail: "not-an-email" },
@@ -64,10 +70,6 @@ describe("guest contact and RSVP details", () => {
     [
       { childSeatCount: "21" },
       "兒童座椅需為 0 到 20 的整數。",
-    ],
-    [
-      { invitationDelivery: "PAPER", mailingAddress: "" },
-      "選擇紙本喜帖時請填寫寄送地址。",
     ],
     [
       { invitationDelivery: "", invitationReply: "已寄出" },

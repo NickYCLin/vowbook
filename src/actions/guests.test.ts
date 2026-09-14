@@ -223,6 +223,21 @@ describe("guest server actions", () => {
     });
   });
 
+  it.each(["create", "update"])("saves a hand-delivered paper invitation without an address on %s", async (operation) => {
+    const formData = validGuestFormData();
+    formData.set("invitationDelivery", "PAPER");
+    formData.set("mailingAddress", "");
+    formData.set("invitationReply", "由長輩協助發送");
+    const result = operation === "create"
+      ? await createGuestAction("workspace_1", idleState, formData)
+      : await updateGuestAction("workspace_1", "guest_1", idleState, formData);
+    expect(result.status).toBe("success");
+    expect(detailsUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({workspaceId:"workspace_1", invitationDelivery:"PAPER", mailingAddress:null, invitationReply:"由長輩協助發送"}),
+      update: expect.objectContaining({invitationDelivery:"PAPER", mailingAddress:null, invitationReply:"由長輩協助發送"}),
+    }));
+  });
+
   it("stores optional details but ignores a crafted legacy ceremony field", async () => {
     const formData = validGuestFormData();
     formData.set("relationshipLabel", "大學同學");
