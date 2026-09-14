@@ -1,3 +1,5 @@
+import Link from "next/link";
+import {buttonClassName} from "@/components/ui/button";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BudgetList } from "@/components/budget/budget-list";
@@ -54,6 +56,7 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
         }
       />
 
+      <div className="my-5"><Link href={`/workspaces/${workspaceId}/budget/print`} className={buttonClassName({variant:"secondary"})}>列印廠商尾款清單</Link></div>
       <BudgetList
         workspaceId={workspaceId}
         workspaceName={data.workspaceName}

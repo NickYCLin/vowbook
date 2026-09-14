@@ -1,3 +1,5 @@
+import Link from "next/link";
+import {buttonClassName} from "@/components/ui/button";
 import { StaffTabs } from "@/components/staff/staff-tabs";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -46,6 +48,7 @@ export default async function StaffPage({
         }
       />
       <StaffTabs workspaceId={workspaceId} active="staff" />
+      <div className="my-5"><Link href={`/workspaces/${workspaceId}/staff/print`} className={buttonClassName({variant:"secondary"})}>列印工作人員發放清單</Link></div>
       <WeddingStaffList workspaceId={workspaceId} staff={data.staff} canEdit={canEdit} />
     </main>
   );

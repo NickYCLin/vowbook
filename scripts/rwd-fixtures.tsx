@@ -1,3 +1,5 @@
+import {OperationsPrintSheet} from "@/components/print/operations-print-sheet";
+import {staffPrintData,balancePrintData} from "@/domain/operations-print";
 import {HouseholdPrintSheet} from "@/components/guests/household-print-sheet";
 /**
  * RWD 稽核用的頁面樣本。
@@ -373,6 +375,8 @@ const budgetSummary = {
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
+  {name:"staff-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="工作人員發放清單" instructions="便當與紅包分別核對後打勾。" data={staffPrintData([{id:"a",roleName:LONG_NAME,personName:LONG_NAME,notes:LONG_NAME,mealCount:3,vegetarianMealCount:1,redEnvelopeAmount:3600,redEnvelopeSentAt:null},{id:"b",roleName:"主持",personName:"工作人員乙",notes:null,mealCount:null,vegetarianMealCount:null,redEnvelopeAmount:1200,redEnvelopeSentAt:new Date()}])}/></AppShell>},
+  {name:"balance-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="廠商尾款清單" instructions="核對尾款與付款期限，付款後打勾。" data={balancePrintData([{id:"a",name:LONG_NAME,kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:LONG_NAME,vendorContact:LONG_NAME,balanceAmount:12000,dueDate:"2026-10-01",notes:LONG_NAME,additionalAmount:1000},{id:"b",name:"待確認廠商",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:null,vendorContact:null,balanceAmount:null,dueDate:null,notes:null,additionalAmount:null}])}/></AppShell>},
   { name:"gift-print", element:<AppShell><HouseholdPrintSheet workspaceName={LONG_NAME} kind="gifts" rows={[
     {key:"a",group:"GROOM_FAMILY",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:""},
     {key:"b",group:"GROOM_FRIENDS",names:"朋友一家",relationships:"新郎的朋友",exempt:false,notes:""},

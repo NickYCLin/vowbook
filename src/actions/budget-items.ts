@@ -201,6 +201,7 @@ async function revalidateBudgetView(workspaceId: string): Promise<boolean> {
   for (const path of [
     `/workspaces/${workspaceId}/overview`,
     "/dashboard",
+    `/workspaces/${workspaceId}/budget/print`,
   ]) {
     try {
       await revalidatePath(path);

@@ -147,6 +147,7 @@ async function revalidateViews(workspaceId: string): Promise<boolean> {
     `/workspaces/${workspaceId}/timeline`,
     `/workspaces/${workspaceId}/overview`,
     `/workspaces/${workspaceId}/staff/handoffs`,
+    `/workspaces/${workspaceId}/staff/print`,
   ]) {
     try {
       await revalidatePath(path);

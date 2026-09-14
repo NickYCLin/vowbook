@@ -2752,7 +2752,7 @@ describe("budget item server actions", () => {
       status: "success",
       message: "已新增花費項目；畫面未自動更新，請重新整理。",
     });
-    expect(revalidatePath).toHaveBeenCalledTimes(3);
+    expect(revalidatePath).toHaveBeenCalledTimes(4);
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/overview",
     );
