@@ -1,5 +1,6 @@
 "use client";
 
+import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
 import {
   useActionState,
   useEffect,
@@ -63,6 +64,7 @@ const attendanceTones: Record<GuestAttendanceStatusValue, BadgeTone> = {
 export type WeddingGiftBookGuest = {
   version?: number;
   giftExemptWithCake?: boolean;
+  relationshipLabel?: string | null;
   id: string;
   name: string;
   category: GuestCategoryValue;
@@ -1000,7 +1002,7 @@ export function WeddingGiftBook({
               </h2>
               <p className="mt-1 text-caption leading-6 text-ink-soft">
                 每個邀請群組最多一筆；禮金不屬於婚宴支出，也不受出席狀態影響。
-                爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。
+                爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。新人、雙方父母與親兄弟姊妹也不開放新增禮金登記。
               </p>
               <p className="mt-0.5 text-caption leading-6 text-ink-faint">
                 新人與家人不列入「一般賓客未有紀錄」統計，但既有紀錄仍會保留並顯示。
@@ -1181,7 +1183,7 @@ export function WeddingGiftBook({
                               </p>
                             ) : (
                               <p className="text-caption font-semibold text-ink-faint">
-                                {guest.giftExemptWithCake ? "不收禮金" : guest.category === "GUEST"
+                                {isGiftCollectionExcluded(guest) ? "不收禮金" : guest.category === "GUEST"
                                   ? "未有禮金紀錄"
                                   : "未有禮金紀錄（不列入一般賓客統計）"}
                               </p>
@@ -1252,7 +1254,7 @@ export function WeddingGiftBook({
                                     />
                                   ) : null}
                                 </>
-                              ) : (
+                              ) : !isGiftCollectionExcluded(guest) ? (
                                 <Button
                                   id={`gift-create-${guest.id}`}
                                   variant="secondary"
@@ -1269,7 +1271,7 @@ export function WeddingGiftBook({
                                 >
                                   登記禮金
                                 </Button>
-                              )}
+                              ) : null}
                             </div>
                           ) : null}
                         </article>
@@ -1282,7 +1284,7 @@ export function WeddingGiftBook({
         </div>
       </Card>
 
-      {editorSelection?.mode === "CREATE" && selectedEditorGuest ? (
+      {editorSelection?.mode === "CREATE" && selectedEditorGuest && !isGiftCollectionExcluded(selectedEditorGuest) ? (
         <CreateWeddingGiftDialog
           workspaceId={workspaceId}
           guest={selectedEditorGuest}

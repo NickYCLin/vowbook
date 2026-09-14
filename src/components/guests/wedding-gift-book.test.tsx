@@ -1151,9 +1151,19 @@ it("saves and cancels the exemption and adopts newer server versions", async () 
   const { rerender } = render(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={[guest]} />);
   fireEvent.click(screen.getByRole("button", { name: "標記 長輩朋友 不收禮金、會送餅" }));
   await waitFor(() => expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: "登記 長輩朋友 的禮金" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "取消 長輩朋友 的不收禮金、會送餅標記" }));
   await waitFor(() => expect(screen.queryByText("不收禮金・會送餅")).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "登記 長輩朋友 的禮金" })).toBeInTheDocument();
   expect(setGuestGiftExemptionAction.mock.calls.at(-1)?.[3].get("expectedVersion")).toBe("1");
   rerender(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={[{ ...guest, version: 3, giftExemptWithCake: true }]} />);
   expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "登記 長輩朋友 的禮金" })).not.toBeInTheDocument();
+});
+
+it.each(["PARTNER_A","PARTNER_B"] as const)("hides registration for immediate family on %s while keeping other relatives",side=>{
+ const guests=["父親","母親","哥哥","弟弟","姊姊","妹妹","表姊"].map((relationshipLabel,i)=>({id:String(i),name:relationshipLabel,relationshipLabel,category:"FAMILY" as const,side,attendanceStatus:"ATTENDING" as const,weddingGift:null}));
+ render(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={guests}/>);
+ for(const name of ["父親","母親","哥哥","弟弟","姊姊","妹妹"])expect(screen.queryByRole("button",{name:`登記 ${name} 的禮金`})).not.toBeInTheDocument();
+ expect(screen.getByRole("button",{name:"登記 表姊 的禮金"})).toBeInTheDocument();
 });

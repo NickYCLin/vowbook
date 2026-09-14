@@ -241,6 +241,18 @@ describe("wedding gift actions", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+  it("rejects registration for a currently exempt guest even from a stale client", async () => {
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",giftExemptWithCake:true});
+    await expect(createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).resolves.toMatchObject({status:"error",code:"VALIDATION",message:"此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。"});
+    expect(mocks.giftCreate).not.toHaveBeenCalled();
+  });
+
+  it.each(["父親","母親","哥哥","弟弟","姊姊","妹妹"])("rejects direct registration for %s", async relationshipLabel => {
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",relationshipLabel,giftExemptWithCake:false,category:"FAMILY"});
+    expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"error",code:"VALIDATION"});
+    expect(mocks.giftCreate).not.toHaveBeenCalled();
+  });
+
   it("authorizes before validation and refuses a viewer without opening a transaction", async () => {
     mocks.requireWorkspaceAccess.mockRejectedValueOnce(
       new WorkspaceAccessDeniedError(),
@@ -310,7 +322,7 @@ describe("wedding gift actions", () => {
 
     expect(mocks.guestFindFirst).toHaveBeenCalledWith({
       where: { id: "guest_1", workspaceId: "workspace_1" },
-      select: { id: true },
+      select: { id: true, giftExemptWithCake: true, category: true, relationshipLabel: true },
     });
     expect(mocks.giftCreate).toHaveBeenCalledWith({
       data: {

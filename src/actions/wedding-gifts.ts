@@ -1,5 +1,6 @@
 "use server";
 
+import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
 import { revalidatePath } from "next/cache";
 import {
   normalizeWeddingGiftDetails,
@@ -53,7 +54,7 @@ type CountResult = { count: number };
 
 type WeddingGiftMutationClient = {
   guest: {
-    findFirst(args: unknown): Promise<{ id: string } | null>;
+    findFirst(args: unknown): Promise<{ id: string; giftExemptWithCake: boolean; category: string; relationshipLabel: string | null } | null>;
     updateMany(args: unknown): Promise<CountResult>;
   };
   weddingGift: {
@@ -240,9 +241,10 @@ export async function createWeddingGiftAction(
       const client = transaction as unknown as WeddingGiftMutationClient;
       const guest = await client.guest.findFirst({
         where: { id: guestId, workspaceId },
-        select: { id: true },
+        select: { id: true, giftExemptWithCake: true, category: true, relationshipLabel: true },
       });
       if (!guest) throw new WeddingGiftStaleError();
+      if (isGiftCollectionExcluded(guest)) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。");
 
       return client.weddingGift.create({
         data: { workspaceId, guestId, ...details },
