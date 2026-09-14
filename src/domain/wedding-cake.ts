@@ -1,5 +1,5 @@
-import { compareGuestsBySeniorityThenSurnameStroke, type GuestSeniorityValue, type GuestSideValue } from "./guest";
-export type CakeGuest = { id: string; name: string; seniority: GuestSeniorityValue; side: GuestSideValue; attendanceStatus: string; checkedIn: boolean; relationshipLabel: string | null; cakeHouseholdId: string | null };
+import { compareGuestsBySeniorityThenSurnameStroke, type GuestCategoryValue, type GuestSeniorityValue, type GuestSideValue } from "./guest";
+export type CakeGuest = { id: string; category: GuestCategoryValue; name: string; seniority: GuestSeniorityValue; side: GuestSideValue; attendanceStatus: string; checkedIn: boolean; relationshipLabel: string | null; cakeHouseholdId: string | null };
 export function cakeRelationshipLabel(guest: Pick<CakeGuest, "side" | "relationshipLabel">): string {
   const title = guest.relationshipLabel?.trim();
   if (guest.side === "SHARED") return title ? `共同親友：${title}` : "共同親友（稱謂未填）";
@@ -11,6 +11,7 @@ export function cakeRows(guests: readonly CakeGuest[], households: readonly { id
   const counts = new Map(households.map(h => [h.id, h.boxes]));
   const groups = new Map<string, CakeGuest[]>();
   for (const guest of [...guests].sort(compareGuestsBySeniorityThenSurnameStroke)) {
+    if (guest.category === "COUPLE") continue;
     if (guest.attendanceStatus !== "ATTENDING" && !guest.checkedIn) continue;
     const key = guest.cakeHouseholdId ? `household:${guest.cakeHouseholdId}` : `guest:${guest.id}`;
     groups.set(key, [...(groups.get(key) ?? []), guest]);
@@ -23,7 +24,7 @@ export function cakeCsv(rows: readonly CakeRow[]): string {
     if (/^[\s\u0000-\u001f]*[=+@-]/u.test(text) || /^[\t\r\n]/u.test(text)) text = "'" + text;
     return '"' + text.replaceAll('"', '""') + '"';
   };
-  return "\uFEFF" + [["姓名", "稱謂", "喜餅盒數"], ...rows.map(r => [r.names, r.relationships, r.boxes])].map(row => row.map(cell).join(",")).join("\r\n") + "\r\n";
+  return "\uFEFF" + [["姓名", "稱謂", "喜餅盒數", "領取勾選"], ...rows.map(r => [r.names, r.relationships, r.boxes, ""])].map(row => row.map(cell).join(",")).join("\r\n") + "\r\n";
 }
 export class CakeValidationError extends Error {}
 export function normalizeCakeHousehold(data: FormData) {

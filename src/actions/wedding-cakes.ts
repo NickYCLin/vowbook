@@ -20,7 +20,8 @@ async function mutate(workspaceId:string,id:string|null,data:FormData,remove:boo
   await runSerializableTransaction(async tx=>{
    await requireLockedWorkspaceAccess(workspaceId,user.id,"edit",tx);
    const selected=input?.guestIds??[];
-   const guests=await tx.guest.findMany({where:{workspaceId,OR:[{id:{in:selected}},...(id?[{cakeHouseholdId:id}]:[])]},select:{id:true,version:true,cakeHouseholdId:true}});
+   const guests=await tx.guest.findMany({where:{workspaceId,OR:[{id:{in:selected}},...(id?[{cakeHouseholdId:id}]:[])]},select:{id:true,version:true,category:true,cakeHouseholdId:true}});
+   if(guests.some(g=>selected.includes(g.id)&&g.category==="COUPLE"))throw new CakeValidationError("新人本人不列入發餅家庭，請選擇其他名單成員。");
    const members=guests.filter(g=>id!==null&&g.cakeHouseholdId===id);
    if(id && cakeMemberSnapshot(members)!==data.get("expectedMembers"))throw new StaleCakeError();
    if(selected.some(guestId=>{const g=guests.find(g=>g.id===guestId);return !g||g.version!==expected[guestId]||(g.cakeHouseholdId!==null&&g.cakeHouseholdId!==id);}))throw new StaleCakeError();

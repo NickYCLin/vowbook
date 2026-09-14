@@ -17,3 +17,9 @@ it("rejects missing or cross-workspace guests",async()=>{m.find.mockResolvedValu
 it("rejects assigning a guest already in another household",async()=>{m.find.mockResolvedValue([{id:"g",version:0,cakeHouseholdId:"other"}]);expect(await saveCakeHouseholdAction("w",null,{status:"idle"},form())).toMatchObject({code:"STALE"});expect(m.create).not.toHaveBeenCalled();});
 it("rejects stale guest versions",async()=>{m.find.mockResolvedValue([{id:"g",version:1,cakeHouseholdId:null}]);expect(await saveCakeHouseholdAction("w",null,{status:"idle"},form())).toMatchObject({code:"STALE"});});
 it("rejects changed household membership snapshots",async()=>{m.find.mockResolvedValue([{id:"g",version:0,cakeHouseholdId:"h"}]);expect(await saveCakeHouseholdAction("w","h",{status:"idle"},form())).toMatchObject({code:"STALE"});expect(m.update).not.toHaveBeenCalled();});
+
+it("rejects crafted requests assigning newlyweds to a cake household",async()=>{
+ m.find.mockResolvedValue([{id:"g",version:0,category:"COUPLE",cakeHouseholdId:null}]);
+ expect(await saveCakeHouseholdAction("w",null,{status:"idle"},form())).toMatchObject({code:"VALIDATION"});
+ expect(m.create).not.toHaveBeenCalled();expect(m.guestUpdate).not.toHaveBeenCalled();
+});

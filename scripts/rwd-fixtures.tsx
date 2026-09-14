@@ -372,7 +372,7 @@ const budgetSummary = {
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
-  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
+  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,category:"GUEST",seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,category:"GUEST",seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
 
   {
     name: "system-admin-users",

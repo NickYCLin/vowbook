@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cakeRows, cakeCsv, normalizeCakeHousehold } from "./wedding-cake";
-const guest = (id: string, extra = {}) => ({ id, name: id, seniority: "PEER" as const, side: "PARTNER_A" as const, attendanceStatus: "ATTENDING", checkedIn: false, relationshipLabel: "表姊", cakeHouseholdId: null as string | null, ...extra });
+const guest = (id: string, extra = {}) => ({ id, category: "GUEST" as const, name: id, seniority: "PEER" as const, side: "PARTNER_A" as const, attendanceStatus: "ATTENDING", checkedIn: false, relationshipLabel: "表姊", cakeHouseholdId: null as string | null, ...extra });
 describe("cake distribution", () => {
   it("counts a household once, excludes absent members and never multiplies party size", () => {
     const rows = cakeRows([guest("a", { cakeHouseholdId: "h", partySize: 4 }), guest("b", { cakeHouseholdId: "h" }), guest("c", { cakeHouseholdId: "h", attendanceStatus: "DECLINED" }), guest("d", { partySize: 3 }), guest("e", { attendanceStatus: "UNDECIDED" })], [{id:"h", boxes:1}]);
@@ -33,4 +33,22 @@ describe("cake distribution", () => {
     data.set("boxes","1.5"); expect(() => normalizeCakeHousehold(data)).toThrow();
     data.set("boxes","1"); data.delete("guestId"); expect(() => normalizeCakeHousehold(data)).toThrow();
   });
+});
+
+it("excludes both newlyweds even when attending, checked in, or in a household", () => {
+ const rows = cakeRows([
+  guest("groom",{category:"COUPLE",cakeHouseholdId:"couple"}),
+  guest("bride",{category:"COUPLE",side:"PARTNER_B",checkedIn:true,cakeHouseholdId:"mixed"}),
+  guest("parent",{category:"FAMILY",cakeHouseholdId:"mixed"}),
+ ],[{id:"couple",boxes:2},{id:"mixed",boxes:1}]);
+ expect(rows).toHaveLength(1);
+ expect(rows[0]).toMatchObject({names:"parent",boxes:1});
+ expect(cakeCsv(rows)).not.toMatch(/groom|bride/);
+ expect(cakeRows([guest("groom",{category:"COUPLE",checkedIn:true})],[])).toEqual([]);
+});
+
+it("exports a blank marking column for staff to check on paper",()=>{
+ const csv=cakeCsv(cakeRows([guest("家人")],[]));
+ expect(csv).toContain('"姓名","稱謂","喜餅盒數","領取勾選"');
+ expect(csv).toContain(',"1",""\r\n');
 });
