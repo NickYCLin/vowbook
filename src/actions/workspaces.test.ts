@@ -87,10 +87,10 @@ describe("createWorkspaceAction", () => {
       ]),
     );
 
-    expect(taxonomyNodes).toHaveLength(28);
+    expect(taxonomyNodes).toHaveLength(29);
     expect(
       new Set(taxonomyNodes.map((node: { id: string }) => node.id)).size,
-    ).toBe(28);
+    ).toBe(29);
     expect(taxonomyNodeByKey.STAGE_PREPARATION_1_2_MONTHS).toEqual(
       expect.objectContaining({
         parentId: null,
@@ -122,7 +122,31 @@ describe("createWorkspaceAction", () => {
       ),
     ).toBe(true);
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith("/onboarding");
     expect(redirect).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("still redirects after commit and attempts every collection view when revalidation fails", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "workspace_1" });
+    transaction.mockImplementation(async (callback) =>
+      callback({ weddingWorkspace: { create } }),
+    );
+    const formData = new FormData();
+    formData.set("name", "我們的婚宴");
+    formData.set("timezone", "Asia/Taipei");
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    revalidatePath.mockImplementationOnce(() => {
+      throw new Error("sensitive cache internals");
+    });
+
+    await expect(
+      createWorkspaceAction({ status: "idle" }, formData),
+    ).rejects.toThrow("REDIRECT:/dashboard");
+    expect(revalidatePath).toHaveBeenNthCalledWith(1, "/dashboard");
+    expect(revalidatePath).toHaveBeenNthCalledWith(2, "/onboarding");
+    expect(log).toHaveBeenCalledWith("婚宴工作區清單重新驗證失敗。");
+    expect(log.mock.calls.every((call) => call.length === 1)).toBe(true);
+    log.mockRestore();
   });
 
   it("returns a readable validation error without touching the database", async () => {
@@ -216,11 +240,10 @@ describe("updateWorkspaceAction", () => {
     });
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePath).toHaveBeenCalledWith(
-      "/workspaces/workspace_target/guests",
+      "/workspaces/[workspaceId]",
+      "layout",
     );
-    expect(revalidatePath).toHaveBeenCalledWith(
-      "/workspaces/workspace_target/members",
-    );
+    expect(revalidatePath).toHaveBeenCalledTimes(2);
   });
 
   it("does not read or write a target for a non-owner", async () => {
@@ -246,6 +269,41 @@ describe("updateWorkspaceAction", () => {
     });
     expect(updateMany).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("returns committed success and attempts the layout when dashboard revalidation fails", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    transaction.mockImplementation(async (callback) =>
+      callback({
+        $queryRaw: vi.fn().mockResolvedValue([{ role: "OWNER" }]),
+        weddingWorkspace: { updateMany },
+      }),
+    );
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    revalidatePath.mockImplementationOnce(() => {
+      throw new Error("sensitive cache internals");
+    });
+
+    await expect(
+      updateWorkspaceAction(
+        "workspace_target",
+        { status: "idle" },
+        workspaceFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message:
+        "已更新婚宴工作區；畫面未自動更新，請重新整理。",
+    });
+    expect(revalidatePath).toHaveBeenNthCalledWith(1, "/dashboard");
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      2,
+      "/workspaces/[workspaceId]",
+      "layout",
+    );
+    expect(log).toHaveBeenCalledWith("婚宴工作區頁面重新驗證失敗。");
+    expect(log.mock.calls.every((call) => call.length === 1)).toBe(true);
+    log.mockRestore();
   });
 
   it("returns the same generic result for a cross-tenant target and a stale CAS", async () => {

@@ -1,6 +1,10 @@
 import "server-only";
 
-import type { GuestManagedField, WeddingWorkspace } from "@prisma/client";
+import {
+  Prisma,
+  type GuestManagedField,
+  type WeddingWorkspace,
+} from "@prisma/client";
 import {
   compareGuestsBySeniorityThenSurnameStroke,
   type GuestAttendanceStatusValue,
@@ -65,7 +69,24 @@ export type GuestImportRecordDto = {
   details: GuestImportDetailsDto | null;
 };
 
+export type WeddingGiftEntryDto = {
+  id: string;
+  amount: number;
+  notes: string | null;
+  createdAt: Date;
+  returnGiftSentAt: Date | null;
+  returnGiftNote: string | null;
+  version: number;
+};
+
+export type GuestCheckInEntryDto = {
+  id: string;
+  headcount: number;
+  version: number;
+};
+
 export type GuestListItemDto = {
+  giftExemptWithCake?: boolean;
   id: string;
   version: number;
   name: string;
@@ -77,11 +98,14 @@ export type GuestListItemDto = {
   notes: string | null;
   // 桌名可以重複，所以只給名字認不出是哪一桌，桌號才是身分。
   seatingTable: { number: number; name: string } | null;
+  weddingGift: WeddingGiftEntryDto | null;
+  checkIn: GuestCheckInEntryDto | null;
   details: GuestDetailsDto | null;
   importRecords: GuestImportRecordDto[];
 };
 
 const baseGuestSelect = {
+  giftExemptWithCake: true,
   id: true,
   version: true,
   name: true,
@@ -92,6 +116,19 @@ const baseGuestSelect = {
   partySize: true,
   notes: true,
   seatingTable: { select: { id: true, name: true } },
+  weddingGift: {
+    select: {
+      id: true,
+      amount: true,
+      notes: true,
+      createdAt: true,
+      returnGiftSentAt: true,
+      returnGiftNote: true,
+      version: true,
+    },
+  },
+  // 刪除賓客會 cascade 報到紀錄，所以刪除前必須先讓操作者看到它。
+  checkIn: { select: { id: true, headcount: true, version: true } },
 } as const;
 
 /**
@@ -99,9 +136,10 @@ const baseGuestSelect = {
  * 所以要另外把工作區的桌次照順位撈一次。
  */
 async function seatingTableNumbers(
+  client: Pick<Prisma.TransactionClient, "seatingTable">,
   workspaceId: string,
 ): Promise<Map<string, number>> {
-  const tables = await prisma.seatingTable.findMany({
+  const tables = await client.seatingTable.findMany({
     where: { workspaceId },
     orderBy: [{ position: "asc" }],
     select: { id: true },
@@ -199,106 +237,111 @@ function detailsFromRecords(
 export async function listGuestsForWorkspace(workspaceId: string) {
   const currentUser = await requireCurrentUser();
 
-  let access;
   try {
-    access = await requireWorkspaceAccess<WeddingWorkspace>(
-      workspaceId,
-      currentUser.id,
-      "read",
+    return await prisma.$transaction(
+      async (transaction) => {
+        const access = await requireWorkspaceAccess<WeddingWorkspace>(
+          workspaceId,
+          currentUser.id,
+          "read",
+          transaction,
+        );
+
+        if (!getWorkspacePermissions(access.role).canEdit) {
+          const [tableNumbers, guests] = await Promise.all([
+            seatingTableNumbers(transaction, workspaceId),
+            transaction.guest.findMany({
+              where: { workspaceId },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                ...baseGuestSelect,
+                importRecords: {
+                  orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+                  select: {
+                    id: true,
+                    source: true,
+                    sourceLabel: true,
+                    sourceManaged: true,
+                  },
+                },
+              },
+            }),
+          ]);
+
+          const viewerGuests: GuestListItemDto[] = guests.map((guest) => ({
+            ...guest,
+            seatingTable: seatingTableOf(guest, tableNumbers),
+            weddingGift: guest.weddingGift ?? null,
+            checkIn: guest.checkIn ?? null,
+            details: null,
+            importRecords: guest.importRecords.map((record) => ({
+              provenanceKey: record.id,
+              source: record.source,
+              sourceLabel: record.sourceLabel,
+              sourceManaged: record.sourceManaged,
+              managedFields: [],
+              details: null,
+            })),
+          }));
+          viewerGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
+          return { ...access, guests: viewerGuests };
+        }
+
+        const [tableNumbers, guests] = await Promise.all([
+          seatingTableNumbers(transaction, workspaceId),
+          transaction.guest.findMany({
+            where: { workspaceId },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              ...baseGuestSelect,
+              importRecords: {
+                orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+                select: editorImportRecordSelect,
+              },
+            },
+          }),
+        ]);
+
+        const editorGuests: GuestListItemDto[] = guests.map((guest) => ({
+          ...guest,
+          seatingTable: seatingTableOf(guest, tableNumbers),
+          weddingGift: guest.weddingGift ?? null,
+          checkIn: guest.checkIn ?? null,
+          details: detailsFromRecords(guest.importRecords),
+          importRecords: guest.importRecords.map((record) => ({
+            provenanceKey: record.id,
+            source: record.source,
+            sourceLabel: record.sourceLabel,
+            sourceManaged: record.sourceManaged,
+            managedFields: record.managedFields,
+            details: {
+              sourcePartySize: record.sourcePartySize,
+              relationshipLabel: record.relationshipLabel,
+              contactPhone: record.contactPhone,
+              contactEmail: record.contactEmail,
+              ceremonyAttendance: record.ceremonyAttendance,
+              childSeatCount: record.childSeatCount,
+              vegetarianCount: record.vegetarianCount,
+              invitationDelivery: record.invitationDelivery,
+              mailingAddress: record.mailingAddress,
+              guestMessage: record.guestMessage,
+              attendanceReply: record.attendanceReply,
+              invitationReply: record.invitationReply,
+              sourceSubmittedAt: record.sourceSubmittedAt,
+            },
+          })),
+        }));
+
+        editorGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
+        return { ...access, guests: editorGuests };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   } catch (error) {
     if (error instanceof WorkspaceAccessDeniedError) {
       throw error;
     }
 
-    throw new GuestDataError("目前無法載入賓客名單，請稍後再試。");
-  }
-
-  try {
-    if (!getWorkspacePermissions(access.role).canEdit) {
-      const [tableNumbers, guests] = await Promise.all([
-        seatingTableNumbers(workspaceId),
-        prisma.guest.findMany({
-          where: { workspaceId },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: {
-            ...baseGuestSelect,
-            importRecords: {
-              orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-              select: {
-                id: true,
-                source: true,
-                sourceLabel: true,
-                sourceManaged: true,
-              },
-            },
-          },
-        }),
-      ]);
-
-      const viewerGuests: GuestListItemDto[] = guests.map((guest) => ({
-        ...guest,
-        seatingTable: seatingTableOf(guest, tableNumbers),
-        details: null,
-        importRecords: guest.importRecords.map((record) => ({
-          provenanceKey: record.id,
-          source: record.source,
-          sourceLabel: record.sourceLabel,
-          sourceManaged: record.sourceManaged,
-          managedFields: [],
-          details: null,
-        })),
-      }));
-      viewerGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
-      return { ...access, guests: viewerGuests };
-    }
-
-    const [tableNumbers, guests] = await Promise.all([
-      seatingTableNumbers(workspaceId),
-      prisma.guest.findMany({
-        where: { workspaceId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: {
-          ...baseGuestSelect,
-          importRecords: {
-            orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-            select: editorImportRecordSelect,
-          },
-        },
-      }),
-    ]);
-
-    const editorGuests: GuestListItemDto[] = guests.map((guest) => ({
-      ...guest,
-      seatingTable: seatingTableOf(guest, tableNumbers),
-      details: detailsFromRecords(guest.importRecords),
-      importRecords: guest.importRecords.map((record) => ({
-        provenanceKey: record.id,
-        source: record.source,
-        sourceLabel: record.sourceLabel,
-        sourceManaged: record.sourceManaged,
-        managedFields: record.managedFields,
-        details: {
-          sourcePartySize: record.sourcePartySize,
-          relationshipLabel: record.relationshipLabel,
-          contactPhone: record.contactPhone,
-          contactEmail: record.contactEmail,
-          ceremonyAttendance: record.ceremonyAttendance,
-          childSeatCount: record.childSeatCount,
-          vegetarianCount: record.vegetarianCount,
-          invitationDelivery: record.invitationDelivery,
-          mailingAddress: record.mailingAddress,
-          guestMessage: record.guestMessage,
-          attendanceReply: record.attendanceReply,
-          invitationReply: record.invitationReply,
-          sourceSubmittedAt: record.sourceSubmittedAt,
-        },
-      })),
-    }));
-
-    editorGuests.sort(compareGuestsBySeniorityThenSurnameStroke);
-    return { ...access, guests: editorGuests };
-  } catch {
     throw new GuestDataError("目前無法載入賓客名單，請稍後再試。");
   }
 }

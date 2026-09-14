@@ -13,8 +13,6 @@ describe("WorkspaceSummary", () => {
           name: longName,
           weddingDate: null,
           timezone: "Asia/Taipei",
-          createdById: "user_1",
-          createdAt: new Date("2026-07-22T00:00:00.000Z"),
           updatedAt: new Date("2026-07-22T00:00:00.000Z"),
         }}
       />,
@@ -35,8 +33,6 @@ describe("WorkspaceSummary", () => {
           name: "我們的婚宴",
           weddingDate: new Date("2027-05-20T00:00:00.000Z"),
           timezone: "Asia/Taipei",
-          createdById: "user_1",
-          createdAt: new Date("2026-07-22T00:00:00.000Z"),
           updatedAt: new Date("2026-07-22T00:00:00.000Z"),
         }}
       />,
@@ -46,6 +42,11 @@ describe("WorkspaceSummary", () => {
       "href",
       "/workspaces/workspace_1/guests",
     );
+    expect(screen.getByRole("link", { name: "查看婚宴總覽" })).toHaveAttribute(
+      "href",
+      "/workspaces/workspace_1/overview",
+    );
+    expect(screen.queryByRole("link", { name: "安排婚禮儀式" })).toBeNull();
     expect(screen.getByRole("link", { name: "安排桌次" })).toHaveAttribute(
       "href",
       "/workspaces/workspace_1/tables",
@@ -110,8 +111,6 @@ describe("WorkspaceSummary", () => {
           name: "有統計的婚宴",
           weddingDate: new Date("2027-05-20T00:00:00.000Z"),
           timezone: "Asia/Taipei",
-          createdById: "user_1",
-          createdAt: new Date("2026-07-22T00:00:00.000Z"),
           updatedAt: new Date("2026-07-22T00:00:00.000Z"),
         }}
         stats={{
@@ -140,6 +139,35 @@ describe("WorkspaceSummary", () => {
     ).toHaveAttribute("aria-valuenow", "68");
   });
 
+  it("renders today at the Asia/Taipei boundary even when the runtime timezone is UTC", () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "UTC";
+
+    try {
+      render(
+        <WorkspaceSummary
+          role="OWNER"
+          now={new Date("2027-05-19T16:00:00.000Z")}
+          workspace={{
+            id: "workspace_timezone_boundary",
+            name: "跨日時區婚宴",
+            weddingDate: new Date("2027-05-20T00:00:00.000Z"),
+            timezone: "Asia/Taipei",
+            updatedAt: new Date("2026-07-22T00:00:00.000Z"),
+          }}
+        />,
+      );
+
+      expect(screen.getByText("就是今天")).toBeInTheDocument();
+    } finally {
+      if (previousTimezone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTimezone;
+      }
+    }
+  });
+
   it("uses a read-only collaboration label for non-owner members", () => {
     render(
       <WorkspaceSummary
@@ -149,8 +177,6 @@ describe("WorkspaceSummary", () => {
           name: "共同婚宴",
           weddingDate: null,
           timezone: "Asia/Taipei",
-          createdById: "owner_1",
-          createdAt: new Date("2026-07-22T00:00:00.000Z"),
           updatedAt: new Date("2026-07-22T00:00:00.000Z"),
         }}
       />,

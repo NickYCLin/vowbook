@@ -735,15 +735,56 @@ export function WorkspaceMembersPanel({
   const membersHeadingRef = useRef<HTMLHeadingElement>(null);
   const [memberFeedback, setMemberFeedback] =
     useState<WorkspaceInvitationMutationState>(initialState);
+  const [removedMembershipIds, setRemovedMembershipIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [memberOverrides, setMemberOverrides] = useState<
+    ReadonlyMap<string, { role: InvitableWorkspaceRole; updatedAt: string }>
+  >(() => new Map());
+  const displayedMembers = members.map((member) => {
+    const membershipId = member.management?.membershipId;
+    const override = membershipId ? memberOverrides.get(membershipId) : undefined;
+    if (!override || !member.management) return member;
+    return {
+      ...member,
+      role: override.role,
+      management: {
+        ...member.management,
+        updatedAt: override.updatedAt,
+      },
+    };
+  });
+  const visibleMembers = displayedMembers.filter(
+    (member) =>
+      !member.management?.membershipId ||
+      !removedMembershipIds.has(member.management.membershipId),
+  );
   const handleRoleSuccess = useCallback(
     (state: WorkspaceInvitationMutationState) => {
       setMemberFeedback(state);
+      if (state.membershipId && state.role && state.updatedAt) {
+        setMemberOverrides((current) => {
+          const next = new Map(current);
+          next.set(state.membershipId!, {
+            role: state.role!,
+            updatedAt: state.updatedAt!,
+          });
+          return next;
+        });
+      }
     },
     [],
   );
   const handleRemovalSuccess = useCallback(
     (state: WorkspaceInvitationMutationState) => {
       setMemberFeedback(state);
+      if (state.membershipId) {
+        setRemovedMembershipIds((current) => {
+          const next = new Set(current);
+          next.add(state.membershipId!);
+          return next;
+        });
+      }
       membersHeadingRef.current?.focus();
     },
     [],
@@ -775,7 +816,7 @@ export function WorkspaceMembersPanel({
                 : "為保護隱私，這裡只顯示成員的顯示名稱與角色。"}
             </p>
           </div>
-          <p className="text-sm text-ink-faint">{members.length} 位</p>
+          <p className="text-sm text-ink-faint">{visibleMembers.length} 位</p>
         </div>
 
         <div className="mt-4 min-w-0">
@@ -783,7 +824,7 @@ export function WorkspaceMembersPanel({
         </div>
 
         <ul className="mt-4 min-w-0 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-card">
-          {members.map((member, index) => {
+          {visibleMembers.map((member, index) => {
             const manageable =
               isOwner && member.role !== "OWNER" && member.management
                 ? (member as ManageableWorkspaceMember)

@@ -6,6 +6,12 @@ export const BUDGET_BOOKING_STATUS_LABELS = {
   PAID: "已付清",
 } as const;
 
+export const BUDGET_PREPARATION_STATUS_LABELS = {
+  NEEDS_ACTION: "需要安排",
+  ALREADY_OWNED: "已有／自備",
+  NOT_PLANNED: "不打算準備",
+} as const;
+
 export const BUDGET_PRIMARY_CONTACT_LABELS = {
   PARTNER_A: "新郎",
   PARTNER_B: "新娘",
@@ -37,6 +43,8 @@ export const BUDGET_COST_CATEGORIES = Object.keys(
 ) as Array<keyof typeof BUDGET_COST_CATEGORY_LABELS>;
 
 export type BudgetBookingStatus = keyof typeof BUDGET_BOOKING_STATUS_LABELS;
+export type BudgetPreparationStatus =
+  keyof typeof BUDGET_PREPARATION_STATUS_LABELS;
 export type BudgetPrimaryContact = keyof typeof BUDGET_PRIMARY_CONTACT_LABELS;
 export type BudgetCostCategory = keyof typeof BUDGET_COST_CATEGORY_LABELS;
 export type BudgetItemKind = "GROUP" | "EXPENSE";
@@ -92,6 +100,8 @@ export const BUDGET_TAXONOMY_STAGES = [
       { key: "ITEM_INVITATIONS_POSTAGE", label: "印喜帖及寄送", defaultCategory: "DECOR_GIFTS" },
       { key: "ITEM_BEAUTY_TREATMENTS", label: "保養療程", defaultCategory: "ATTIRE_STYLING" },
       { key: "ITEM_WEDDING_FAVORS", label: "婚禮小物", defaultCategory: "DECOR_GIFTS" },
+      // 工作人員紅包不分中西式：沒有文定或迎娶的婚禮一樣要在婚宴結束時發。
+      { key: "ITEM_STAFF_RED_ENVELOPES", label: "工作人員紅包", defaultCategory: "PEOPLE_SERVICES" },
     ],
   },
   {
@@ -414,6 +424,18 @@ export function normalizeBudgetBookingStatus(
     throw new BudgetItemValidationError("請選擇有效的下訂與付款狀態。");
   }
   return value;
+}
+
+export function normalizeBudgetPreparationStatus(
+  value: unknown,
+): BudgetPreparationStatus {
+  if (
+    typeof value !== "string" ||
+    !Object.hasOwn(BUDGET_PREPARATION_STATUS_LABELS, value)
+  ) {
+    throw new BudgetItemValidationError("請選擇有效的準備方式。");
+  }
+  return value as BudgetPreparationStatus;
 }
 
 export function normalizeBudgetPrimaryContact(

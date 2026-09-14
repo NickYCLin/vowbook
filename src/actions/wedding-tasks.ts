@@ -42,7 +42,7 @@ function tasksPath(workspaceId: string): string {
   return `/workspaces/${workspaceId}/tasks`;
 }
 
-async function revalidateTaskView(workspaceId: string): Promise<boolean> {
+async function revalidateTaskPage(workspaceId: string): Promise<boolean> {
   try {
     await revalidatePath(tasksPath(workspaceId));
     return true;
@@ -50,6 +50,22 @@ async function revalidateTaskView(workspaceId: string): Promise<boolean> {
     console.error("婚宴任務頁面重新驗證失敗。");
     return false;
   }
+}
+
+async function revalidateTaskView(workspaceId: string): Promise<boolean> {
+  let revalidated = await revalidateTaskPage(workspaceId);
+  for (const path of [
+    `/workspaces/${workspaceId}/overview`,
+    "/dashboard",
+  ]) {
+    try {
+      await revalidatePath(path);
+    } catch {
+      console.error("婚宴總覽頁面重新驗證失敗。");
+      revalidated = false;
+    }
+  }
+  return revalidated;
 }
 
 function successAfterRevalidation(
@@ -155,7 +171,7 @@ function expectedVersionFromFormData(formData: FormData): number {
 async function returnStaleAfterRevalidation(
   workspaceId: string,
 ): Promise<WeddingTaskMutationState> {
-  await revalidateTaskView(workspaceId);
+  await revalidateTaskPage(workspaceId);
   return staleState();
 }
 

@@ -382,7 +382,7 @@ describe("budget hierarchy generic operator", () => {
       applied: false,
       create: 1,
       update: 2,
-      unchanged: 28,
+      unchanged: 29,
       conflict: 0,
       roots: 7,
       maxDepth: 5,
@@ -449,7 +449,7 @@ describe("budget hierarchy generic operator", () => {
       apply: true,
     });
 
-    expect(rerun).toMatchObject({ create: 0, update: 0, unchanged: 31 });
+    expect(rerun).toMatchObject({ create: 0, update: 0, unchanged: 32 });
     expect(store.rows).toEqual(afterFirstRun);
   });
 

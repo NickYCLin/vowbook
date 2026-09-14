@@ -138,6 +138,12 @@ describe("wedding task server actions", () => {
       requireLockedWorkspaceAccess.mock.invocationCallOrder[0],
     ).toBeLessThan(create.mock.invocationCallOrder[0]);
     expect(revalidatePath).toHaveBeenCalledWith(tasksPath);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/dashboard",
+    );
   });
 
   it.each(["OWNER", "PARTNER", "PLANNER"])(
@@ -556,6 +562,11 @@ describe("wedding task server actions", () => {
       message: "已新增婚宴任務；畫面未自動更新，請重新整理。",
     });
     expect(create).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledTimes(3);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(log).toHaveBeenCalledWith("婚宴任務頁面重新驗證失敗。");
     expect(log).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
   });

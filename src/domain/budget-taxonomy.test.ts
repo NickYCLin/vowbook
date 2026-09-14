@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUDGET_COST_CATEGORY_LABELS,
+  BUDGET_PREPARATION_STATUS_LABELS,
   BUDGET_TAXONOMY_ITEM_DEFAULT_CATEGORIES,
   BUDGET_TAXONOMY_ITEM_KEYS,
   BUDGET_TAXONOMY_ITEM_LABELS,
@@ -14,11 +15,40 @@ import {
   BudgetItemValidationError,
   isBudgetTaxonomyItemKey,
   normalizeBudgetCostCategory,
+  normalizeBudgetPreparationStatus,
   normalizeBudgetItemDetails,
   normalizeOptionalBudgetTaxonomyItemKey,
   normalizeRelatedBudgetTaxonomyItemKey,
   normalizeBudgetTaxonomyItemKey,
 } from "./budget-item";
+
+describe("budget preparation status", () => {
+  it("keeps non-spending decisions separate from payment status", () => {
+    expect(BUDGET_PREPARATION_STATUS_LABELS).toEqual({
+      NEEDS_ACTION: "需要安排",
+      ALREADY_OWNED: "已有／自備",
+      NOT_PLANNED: "不打算準備",
+    });
+    expect(normalizeBudgetPreparationStatus("NEEDS_ACTION")).toBe(
+      "NEEDS_ACTION",
+    );
+    expect(normalizeBudgetPreparationStatus("ALREADY_OWNED")).toBe(
+      "ALREADY_OWNED",
+    );
+    expect(normalizeBudgetPreparationStatus("NOT_PLANNED")).toBe(
+      "NOT_PLANNED",
+    );
+  });
+
+  it.each(["", "PAID", "SKIPPED", null, 1])(
+    "rejects invalid preparation status %j",
+    (status) => {
+      expect(() => normalizeBudgetPreparationStatus(status)).toThrow(
+        new BudgetItemValidationError("請選擇有效的準備方式。"),
+      );
+    },
+  );
+});
 
 describe("budget cost taxonomy", () => {
   it("keeps all eight internal cost categories", () => {
@@ -80,7 +110,7 @@ describe("budget cost taxonomy", () => {
 });
 
 describe("fixed budget taxonomy", () => {
-  it("keeps only the Drive spreadsheet six ordered stages and 20 ordered items", () => {
+  it("keeps the Drive spreadsheet six ordered stages plus the ceremony-neutral staff red envelope item", () => {
     expect(BUDGET_TAXONOMY_STAGES.map((stage) => stage.key)).toEqual([
       "STAGE_PREPARATION_1_2_MONTHS",
       "STAGE_PREPARATION_3_MONTH",
@@ -98,9 +128,9 @@ describe("fixed budget taxonomy", () => {
       "迎娶儀式用品、工作人員紅包",
     ]);
     expect(BUDGET_TAXONOMY_STAGES.map((stage) => stage.items.length)).toEqual([
-      3, 7, 3, 3, 2, 2,
+      3, 7, 3, 4, 2, 2,
     ]);
-    expect(BUDGET_TAXONOMY_ITEM_KEYS).toHaveLength(20);
+    expect(BUDGET_TAXONOMY_ITEM_KEYS).toHaveLength(21);
     expect(
       BUDGET_TAXONOMY_STAGES.flatMap<string>((stage) =>
         stage.items.map((item) => item.label),
@@ -122,6 +152,7 @@ describe("fixed budget taxonomy", () => {
       "印喜帖及寄送",
       "保養療程",
       "婚禮小物",
+      "工作人員紅包",
       "文定儀式（男方準備）",
       "文定儀式（女方準備）",
       "迎娶儀式男方準備",
@@ -146,8 +177,8 @@ describe("fixed budget taxonomy", () => {
   });
 
   it("keeps internal unclassified storage outside the selectable Drive taxonomy", () => {
-    expect(BUDGET_TAXONOMY_NODES).toHaveLength(26);
-    expect(BUDGET_SYSTEM_NODES).toHaveLength(28);
+    expect(BUDGET_TAXONOMY_NODES).toHaveLength(27);
+    expect(BUDGET_SYSTEM_NODES).toHaveLength(29);
     expect(BUDGET_TAXONOMY_NODES.map((node) => node.key)).not.toContain(
       BUDGET_INTERNAL_UNCLASSIFIED_STAGE_KEY,
     );

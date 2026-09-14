@@ -18,6 +18,11 @@ import {
 } from "@/actions/wedding-timeline";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogFooter, useModalDialog } from "@/components/ui/dialog";
+import {
+  formatWeddingTimelineMinute,
+  normalizeWeddingTimelineDetails,
+  normalizeWeddingTimelineStaffIds,
+} from "@/domain/wedding-timeline";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
 import type {
   WeddingTimelineListItem,
@@ -223,13 +228,17 @@ function TimelineFields({
 function TimelineDialog({
   title,
   triggerLabel,
+  triggerText = triggerLabel,
   triggerId,
   dialogRef,
   pending,
   children,
 }: {
   title: string;
+  /** 完整的可及性名稱，例如「編輯 新人進場」。 */
   triggerLabel: string;
+  /** 畫面上顯示的短文字；省略時與 triggerLabel 相同。 */
+  triggerText?: string;
   triggerId?: string;
   dialogRef: RefObject<HTMLDialogElement | null>;
   pending: boolean;
@@ -253,10 +262,11 @@ function TimelineDialog({
             )
             ?.focus();
         }}
+        aria-label={triggerText === triggerLabel ? undefined : triggerLabel}
         className="inline-flex min-h-11 max-w-full min-w-0 items-center whitespace-normal break-words rounded-full border border-line px-4 py-2 text-left text-sm font-semibold text-clay-strong hover:bg-clay-soft [overflow-wrap:anywhere]"
       >
         <span className="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">
-          {triggerLabel}
+          {triggerText}
         </span>
       </button>
       <dialog
@@ -323,6 +333,143 @@ function fieldValues(
     details: values.details ?? "",
     mediaCue: values.mediaCue ?? "",
     notes: values.notes ?? "",
+  };
+}
+
+type EditWeddingTimelineItemFormProps = {
+  workspaceId: string;
+  itemId: string;
+  staff: WeddingTimelineStaffOption[];
+  assignedStaff: WeddingTimelineStaffOption[];
+  expectedVersion: number;
+  triggerId?: string;
+} & Omit<WeddingTimelineListItem, "id" | "version" | "assignedStaff">;
+
+type EditWeddingTimelineItemSnapshot = {
+  workspaceId: string;
+  itemId: string;
+  expectedVersion: number;
+  values: TimelineFieldValues;
+  staff: WeddingTimelineStaffOption[];
+  selectedStaffIds: string[];
+};
+
+function normalizedTimelineStaffIds(values: unknown[]): string[] {
+  return normalizeWeddingTimelineStaffIds(values).sort();
+}
+
+function createEditWeddingTimelineItemSnapshot(
+  props: EditWeddingTimelineItemFormProps,
+): EditWeddingTimelineItemSnapshot {
+  return {
+    workspaceId: props.workspaceId,
+    itemId: props.itemId,
+    expectedVersion: props.expectedVersion,
+    values: fieldValues(props),
+    staff: props.staff.map((person) => ({ ...person })),
+    selectedStaffIds: normalizedTimelineStaffIds(
+      props.assignedStaff.map((person) => person.id),
+    ),
+  };
+}
+
+function haveSameTimelineStaffOptions(
+  current: WeddingTimelineStaffOption[],
+  latest: WeddingTimelineStaffOption[],
+): boolean {
+  if (current.length !== latest.length) return false;
+  const latestById = new Map(latest.map((person) => [person.id, person]));
+  return current.every((person) => {
+    const latestPerson = latestById.get(person.id);
+    return (
+      latestPerson?.roleName === person.roleName &&
+      latestPerson.personName === person.personName
+    );
+  });
+}
+
+function haveSameTimelineStaffIds(
+  current: string[],
+  latest: string[],
+): boolean {
+  return (
+    current.length === latest.length &&
+    current.every((value, index) => value === latest[index])
+  );
+}
+
+function isSameEditWeddingTimelineItemSnapshot(
+  current: EditWeddingTimelineItemSnapshot,
+  latest: EditWeddingTimelineItemSnapshot,
+): boolean {
+  return (
+    current.workspaceId === latest.workspaceId &&
+    current.itemId === latest.itemId &&
+    current.expectedVersion === latest.expectedVersion &&
+    current.values.startTime === latest.values.startTime &&
+    current.values.endTime === latest.values.endTime &&
+    current.values.phase === latest.values.phase &&
+    current.values.title === latest.values.title &&
+    current.values.location === latest.values.location &&
+    current.values.details === latest.values.details &&
+    current.values.mediaCue === latest.values.mediaCue &&
+    current.values.notes === latest.values.notes &&
+    haveSameTimelineStaffOptions(current.staff, latest.staff) &&
+    haveSameTimelineStaffIds(current.selectedStaffIds, latest.selectedStaffIds)
+  );
+}
+
+function isEditWeddingTimelineItemSnapshotOutdated(
+  current: EditWeddingTimelineItemSnapshot,
+  latest: EditWeddingTimelineItemSnapshot,
+): boolean {
+  if (
+    current.workspaceId !== latest.workspaceId ||
+    current.itemId !== latest.itemId
+  ) {
+    return true;
+  }
+  if (latest.expectedVersion !== current.expectedVersion) {
+    return latest.expectedVersion > current.expectedVersion;
+  }
+  return !isSameEditWeddingTimelineItemSnapshot(current, latest);
+}
+
+function successfulEditWeddingTimelineItemSnapshot(
+  current: EditWeddingTimelineItemSnapshot,
+  formData: FormData,
+): EditWeddingTimelineItemSnapshot {
+  const details = normalizeWeddingTimelineDetails({
+    startTime: formData.get("startTime"),
+    endTime: formData.get("endTime"),
+    phase: formData.get("phase"),
+    title: formData.get("title"),
+    location: formData.get("location"),
+    details: formData.get("details"),
+    mediaCue: formData.get("mediaCue"),
+    notes: formData.get("notes"),
+  });
+  const submittedVersion = Number(formData.get("expectedVersion"));
+
+  return {
+    ...current,
+    expectedVersion: submittedVersion + 1,
+    values: {
+      startTime: formatWeddingTimelineMinute(details.startMinute),
+      endTime:
+        details.endMinute === null
+          ? ""
+          : formatWeddingTimelineMinute(details.endMinute),
+      phase: details.phase,
+      title: details.title,
+      location: details.location ?? "",
+      details: details.details ?? "",
+      mediaCue: details.mediaCue ?? "",
+      notes: details.notes ?? "",
+    },
+    selectedStaffIds: normalizedTimelineStaffIds(
+      formData.getAll("staffIds"),
+    ),
   };
 }
 
@@ -398,62 +545,89 @@ export function CreateWeddingTimelineItemForm({
   );
 }
 
-export function EditWeddingTimelineItemForm({
-  workspaceId,
-  itemId,
-  staff,
-  assignedStaff,
-  expectedVersion,
-  triggerId,
-  ...values
-}: {
-  workspaceId: string;
-  itemId: string;
-  staff: WeddingTimelineStaffOption[];
-  assignedStaff: WeddingTimelineStaffOption[];
-  expectedVersion: number;
-  triggerId?: string;
-} & Omit<WeddingTimelineListItem, "id" | "version" | "assignedStaff">) {
+export function EditWeddingTimelineItemForm(
+  props: EditWeddingTimelineItemFormProps,
+) {
   const id = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [draftVersion, setDraftVersion] = useState(expectedVersion);
-  const [fieldState, setFieldState] = useState<TimelineFieldValues>(() =>
-    fieldValues(values),
+  const latestSnapshot = createEditWeddingTimelineItemSnapshot(props);
+  const [snapshot, setSnapshot] = useState(() => latestSnapshot);
+  const [fieldState, setFieldState] = useState<TimelineFieldValues>(
+    () => snapshot.values,
   );
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>(() =>
-    assignedStaff.map((person) => person.id),
+    snapshot.selectedStaffIds,
+  );
+  const [hideActionFeedback, setHideActionFeedback] = useState(false);
+  const snapshotIsOutdated = isEditWeddingTimelineItemSnapshotOutdated(
+    snapshot,
+    latestSnapshot,
   );
   const action = updateWeddingTimelineItemAction.bind(
     null,
-    workspaceId,
-    itemId,
+    snapshot.workspaceId,
+    snapshot.itemId,
   );
   const [state, formAction, pending] = useActionState(
     async (previousState: WeddingTimelineMutationState, formData: FormData) => {
+      setHideActionFeedback(false);
       const nextState = await action(previousState, formData);
       if (nextState.status === "success") {
-        setDraftVersion((current) => current + 1);
+        const committedSnapshot = successfulEditWeddingTimelineItemSnapshot(
+          snapshot,
+          formData,
+        );
+        setSnapshot(committedSnapshot);
+        setFieldState(committedSnapshot.values);
+        setSelectedStaffIds(committedSnapshot.selectedStaffIds);
         dialogRef.current?.close();
       }
       return nextState;
     },
     initialState,
   );
+
+  function loadLatestSnapshot() {
+    setSnapshot(latestSnapshot);
+    setFieldState(latestSnapshot.values);
+    setSelectedStaffIds(latestSnapshot.selectedStaffIds);
+    setHideActionFeedback(true);
+  }
+
   return (
     <>
       <TimelineDialog
         title="編輯婚禮流程"
-        triggerLabel={`編輯 ${values.title}`}
-        triggerId={triggerId}
+        triggerLabel={`編輯 ${props.title}`}
+        triggerText="編輯"
+        triggerId={props.triggerId}
         dialogRef={dialogRef}
         pending={pending}
       >
+        {snapshotIsOutdated ? (
+          <div className="mx-5 mt-5 rounded-lg border border-caution/30 bg-caution-soft px-4 py-3 text-sm leading-6 text-caution sm:mx-7">
+            <p>
+              這筆流程已有較新的資料，目前表單仍保留原本的草稿、指派與版本。
+            </p>
+            <button
+              type="button"
+              onClick={loadLatestSnapshot}
+              className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-caution/40 px-4 font-semibold transition hover:bg-caution/10"
+            >
+              載入最新資料
+            </button>
+          </div>
+        ) : null}
         <form action={formAction} className="space-y-6 px-5 py-6 sm:px-7">
-          <input type="hidden" name="expectedVersion" value={draftVersion} />
+          <input
+            type="hidden"
+            name="expectedVersion"
+            value={snapshot.expectedVersion}
+          />
           <TimelineFields
             idPrefix={id}
             values={fieldState}
-            staff={staff}
+            staff={snapshot.staff}
             selectedStaffIds={selectedStaffIds}
             onFieldChange={(field, value) =>
               setFieldState((current) => ({ ...current, [field]: value }))
@@ -468,7 +642,9 @@ export function EditWeddingTimelineItemForm({
               )
             }
           />
-          {state.status === "success" ? null : <Feedback state={state} />}
+          {hideActionFeedback || pending || state.status === "success" ? null : (
+            <Feedback state={state} />
+          )}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -484,7 +660,9 @@ export function EditWeddingTimelineItemForm({
           </div>
         </form>
       </TimelineDialog>
-      {state.status === "success" ? <Feedback state={state} /> : null}
+      {state.status === "success" && !hideActionFeedback && !pending ? (
+        <Feedback state={state} />
+      ) : null}
     </>
   );
 }
@@ -500,42 +678,71 @@ export function DeleteWeddingTimelineItemForm({
   title: string;
   expectedVersion: number;
 }) {
-  const action = deleteWeddingTimelineItemAction.bind(
-    null,
-    workspaceId,
-    itemId,
-  );
   const idPrefix = useId();
   const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
+  const latestSnapshot = { workspaceId, itemId, title, expectedVersion };
+  const [snapshot, setSnapshot] = useState(() => latestSnapshot);
+  const snapshotIsOutdated =
+    snapshot.workspaceId !== latestSnapshot.workspaceId ||
+    snapshot.itemId !== latestSnapshot.itemId ||
+    snapshot.title !== latestSnapshot.title ||
+    snapshot.expectedVersion !== latestSnapshot.expectedVersion;
+  const action = deleteWeddingTimelineItemAction.bind(
+    null,
+    snapshot.workspaceId,
+    snapshot.itemId,
+  );
   const [state, formAction, pending] = useActionState(action, initialState);
+
+  function openLatestSnapshot() {
+    setSnapshot(latestSnapshot);
+    open();
+  }
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        onClick={open}
-        className="inline-flex min-h-11 max-w-full min-w-0 items-center rounded-control px-2.5 text-caption font-semibold break-words text-danger transition hover:bg-danger-soft [overflow-wrap:anywhere]"
+        onClick={openLatestSnapshot}
+        aria-label={`刪除 ${title}`}
+        className="inline-flex min-h-11 max-w-full min-w-0 items-center rounded-control px-2.5 text-caption font-semibold text-danger transition hover:bg-danger-soft"
       >
-        <span className="min-w-0 break-words whitespace-normal [overflow-wrap:anywhere]">
-          刪除 {title}
-        </span>
+        刪除
       </button>
 
       <Dialog
         dialogRef={dialogRef}
         titleId={`${idPrefix}-dialog-title`}
         eyebrow="刪除流程項目"
-        title={title}
+        title={snapshot.title}
         closeLabel="關閉刪除流程項目"
         isPending={pending}
         size="sm"
         onClose={close}
         onRestoreFocus={restoreFocus}
       >
-        <form action={formAction} className="min-w-0">
+        <form
+          action={formAction}
+          className="min-w-0"
+          onSubmit={(event) => {
+            if (snapshotIsOutdated) event.preventDefault();
+          }}
+        >
           <div className="min-w-0 space-y-3 px-5 py-6 sm:px-6">
-            <input type="hidden" name="expectedVersion" value={expectedVersion} />
+            <input
+              type="hidden"
+              name="expectedVersion"
+              value={snapshot.expectedVersion}
+            />
+            {snapshotIsOutdated ? (
+              <div
+                role="alert"
+                className="rounded-control border border-caution/30 bg-caution-soft px-4 py-3 text-caption leading-6 text-caution"
+              >
+                這個流程項目已有較新的資料，請關閉後重新確認刪除。
+              </div>
+            ) : null}
             <p className="text-sm font-semibold text-danger">此動作無法復原。</p>
             <p className="text-caption leading-6 text-ink-soft">
               只有在確認不再需要這個流程項目時才繼續。
@@ -550,7 +757,8 @@ export function DeleteWeddingTimelineItemForm({
               isPending={pending}
               pendingLabel="刪除中…"
               variant="danger-solid"
-              aria-label={`確認刪除：${title}`}
+              aria-label={`確認刪除：${snapshot.title}`}
+              disabled={snapshotIsOutdated}
             >
               確認刪除
             </SubmitButton>
@@ -571,12 +779,22 @@ export function GeneralLunchTimelineTemplateForm({
     workspaceId,
   );
   const [state, formAction, pending] = useActionState(
-    async (previousState: WeddingTimelineMutationState) =>
-      action(previousState),
+    async (
+      previousState: WeddingTimelineMutationState,
+      formData: FormData,
+    ) => action(previousState, formData),
     initialState,
   );
   return (
     <form action={formAction} className="space-y-3">
+      <label className="flex min-h-11 max-w-xl items-start gap-3 rounded-control border border-line bg-surface-sunken px-3 py-2 text-sm leading-6 text-ink">
+        <input
+          type="checkbox"
+          name="includeWesternCeremony"
+          className="mt-1 shrink-0"
+        />
+        這次有西式證婚，範本要加入證婚流程
+      </label>
       <button type="submit" disabled={pending} className="min-h-11 rounded-full border border-clay bg-surface px-5 text-sm font-semibold text-clay-strong">
         {pending ? "建立中…" : "建立詳細午宴流程範本"}
       </button>

@@ -42,9 +42,26 @@ function tableForm(
   return formData;
 }
 
-function assignmentForm(tableId: string): FormData {
+type GuestAssignmentSnapshot = {
+  version: number;
+  seatingTableId: string | null;
+};
+
+function assignmentForm(
+  tableId: string,
+  guest: GuestAssignmentSnapshot,
+): FormData {
   const formData = new FormData();
   formData.set("tableId", tableId);
+  formData.set("expectedGuestVersion", String(guest.version));
+  formData.set("expectedSeatingTableId", guest.seatingTableId ?? "");
+  return formData;
+}
+
+function unassignmentForm(guest: GuestAssignmentSnapshot): FormData {
+  const formData = new FormData();
+  formData.set("expectedGuestVersion", String(guest.version));
+  formData.set("expectedSeatingTableId", guest.seatingTableId ?? "");
   return formData;
 }
 
@@ -90,11 +107,12 @@ function guestForm(
   name: string,
   partySize: number,
   expectedVersion: number,
+  attendanceStatus: "UNDECIDED" | "ATTENDING" | "DECLINED" = "ATTENDING",
 ): FormData {
   const formData = new FormData();
   formData.set("name", name);
   formData.set("side", "SHARED");
-  formData.set("attendanceStatus", "ATTENDING");
+  formData.set("attendanceStatus", attendanceStatus);
   formData.set("partySize", String(partySize));
   formData.set("notes", "integration");
   formData.set("expectedVersion", String(expectedVersion));
@@ -376,7 +394,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         declined.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, declined),
       ),
     ).resolves.toEqual({
       status: "error",
@@ -391,9 +409,59 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         attending.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, attending),
       ),
     ).resolves.toMatchObject({ status: "success" });
+  });
+
+  it("rejects declined plus seated rows in PostgreSQL and atomically unseats through the Guest action", async () => {
+    const { workspace } = await createWorkspace("不出席資料一致性");
+    const table = await createTable(workspace.id, "親友桌", 10);
+
+    await expect(
+      prisma.guest.create({
+        data: {
+          workspaceId: workspace.id,
+          name: "直接寫入的不出席者",
+          side: "SHARED",
+          attendanceStatus: "DECLINED",
+          partySize: 1,
+          seatingTableId: table.id,
+        },
+      }),
+    ).rejects.toBeDefined();
+
+    const seated = await createGuest(
+      workspace.id,
+      "原本出席者",
+      2,
+      table.id,
+    );
+    await expect(
+      prisma.guest.update({
+        where: { id: seated.id },
+        data: { attendanceStatus: "DECLINED" },
+      }),
+    ).rejects.toBeDefined();
+
+    await expect(
+      updateGuestAction(
+        workspace.id,
+        seated.id,
+        idleState,
+        guestForm("原本出席者", 2, seated.version, "DECLINED"),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已更新賓客；已從桌次移除不出席者。",
+    });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: seated.id } }),
+    ).resolves.toMatchObject({
+      attendanceStatus: "DECLINED",
+      seatingTableId: null,
+      version: seated.version + 1,
+    });
   });
 
   it("rejects legacy coordinate writes so table numbers keep fixed slots", async () => {
@@ -541,13 +609,13 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         guestA.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, guestA),
       ),
       assignGuestToTableAction(
         workspace.id,
         guestB.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, guestB),
       ),
     ]);
 
@@ -578,7 +646,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         candidate.id,
         idleState,
-        assignmentForm(tableA.id),
+        assignmentForm(tableA.id, candidate),
       ),
     ]);
 
@@ -608,7 +676,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         candidate.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, candidate),
       ),
     ]);
 
@@ -632,7 +700,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         candidate.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, candidate),
       ),
     ]);
 
@@ -678,13 +746,13 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         guest.id,
         idleState,
-        assignmentForm(tableA.id),
+        assignmentForm(tableA.id, guest),
       ),
       assignGuestToTableAction(
         workspace.id,
         guest.id,
         idleState,
-        assignmentForm(tableB.id),
+        assignmentForm(tableB.id, guest),
       ),
     ]);
 
@@ -699,6 +767,90 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
     expect(totalAssignments).toBe(1);
     await assertCapacityInvariant(workspace.id, tableA.id);
     await assertCapacityInvariant(workspace.id, tableB.id);
+  });
+
+  it("rejects a stale assignment intent and preserves the collaborator's latest table", async () => {
+    const { workspace } = await createWorkspace("過期安排意圖");
+    const [originalTable, collaboratorTable, staleDestination] =
+      await Promise.all([
+        createTable(workspace.id, "原桌", 10),
+        createTable(workspace.id, "協作者新桌", 10),
+        createTable(workspace.id, "舊表單目的桌", 10),
+      ]);
+    const guest = await createGuest(
+      workspace.id,
+      "被協作者移動的賓客",
+      2,
+      originalTable.id,
+    );
+    const staleForm = assignmentForm(staleDestination.id, guest);
+
+    await prisma.guest.update({
+      where: { id: guest.id },
+      data: {
+        seatingTableId: collaboratorTable.id,
+        version: { increment: 1 },
+      },
+    });
+
+    await expect(
+      assignGuestToTableAction(
+        workspace.id,
+        guest.id,
+        idleState,
+        staleForm,
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客桌次已由其他人更新，請重新載入後再試。",
+    });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guest.id } }),
+    ).resolves.toMatchObject({
+      seatingTableId: collaboratorTable.id,
+      version: guest.version + 1,
+    });
+  });
+
+  it("rejects a stale unassignment intent and preserves the collaborator's latest table", async () => {
+    const { workspace } = await createWorkspace("過期移出意圖");
+    const [originalTable, collaboratorTable] = await Promise.all([
+      createTable(workspace.id, "原桌", 10),
+      createTable(workspace.id, "協作者新桌", 10),
+    ]);
+    const guest = await createGuest(
+      workspace.id,
+      "不可被舊表單移出的賓客",
+      2,
+      originalTable.id,
+    );
+    const staleForm = unassignmentForm(guest);
+
+    await prisma.guest.update({
+      where: { id: guest.id },
+      data: {
+        seatingTableId: collaboratorTable.id,
+        version: { increment: 1 },
+      },
+    });
+
+    await expect(
+      unassignGuestFromTableAction(
+        workspace.id,
+        guest.id,
+        idleState,
+        staleForm,
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客桌次已由其他人更新，請重新載入後再試。",
+    });
+    await expect(
+      prisma.guest.findUniqueOrThrow({ where: { id: guest.id } }),
+    ).resolves.toMatchObject({
+      seatingTableId: collaboratorTable.id,
+      version: guest.version + 1,
+    });
   });
 
   it("queues delete behind assignment and returns a stale occupied confirmation", async () => {
@@ -734,7 +886,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      assignmentForm(table.id),
+      assignmentForm(table.id, guest),
     );
     let deletion:
       | ReturnType<typeof deleteSeatingTableAction>
@@ -826,7 +978,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         guest.id,
         idleState,
-        assignmentForm(table.id),
+        assignmentForm(table.id, guest),
       );
       await barrier.waitForWaiters(2);
     } catch (error) {
@@ -879,7 +1031,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
         workspace.id,
         guest.id,
         idleState,
-        assignmentForm(tableB.id),
+        assignmentForm(tableB.id, guest),
       ),
     ]);
 
@@ -1077,7 +1229,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      new FormData(),
+      unassignmentForm(guest),
     );
     const nowEmptyPreview = await adjustSeatingTablesAction(
       workspace.id,
@@ -1304,7 +1456,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      assignmentForm(tables[1]!.id),
+      assignmentForm(tables[1]!.id, guest),
     );
     let barrierError: unknown;
     let shrink:
@@ -1406,7 +1558,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      assignmentForm(retainedTable.id),
+      assignmentForm(retainedTable.id, guest),
     );
     let staleShrink:
       | ReturnType<typeof adjustSeatingTablesAction>
@@ -1510,7 +1662,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      new FormData(),
+      unassignmentForm(guest),
     );
     let barrierError: unknown;
     let staleConfirmation:
@@ -1606,7 +1758,7 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       workspace.id,
       guest.id,
       idleState,
-      new FormData(),
+      unassignmentForm(guest),
     );
     let confirmedDelete:
       | ReturnType<typeof deleteSeatingTableAction>

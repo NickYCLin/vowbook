@@ -34,6 +34,13 @@ describe("seating schema and migration contract", () => {
     duplicateNamesMigrationName,
     "migration.sql",
   );
+  const declinedConsistencyMigrationName =
+    "20260830020000_declined_guest_seating_consistency";
+  const declinedConsistencyMigrationPath = path.join(
+    migrationsPath,
+    declinedConsistencyMigrationName,
+    "migration.sql",
+  );
 
   it("defines workspace-owned seating tables and stable composite selectors", () => {
     const guestModel = schema.match(/model Guest\s*{[\s\S]*?\n}/)?.[0] ?? "";
@@ -70,6 +77,24 @@ describe("seating schema and migration contract", () => {
     );
     expect(duplicateNamesMigration).not.toMatch(
       /DROP INDEX\s+"seating_tables_workspace_id_position_key"/u,
+    );
+  });
+
+  it("rejects a table assignment for declined guests without repairing domain rows", () => {
+    expect(fs.existsSync(declinedConsistencyMigrationPath)).toBe(true);
+    const declinedConsistencyMigration = fs.readFileSync(
+      declinedConsistencyMigrationPath,
+      "utf8",
+    );
+
+    expect(declinedConsistencyMigration).toContain(
+      'CONSTRAINT "guests_declined_seating_consistency_check"',
+    );
+    expect(declinedConsistencyMigration).toContain(
+      'CHECK ("attendance_status" <> \'DECLINED\' OR "seating_table_id" IS NULL)',
+    );
+    expect(declinedConsistencyMigration).not.toMatch(
+      /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"guests"/iu,
     );
   });
 

@@ -37,6 +37,7 @@ describe("getWeddingTimelinePageData", () => {
     transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) =>
         callback({
+          membership: { findUnique: vi.fn() },
           weddingTimelineItem: { findMany: timelineFindMany },
           weddingStaffAssignment: { findMany: staffFindMany },
         }),
@@ -56,6 +57,9 @@ describe("getWeddingTimelinePageData", () => {
       "workspace_1",
       "session_user",
       "read",
+      expect.objectContaining({
+        weddingTimelineItem: { findMany: timelineFindMany },
+      }),
     );
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: "RepeatableRead",
@@ -63,11 +67,25 @@ describe("getWeddingTimelinePageData", () => {
     expect(timelineFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { workspaceId: "workspace_1" },
-        select: expect.objectContaining({ mediaCue: true }),
+        select: expect.objectContaining({
+          mediaCue: true,
+          staffAssignments: expect.objectContaining({
+            where: { workspaceId: "workspace_1" },
+          }),
+        }),
       }),
     );
     expect(staffFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { workspaceId: "workspace_1" } }),
+    );
+    expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      requireWorkspaceAccess.mock.invocationCallOrder[0],
+    );
+    expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      timelineFindMany.mock.invocationCallOrder[0],
     );
   });
 
@@ -117,14 +135,29 @@ describe("getWeddingTimelinePageData", () => {
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
 
-  it("preserves outsider denial and sanitizes snapshot failures", async () => {
+  it("denies a membership revoked at the transaction boundary before timeline PII is read", async () => {
     requireWorkspaceAccess.mockRejectedValueOnce(
       new WorkspaceAccessDeniedError(),
     );
     await expect(
       getWeddingTimelinePageData("workspace_secret"),
     ).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(timelineFindMany).not.toHaveBeenCalled();
+    expect(staffFindMany).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes membership infrastructure and snapshot failures", async () => {
+    requireWorkspaceAccess.mockRejectedValueOnce(
+      new Error("membership database secret"),
+    );
+    await expect(
+      getWeddingTimelinePageData("workspace_1"),
+    ).rejects.toEqual(
+      new WeddingTimelineDataError("目前無法載入婚禮總流程，請稍後再試。"),
+    );
+    expect(timelineFindMany).not.toHaveBeenCalled();
+    expect(staffFindMany).not.toHaveBeenCalled();
 
     requireWorkspaceAccess.mockResolvedValueOnce({
       role: "OWNER",

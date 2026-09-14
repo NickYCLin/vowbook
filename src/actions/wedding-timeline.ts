@@ -31,7 +31,18 @@ class TimelineStaffMismatchError extends WeddingTimelineValidationError {}
 class TimelineNotEmptyError extends Error {}
 class TimelineStaleError extends Error {}
 
-const GENERAL_LUNCH_TIMELINE = [
+type GeneralLunchTimelineItem = {
+  startMinute: number;
+  endMinute: number | null;
+  phase: string;
+  title: string;
+  location: string | null;
+  details: string | null;
+  mediaCue: string | null;
+  notes: string | null;
+};
+
+const GENERAL_LUNCH_TIMELINE: readonly GeneralLunchTimelineItem[] = [
   {
     startMinute: 570,
     endMinute: 600,
@@ -128,7 +139,25 @@ const GENERAL_LUNCH_TIMELINE = [
     mediaCue: "送客音樂",
     notes: "準備喜糖與提籃",
   },
-] as const;
+];
+
+function generalLunchTimeline(
+  includeWesternCeremony: boolean,
+): readonly GeneralLunchTimelineItem[] {
+  if (includeWesternCeremony) return GENERAL_LUNCH_TIMELINE;
+
+  return GENERAL_LUNCH_TIMELINE.flatMap((item) => {
+    if (item.title === "證婚儀式") return [];
+    if (item.title !== "拍照時間") return [item];
+    return [
+      {
+        ...item,
+        location: "宴會廳",
+        details: "宴會廳拍攝與休息。",
+      },
+    ];
+  });
+}
 
 async function authorize(
   workspaceId: string,
@@ -219,12 +248,30 @@ function validationState(error: unknown): WeddingTimelineMutationState {
   };
 }
 
-async function revalidateTimeline(workspaceId: string): Promise<void> {
-  try {
-    await revalidatePath(`/workspaces/${workspaceId}/timeline`);
-  } catch {
+async function revalidateTimeline(workspaceId: string): Promise<boolean> {
+  let succeeded = true;
+  for (const path of [
+    `/workspaces/${workspaceId}/timeline`,
+    `/workspaces/${workspaceId}/overview`,
+    `/workspaces/${workspaceId}/staff`,
+    `/workspaces/${workspaceId}/staff/handoffs`,
+  ]) {
+    try {
+      await revalidatePath(path);
+    } catch {
+      succeeded = false;
+    }
+  }
+  if (!succeeded) {
     console.error("婚禮總流程頁面重新驗證失敗。");
   }
+  return succeeded;
+}
+
+function committedSuccessMessage(message: string, revalidated: boolean): string {
+  return revalidated
+    ? message
+    : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`;
 }
 
 export async function createWeddingTimelineItemAction(
@@ -278,8 +325,11 @@ export async function createWeddingTimelineItemAction(
     };
   }
 
-  await revalidateTimeline(workspaceId);
-  return { status: "success", message: "已新增流程項目。" };
+  const revalidated = await revalidateTimeline(workspaceId);
+  return {
+    status: "success",
+    message: committedSuccessMessage("已新增流程項目。", revalidated),
+  };
 }
 
 export async function updateWeddingTimelineItemAction(
@@ -350,8 +400,11 @@ export async function updateWeddingTimelineItemAction(
     };
   }
 
-  await revalidateTimeline(workspaceId);
-  return { status: "success", message: "已更新流程項目。" };
+  const revalidated = await revalidateTimeline(workspaceId);
+  return {
+    status: "success",
+    message: committedSuccessMessage("已更新流程項目。", revalidated),
+  };
 }
 
 export async function deleteWeddingTimelineItemAction(
@@ -388,6 +441,7 @@ export async function deleteWeddingTimelineItemAction(
     if (error instanceof WorkspaceAccessDeniedError) {
       return { status: "error", code: "FORBIDDEN", message: error.message };
     }
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") return { status: "error", code: "VALIDATION", message: "此流程仍有總召交辦事項，請先到總召交辦解除流程關聯，再移除流程。" };
     if (error instanceof TimelineStaleError) {
       return {
         status: "error",
@@ -402,18 +456,34 @@ export async function deleteWeddingTimelineItemAction(
     };
   }
 
-  await revalidateTimeline(workspaceId);
-  return { status: "success", message: "已刪除流程項目。" };
+  const revalidated = await revalidateTimeline(workspaceId);
+  return {
+    status: "success",
+    message: committedSuccessMessage("已刪除流程項目。", revalidated),
+  };
 }
 
 export async function applyGeneralLunchTimelineTemplateAction(
   workspaceId: string,
   _previousState: WeddingTimelineMutationState,
+  formData: FormData,
 ): Promise<WeddingTimelineMutationState> {
   void _previousState;
   const authorization = await authorize(workspaceId);
   if (typeof authorization !== "string") return authorization;
   const currentUserId = authorization;
+  const westernCeremonyValues = formData.getAll("includeWesternCeremony");
+  if (
+    westernCeremonyValues.length > 1 ||
+    (westernCeremonyValues.length === 1 && westernCeremonyValues[0] !== "on")
+  ) {
+    return {
+      status: "error",
+      code: "VALIDATION",
+      message: "西式證婚選項無效，請重新確認。",
+    };
+  }
+  const includeWesternCeremony = westernCeremonyValues.length === 1;
 
   try {
     await runSerializableTransaction(async (transaction) => {
@@ -427,8 +497,9 @@ export async function applyGeneralLunchTimelineTemplateAction(
         where: { workspaceId },
       });
       if (count !== 0) throw new TimelineNotEmptyError();
+      const template = generalLunchTimeline(includeWesternCeremony);
       await transaction.weddingTimelineItem.createMany({
-        data: GENERAL_LUNCH_TIMELINE.map((item) => ({
+        data: template.map((item) => ({
           workspaceId,
           ...item,
         })),
@@ -452,9 +523,12 @@ export async function applyGeneralLunchTimelineTemplateAction(
     };
   }
 
-  await revalidateTimeline(workspaceId);
+  const revalidated = await revalidateTimeline(workspaceId);
+  const message = includeWesternCeremony
+    ? "已建立詳細午宴流程範本，並加入西式證婚流程；建立後可自由編輯。"
+    : "已建立詳細午宴流程範本，未加入西式證婚流程；建立後可自由編輯。";
   return {
     status: "success",
-    message: "已建立詳細午宴流程範本，建立後可自由編輯。",
+    message: committedSuccessMessage(message, revalidated),
   };
 }

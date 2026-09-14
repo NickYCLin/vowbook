@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createGuestAction, updateGuestAction, deleteGuestAction } = vi.hoisted(
@@ -17,6 +23,7 @@ vi.mock("@/actions/guests", () => ({
 
 import { installModalDialogPolyfill } from "@/test/modal-dialog";
 import {
+  CreateGuestDialog,
   CreateGuestForm,
   DeleteGuestForm,
   EditGuestForm,
@@ -80,9 +87,9 @@ describe("guest forms", () => {
     expect(screen.getByLabelText(/關係補充/u)).toBeInTheDocument();
     expect(screen.getByLabelText(/聯絡電話/u)).toHaveAttribute("type", "tel");
     expect(screen.getByLabelText(/電子信箱/u)).toHaveAttribute("type", "email");
-    expect(screen.getByLabelText(/證婚儀式/u)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/證婚儀式/u)).toBeNull();
     expect(screen.getByLabelText(/兒童座椅/u)).toHaveAttribute("min", "0");
-    expect(screen.getByLabelText(/素食人數/u)).toHaveAttribute("max", "20");
+    expect(screen.getByLabelText(/素食人數/u)).toHaveAttribute("max", "1");
     expect(screen.getByLabelText(/喜帖方式/u)).toBeInTheDocument();
     expect(screen.getByLabelText(/寄送地址/u)).toBeInTheDocument();
     expect(screen.getByLabelText(/賓客留言/u)).toBeInTheDocument();
@@ -91,6 +98,83 @@ describe("guest forms", () => {
     expect(container.querySelector('[name="guestId"]')).toBeNull();
     expect(container.querySelector('[name="userId"]')).toBeNull();
     expect(container.querySelector('[name="role"]')).toBeNull();
+  });
+
+  it("does not expose the legacy single-ceremony attendance field", () => {
+    render(<CreateGuestForm workspaceId="workspace_internal" />);
+    expect(screen.queryByLabelText(/證婚/u)).not.toBeInTheDocument();
+  });
+
+  it("keeps requirement maxima aligned with the current party size", () => {
+    render(<CreateGuestForm workspaceId="workspace_internal" />);
+    const partySize = screen.getByLabelText("邀請人數（含本人）");
+    const childSeats = screen.getByLabelText(/兒童座椅/u);
+    const vegetarianMeals = screen.getByLabelText(/素食人數/u);
+
+    expect(childSeats).toHaveAttribute("max", "1");
+    expect(vegetarianMeals).toHaveAttribute("max", "1");
+
+    fireEvent.change(partySize, { target: { value: "4" } });
+
+    expect(childSeats).toHaveAttribute("max", "4");
+    expect(vegetarianMeals).toHaveAttribute("max", "4");
+  });
+
+  it("keeps a failed create draft but resets every field after a successful create", async () => {
+    createGuestAction
+      .mockResolvedValueOnce({ status: "error", message: "合成新增失敗。" })
+      .mockResolvedValueOnce({ status: "success", message: "已新增賓客。" });
+    render(<CreateGuestDialog workspaceId="workspace_internal" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "新增名單成員" }));
+    fireEvent.change(screen.getByLabelText("姓名或稱呼"), {
+      target: { value: "保留的草稿" },
+    });
+    fireEvent.change(screen.getByLabelText("名單身份"), {
+      target: { value: "FAMILY" },
+    });
+    fireEvent.change(screen.getByLabelText("家人所屬"), {
+      target: { value: "PARTNER_B" },
+    });
+    fireEvent.change(screen.getByLabelText("賓客輩份"), {
+      target: { value: "ELDER" },
+    });
+    fireEvent.change(screen.getByLabelText("出席狀態"), {
+      target: { value: "ATTENDING" },
+    });
+    fireEvent.change(screen.getByLabelText("邀請人數（含本人）"), {
+      target: { value: "4" },
+    });
+    fireEvent.change(screen.getByLabelText(/聯絡電話/u), {
+      target: { value: "0911-111-111" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "加入名單" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("合成新增失敗。");
+    await waitFor(() =>
+      expect(screen.getByLabelText("名單身份")).toHaveValue("FAMILY"),
+    );
+    expect(screen.getByLabelText("姓名或稱呼")).toHaveValue("保留的草稿");
+    expect(screen.getByLabelText("家人所屬")).toHaveValue("PARTNER_B");
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("ELDER");
+    expect(screen.getByLabelText("出席狀態")).toHaveValue("ATTENDING");
+    expect(screen.getByLabelText("邀請人數（含本人）")).toHaveValue(4);
+    expect(screen.getByLabelText(/聯絡電話/u)).toHaveValue("0911-111-111");
+
+    fireEvent.click(screen.getByRole("button", { name: "加入名單" }));
+    await screen.findByRole("button", { name: "新增名單成員" });
+    fireEvent.click(screen.getByRole("button", { name: "新增名單成員" }));
+
+    expect(screen.getByLabelText("姓名或稱呼")).toHaveValue("");
+    expect(screen.getByLabelText("名單身份")).toHaveValue("GUEST");
+    expect(screen.getByLabelText("與新人的關係")).toHaveValue("SHARED");
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+    expect(screen.getByLabelText("出席狀態")).toHaveValue("UNDECIDED");
+    expect(screen.getByLabelText("邀請人數（含本人）")).toHaveValue(1);
+    expect(screen.getByLabelText(/聯絡電話/u)).toHaveValue("");
+    expect(screen.queryByLabelText(/證婚/u)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("lets family include companions while keeping side-specific roles", () => {
@@ -220,7 +304,7 @@ describe("guest forms", () => {
     expect(screen.getByLabelText(/關係補充/u)).toHaveValue("大學同學");
     expect(screen.getByLabelText(/聯絡電話/u)).toHaveValue("0900-000-000");
     expect(screen.getByLabelText(/電子信箱/u)).toHaveValue("guest@example.test");
-    expect(screen.getByLabelText(/證婚儀式/u)).toHaveValue("DECLINED");
+    expect(screen.queryByLabelText(/證婚儀式/u)).toBeNull();
     expect(screen.getByLabelText(/兒童座椅/u)).toHaveValue(1);
     expect(screen.getByLabelText(/素食人數/u)).toHaveValue(0);
     expect(screen.getByLabelText(/喜帖方式/u)).toHaveValue("DIGITAL");
@@ -510,6 +594,168 @@ describe("guest forms", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("uses the incremented token when resubmitting before refreshed props arrive", async () => {
+    updateGuestAction
+      .mockResolvedValueOnce({ status: "success", message: "已更新賓客。" })
+      .mockResolvedValueOnce({ status: "success", message: "已更新賓客。" });
+    const onSuccess = vi.fn();
+    const { container } = render(
+      <EditGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="原始賓客"
+        category="GUEST"
+        side="PARTNER_A"
+        attendanceStatus="ATTENDING"
+        partySize={2}
+        notes="原始備註"
+        managedFields={[]}
+        onSuccess={onSuccess}
+      />,
+    );
+    openRecordDialogs();
+    const dialog = container.querySelector("dialog");
+
+    fireEvent.change(screen.getByLabelText("姓名或稱呼"), {
+      target: { value: "更新後賓客" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("已更新賓客。"));
+    expect(dialog).not.toHaveAttribute("open");
+
+    // Server action 已成功，但最新 RSC props 尚未抵達；立即重開也必須使用
+    // 剛提交成功的 v+1 snapshot，而不是再送一次舊 token。
+    openRecordDialogs();
+    expect(screen.getByLabelText("姓名或稱呼")).toHaveValue("更新後賓客");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "4",
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    await waitFor(() => expect(updateGuestAction).toHaveBeenCalledTimes(2));
+    const secondSubmission = updateGuestAction.mock.calls[1]?.[3];
+    expect(secondSubmission).toBeInstanceOf(FormData);
+    expect((secondSubmission as FormData).get("expectedVersion")).toBe("4");
+  });
+
+  it("recognizes the matching server snapshot after an own successful edit", async () => {
+    updateGuestAction.mockResolvedValueOnce({
+      status: "success",
+      message: "已更新賓客。",
+    });
+    const onSuccess = vi.fn();
+    const { container, rerender } = render(
+      <EditGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="原始賓客"
+        category="GUEST"
+        side="PARTNER_A"
+        attendanceStatus="ATTENDING"
+        partySize={2}
+        notes="原始備註"
+        managedFields={[]}
+        onSuccess={onSuccess}
+      />,
+    );
+    openRecordDialogs();
+
+    fireEvent.change(screen.getByLabelText("姓名或稱呼"), {
+      target: { value: "更新後賓客" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith("已更新賓客。"));
+
+    rerender(
+      <EditGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={4}
+        name="更新後賓客"
+        category="GUEST"
+        side="PARTNER_A"
+        attendanceStatus="ATTENDING"
+        partySize={2}
+        notes="原始備註"
+        managedFields={[]}
+        onSuccess={onSuccess}
+      />,
+    );
+    openRecordDialogs();
+
+    expect(screen.getByLabelText("姓名或稱呼")).toHaveValue("更新後賓客");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "4",
+    );
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("does not silently adopt a collaborator snapshot newer than the pending own success", async () => {
+    updateGuestAction.mockResolvedValueOnce({
+      status: "success",
+      message: "已更新賓客。",
+    });
+    const { container, rerender } = render(
+      <EditGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="原始賓客"
+        category="GUEST"
+        side="PARTNER_A"
+        attendanceStatus="ATTENDING"
+        partySize={2}
+        notes={null}
+        managedFields={[]}
+      />,
+    );
+    openRecordDialogs();
+    fireEvent.change(screen.getByLabelText("姓名或稱呼"), {
+      target: { value: "自己的已儲存內容" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "儲存變更" }));
+    await waitFor(() =>
+      expect(container.querySelector("dialog")).not.toHaveAttribute("open"),
+    );
+
+    // 自己的寫入應是 v4；若協作者隨即寫到 v5，v5 不能被誤認為自己的
+    // authoritative response 而靜默洗掉剛儲存的內容。
+    rerender(
+      <EditGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={5}
+        name="協作者較新的內容"
+        category="GUEST"
+        side="PARTNER_B"
+        attendanceStatus="DECLINED"
+        partySize={1}
+        notes="協作者備註"
+        managedFields={[]}
+      />,
+    );
+    openRecordDialogs();
+
+    expect(screen.getByLabelText("姓名或稱呼")).toHaveValue(
+      "自己的已儲存內容",
+    );
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "4",
+    );
+    expect(screen.getByRole("button", { name: "載入最新資料" }))
+      .toBeInTheDocument();
+  });
+
   it("uses a generic authoritative deletion warning for imported guests", () => {
     render(
       <DeleteGuestForm
@@ -533,4 +779,189 @@ describe("guest forms", () => {
       screen.getByRole("button", { name: "確認刪除 匯入賓客" }),
     ).toBeInTheDocument();
   });
+
+  it("warns when deleting a guest will also permanently remove a gift entry", () => {
+    render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="有禮金的賓客"
+        hasManagedImportSource={false}
+        weddingGift={{ id: "gift_1", version: 2 }}
+        checkIn={{ id: "check_in_1", version: 4, headcount: 3 }}
+      />,
+    );
+    openRecordDialogs();
+
+    expect(screen.getByText("此禮金紀錄也會永久移除。"))
+      .toBeInTheDocument();
+  });
+
+  it("does not show the gift cascade warning when no gift is recorded", () => {
+    render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="沒有禮金的賓客"
+        hasManagedImportSource={false}
+        weddingGift={null}
+      />,
+    );
+    openRecordDialogs();
+
+    expect(screen.queryByText("此禮金紀錄也會永久移除。"))
+      .not.toBeInTheDocument();
+  });
+
+  it("closes and announces a successful guest deletion", async () => {
+    deleteGuestAction.mockResolvedValue({
+      status: "success",
+      message: "已刪除賓客。",
+    });
+    const onSuccess = vi.fn();
+    render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="待刪除賓客"
+        hasManagedImportSource={false}
+        weddingGift={{ id: "gift_1", version: 2 }}
+        checkIn={{ id: "check_in_1", version: 4, headcount: 3 }}
+        onSuccess={onSuccess}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "刪除 待刪除賓客" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "確認刪除 待刪除賓客" }),
+    );
+
+    await waitFor(() => expect(deleteGuestAction).toHaveBeenCalledOnce());
+    const formData = deleteGuestAction.mock.calls[0]?.[3] as FormData;
+    expect(formData.get("expectedVersion")).toBe("3");
+    expect(formData.get("expectedWeddingGiftId")).toBe("gift_1");
+    expect(formData.get("expectedWeddingGiftVersion")).toBe("2");
+    expect(formData.get("expectedGuestCheckInId")).toBe("check_in_1");
+    expect(formData.get("expectedGuestCheckInVersion")).toBe("4");
+    expect(onSuccess).toHaveBeenCalledWith("已刪除賓客。");
+    expect(
+      screen.queryByRole("dialog", { name: "待刪除賓客" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("freezes guest and gift delete tokens until the confirmation closes", () => {
+    const { container, rerender } = render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="原始賓客"
+        hasManagedImportSource={false}
+        weddingGift={{ id: "gift_1", version: 2 }}
+        checkIn={{ id: "check_in_1", version: 4, headcount: 3 }}
+      />,
+    );
+    openRecordDialogs();
+
+    rerender(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={4}
+        name="協作者更新後"
+        hasManagedImportSource
+        weddingGift={{ id: "gift_1", version: 3 }}
+        checkIn={{ id: "check_in_1", version: 5, headcount: 4 }}
+      />,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "原始賓客" });
+    expect(within(dialog).getByText(/已有較新的資料/u)).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "確認刪除 原始賓客" }),
+    ).toBeDisabled();
+    expect(
+      container.querySelector('input[name="expectedVersion"][value="3"]'),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        'input[name="expectedWeddingGiftId"][value="gift_1"]',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        'input[name="expectedWeddingGiftVersion"][value="2"]',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        'input[name="expectedGuestCheckInId"][value="check_in_1"]',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        'input[name="expectedGuestCheckInVersion"][value="4"]',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("warns that deleting a checked-in guest also removes the arrival record", () => {
+    render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="已報到賓客"
+        hasManagedImportSource={false}
+        checkIn={{ id: "check_in_1", version: 4, headcount: 3 }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "刪除 已報到賓客" }));
+
+    const dialog = screen.getByRole("dialog", { name: "已報到賓客" });
+    expect(
+      within(dialog).getByText(/已登記的報到紀錄（實到 3 位）也會永久移除。/u),
+    ).toBeInTheDocument();
+  });
+
+  it("sends empty cascade tokens for a guest with no gift and no check-in", async () => {
+    deleteGuestAction.mockResolvedValue({
+      status: "success",
+      message: "已刪除賓客。",
+    });
+    render(
+      <DeleteGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        expectedVersion={3}
+        name="乾淨賓客"
+        hasManagedImportSource={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "刪除 乾淨賓客" }));
+    fireEvent.click(screen.getByRole("button", { name: "確認刪除 乾淨賓客" }));
+
+    await waitFor(() => expect(deleteGuestAction).toHaveBeenCalledOnce());
+    const formData = deleteGuestAction.mock.calls[0]?.[3] as FormData;
+    expect(formData.get("expectedGuestCheckInId")).toBe("");
+    expect(formData.get("expectedGuestCheckInVersion")).toBe("");
+  });
+});
+
+it("offers grouped family titles while preserving custom text, side and seniority", () => {
+  render(<CreateGuestDialog workspaceId="workspace_internal" />);
+  fireEvent.click(screen.getByRole("button", { name: "新增名單成員" }));
+  fireEvent.change(screen.getByLabelText("名單身份"), { target: { value: "FAMILY" } });
+  fireEvent.change(screen.getByLabelText("家人所屬"), { target: { value: "PARTNER_B" } });
+  fireEvent.change(screen.getByLabelText(/家人關係稱謂/), { target: { value: "舅母" } });
+  expect(screen.getByLabelText(/關係補充/)).toHaveValue("舅母");
+  expect(screen.getByLabelText("家人所屬")).toHaveValue("PARTNER_B");
+  expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+  fireEvent.change(screen.getByLabelText(/關係補充/), { target: { value: "二舅媽" } });
+  expect(screen.getByLabelText(/家人關係稱謂/)).toHaveValue("");
+  fireEvent.change(screen.getByLabelText("名單身份"), { target: { value: "GUEST" } });
+  expect(screen.queryByLabelText(/家人關係稱謂/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/關係補充/)).toHaveValue("二舅媽");
 });

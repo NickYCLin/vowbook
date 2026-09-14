@@ -127,7 +127,7 @@ describe("NextAuth base path config", () => {
     vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/VowBook");
     vi.stubEnv(
       "NEXTAUTH_URL",
-      "https://example.com/VowBook/api/auth",
+      "https://ycspace.myvnc.com/VowBook/api/auth",
     );
 
     const { authOptions } = await import("./auth");

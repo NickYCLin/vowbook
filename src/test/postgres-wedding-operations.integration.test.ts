@@ -11,6 +11,7 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 
 import {
   createWeddingStaffAction,
+  setWeddingStaffRedEnvelopeSentAction,
   deleteWeddingStaffAction,
   updateWeddingStaffAction,
 } from "@/actions/wedding-staff";
@@ -20,6 +21,7 @@ import {
   deleteWeddingTimelineItemAction,
   updateWeddingTimelineItemAction,
 } from "@/actions/wedding-timeline";
+import { weddingStaffTimelineAssignmentFingerprint } from "@/domain/wedding-staff-timeline-snapshot";
 import { getWeddingTimelinePageData } from "@/lib/wedding-timeline-list";
 
 const runDatabaseIntegration = process.env.VOWBOOK_DB_INTEGRATION === "1";
@@ -28,12 +30,20 @@ const prisma = new PrismaClient();
 const idleState = { status: "idle" as const };
 let sequence = 0;
 
-function staffForm(expectedVersion?: number) {
+function staffForm(
+  expectedVersion?: number,
+  meal?: { mealCount: string; vegetarianMealCount: string },
+) {
   const form = new FormData();
   form.set("roleName", "招待");
   form.set("personName", "小安");
   form.set("contactPhone", "0912 345 678");
   form.set("notes", "A 區");
+  if (meal) {
+    form.set("needsMeal", "on");
+    form.set("mealCount", meal.mealCount);
+    form.set("vegetarianMealCount", meal.vegetarianMealCount);
+  }
   if (expectedVersion !== undefined) {
     form.set("expectedVersion", String(expectedVersion));
   }
@@ -196,11 +206,88 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
         personName: "小安",
         version: -1,
       },
+      // 便當份數與素食份數必須成對出現，否則「幾葷幾素」永遠算不出來。
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        mealCount: 2,
+      },
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        vegetarianMealCount: 1,
+      },
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        mealCount: 0,
+        vegetarianMealCount: 0,
+      },
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        mealCount: 100,
+        vegetarianMealCount: 0,
+      },
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        mealCount: 2,
+        vegetarianMealCount: -1,
+      },
+      // 素食是便當份數的一部分，超量會讓葷食變成負數。
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        mealCount: 2,
+        vegetarianMealCount: 3,
+      },
+      { workspaceId: owner.workspace.id, roleName: "主持", personName: "小安", redEnvelopeAmount: 0 },
+      { workspaceId: owner.workspace.id, roleName: "主持", personName: "小安", redEnvelopeAmount: -1 },
+      // 沒有金額就沒有紅包可發，不得只有發放時間。
+      {
+        workspaceId: owner.workspace.id,
+        roleName: "主持",
+        personName: "小安",
+        redEnvelopeSentAt: new Date("2026-09-01T02:00:00.000Z"),
+      },
     ];
     for (const data of invalidStaffRows) {
       await expect(
         prisma.weddingStaffAssignment.create({ data }),
       ).rejects.toBeDefined();
+    }
+
+    // 邊界值必須通過：1 份全葷、99 份全素、以及完全不需要便當。
+    for (const data of [
+      { mealCount: 1, vegetarianMealCount: 0 },
+      { mealCount: 99, vegetarianMealCount: 99 },
+      { mealCount: null, vegetarianMealCount: null },
+      { redEnvelopeAmount: 1, redEnvelopeSentAt: null },
+      {
+        redEnvelopeAmount: 2_147_483_647,
+        redEnvelopeSentAt: new Date("2026-09-01T02:00:00.000Z"),
+      },
+      { redEnvelopeAmount: null, redEnvelopeSentAt: null },
+    ]) {
+      const accepted = await prisma.weddingStaffAssignment.create({
+        data: {
+          workspaceId: owner.workspace.id,
+          roleName: "便當與紅包邊界",
+          personName: `合法 ${JSON.stringify(data)}`.slice(0, 100),
+          ...data,
+        },
+      });
+      expect(accepted).toMatchObject(data);
+      await prisma.weddingStaffAssignment.delete({
+        where: { id: accepted.id },
+      });
     }
 
     await expect(
@@ -366,12 +453,168 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
     ).toBe(0);
   });
 
+  it("hands out staff red envelopes with a server timestamp under CAS", async () => {
+    const { user, workspace } = await createOwnerWorkspace();
+    authState.userId = user.id;
+    const withEnvelope = await prisma.weddingStaffAssignment.create({
+      data: {
+        workspaceId: workspace.id,
+        roleName: "總招待",
+        personName: "小安",
+        redEnvelopeAmount: 3600,
+      },
+    });
+    const withoutEnvelope = await prisma.weddingStaffAssignment.create({
+      data: {
+        workspaceId: workspace.id,
+        roleName: "招待",
+        personName: "小美",
+      },
+    });
+
+    // 沒有金額的人不得被標記為已發放。
+    const noAmount = new FormData();
+    noAmount.set("expectedVersion", String(withoutEnvelope.version));
+    noAmount.set("redEnvelopeSent", "on");
+    await expect(
+      setWeddingStaffRedEnvelopeSentAction(
+        workspace.id,
+        withoutEnvelope.id,
+        idleState,
+        noAmount,
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+
+    const markSent = new FormData();
+    markSent.set("expectedVersion", String(withEnvelope.version));
+    markSent.set("redEnvelopeSent", "on");
+    await expect(
+      setWeddingStaffRedEnvelopeSentAction(
+        workspace.id,
+        withEnvelope.id,
+        idleState,
+        markSent,
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+
+    const sent = await prisma.weddingStaffAssignment.findUniqueOrThrow({
+      where: { id: withEnvelope.id },
+    });
+    expect(sent.redEnvelopeSentAt).toBeInstanceOf(Date);
+    expect(sent.version).toBe(withEnvelope.version + 1);
+
+    // 同一筆再標一次不得把發放時間往後推。
+    const markAgain = new FormData();
+    markAgain.set("expectedVersion", String(sent.version));
+    markAgain.set("redEnvelopeSent", "on");
+    await expect(
+      setWeddingStaffRedEnvelopeSentAction(
+        workspace.id,
+        withEnvelope.id,
+        idleState,
+        markAgain,
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(
+      (
+        await prisma.weddingStaffAssignment.findUniqueOrThrow({
+          where: { id: withEnvelope.id },
+        })
+      ).redEnvelopeSentAt?.getTime(),
+    ).toBe(sent.redEnvelopeSentAt?.getTime());
+
+    // 過期 token 一律拒絕。
+    const stale = new FormData();
+    stale.set("expectedVersion", String(sent.version));
+    await expect(
+      setWeddingStaffRedEnvelopeSentAction(
+        workspace.id,
+        withEnvelope.id,
+        idleState,
+        stale,
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
+
+    const viewer = await createUser("red-envelope-viewer");
+    await prisma.membership.create({
+      data: { workspaceId: workspace.id, userId: viewer.id, role: "VIEWER" },
+    });
+    authState.userId = viewer.id;
+    const viewerForm = new FormData();
+    viewerForm.set("expectedVersion", String(sent.version + 1));
+    viewerForm.set("redEnvelopeSent", "");
+    await expect(
+      setWeddingStaffRedEnvelopeSentAction(
+        workspace.id,
+        withEnvelope.id,
+        idleState,
+        viewerForm,
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "FORBIDDEN" });
+  });
+
   it("enforces RBAC and staff CAS while removing assignments by cascade", async () => {
     const { user, workspace } = await createOwnerWorkspace();
     await expect(
       createWeddingStaffAction(workspace.id, idleState, staffForm()),
     ).resolves.toMatchObject({ status: "success" });
     const staff = await prisma.weddingStaffAssignment.findFirstOrThrow();
+    // 沒有勾選需要便當時，兩個欄位都不能被寫成 0。
+    expect(staff).toMatchObject({
+      mealCount: null,
+      vegetarianMealCount: null,
+    });
+
+    await expect(
+      updateWeddingStaffAction(
+        workspace.id,
+        staff.id,
+        idleState,
+        staffForm(staff.version, { mealCount: "6", vegetarianMealCount: "2" }),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(
+      await prisma.weddingStaffAssignment.findUniqueOrThrow({
+        where: { id: staff.id },
+      }),
+    ).toMatchObject({ mealCount: 6, vegetarianMealCount: 2 });
+
+    // 素食超過份數必須被領域驗證擋下，不能靠資料庫最後一道防線。
+    await expect(
+      updateWeddingStaffAction(
+        workspace.id,
+        staff.id,
+        idleState,
+        staffForm(staff.version + 1, {
+          mealCount: "2",
+          vegetarianMealCount: "3",
+        }),
+      ),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(
+      await prisma.weddingStaffAssignment.findUniqueOrThrow({
+        where: { id: staff.id },
+      }),
+    ).toMatchObject({ mealCount: 6, vegetarianMealCount: 2 });
+
+    // 取消勾選要把兩欄一起清回 NULL，而不是留著舊份數。
+    await expect(
+      updateWeddingStaffAction(
+        workspace.id,
+        staff.id,
+        idleState,
+        staffForm(staff.version + 1),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(
+      await prisma.weddingStaffAssignment.findUniqueOrThrow({
+        where: { id: staff.id },
+      }),
+    ).toMatchObject({ mealCount: null, vegetarianMealCount: null });
+    await prisma.weddingStaffAssignment.update({
+      where: { id: staff.id },
+      data: { version: staff.version },
+    });
     const item = await prisma.weddingTimelineItem.create({
       data: {
         workspaceId: workspace.id,
@@ -413,6 +656,10 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
         (() => {
           const form = new FormData();
           form.set("expectedVersion", "0");
+          form.set(
+            "expectedTimelineAssignmentFingerprint",
+            weddingStaffTimelineAssignmentFingerprint([item.id]),
+          );
           return form;
         })(),
       ),
@@ -425,6 +672,56 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
           where: { timelineItemId: item.id },
         }),
       ).toBe(0);
+    }
+  });
+
+  it("never cascades a concurrently created timeline assignment after staff-delete confirmation", async () => {
+    const { workspace } = await createOwnerWorkspace();
+    const staff = await prisma.weddingStaffAssignment.create({
+      data: {
+        workspaceId: workspace.id,
+        roleName: "招待",
+        personName: "小安",
+      },
+    });
+    const deleteForm = new FormData();
+    deleteForm.set("expectedVersion", String(staff.version));
+    deleteForm.set(
+      "expectedTimelineAssignmentFingerprint",
+      weddingStaffTimelineAssignmentFingerprint([]),
+    );
+
+    const [deleteResult, createTimelineResult] = await Promise.all([
+      deleteWeddingStaffAction(
+        workspace.id,
+        staff.id,
+        idleState,
+        deleteForm,
+      ),
+      createWeddingTimelineItemAction(
+        workspace.id,
+        idleState,
+        timelineForm([staff.id]),
+      ),
+    ]);
+
+    expect([deleteResult.status, createTimelineResult.status].sort()).toEqual([
+      "error",
+      "success",
+    ]);
+    const persistedStaff = await prisma.weddingStaffAssignment.findUnique({
+      where: { id: staff.id },
+    });
+    const persistedAssignments =
+      await prisma.weddingTimelineStaffAssignment.findMany({
+        where: { workspaceId: workspace.id, staffAssignmentId: staff.id },
+      });
+    if (deleteResult.status === "success") {
+      expect(persistedStaff).toBeNull();
+      expect(persistedAssignments).toEqual([]);
+    } else {
+      expect(persistedStaff).not.toBeNull();
+      expect(persistedAssignments).toHaveLength(1);
     }
   });
 
@@ -520,8 +817,14 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
 
   it("applies the general lunch template only once to an empty timeline", async () => {
     const { workspace } = await createOwnerWorkspace();
+    const includeWesternCeremony = new FormData();
+    includeWesternCeremony.set("includeWesternCeremony", "on");
     await expect(
-      applyGeneralLunchTimelineTemplateAction(workspace.id, idleState),
+      applyGeneralLunchTimelineTemplateAction(
+        workspace.id,
+        idleState,
+        includeWesternCeremony,
+      ),
     ).resolves.toMatchObject({ status: "success" });
     expect(
       await prisma.weddingTimelineItem.count({
@@ -622,8 +925,14 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
         notes: "準備喜糖與提籃",
       },
     ]);
+    const includeWesternCeremonyAgain = new FormData();
+    includeWesternCeremonyAgain.set("includeWesternCeremony", "on");
     await expect(
-      applyGeneralLunchTimelineTemplateAction(workspace.id, idleState),
+      applyGeneralLunchTimelineTemplateAction(
+        workspace.id,
+        idleState,
+        includeWesternCeremonyAgain,
+      ),
     ).resolves.toMatchObject({ status: "error", code: "CONFLICT" });
     expect(
       await prisma.weddingTimelineItem.count({
@@ -634,9 +943,21 @@ describeDatabase.sequential("PostgreSQL wedding operations invariants", () => {
 
   it("serializes concurrent general-template requests without duplicates", async () => {
     const { workspace } = await createOwnerWorkspace();
+    const firstRequest = new FormData();
+    firstRequest.set("includeWesternCeremony", "on");
+    const secondRequest = new FormData();
+    secondRequest.set("includeWesternCeremony", "on");
     const results = await Promise.all([
-      applyGeneralLunchTimelineTemplateAction(workspace.id, idleState),
-      applyGeneralLunchTimelineTemplateAction(workspace.id, idleState),
+      applyGeneralLunchTimelineTemplateAction(
+        workspace.id,
+        idleState,
+        firstRequest,
+      ),
+      applyGeneralLunchTimelineTemplateAction(
+        workspace.id,
+        idleState,
+        secondRequest,
+      ),
     ]);
 
     expect(results.filter((result) => result.status === "success")).toHaveLength(1);

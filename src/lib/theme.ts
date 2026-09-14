@@ -12,6 +12,9 @@ export type ThemePreference = VowBookTheme | "system";
 
 export const DEFAULT_THEME_PREFERENCE: ThemePreference = "vowbook-paper";
 
+/** 瀏覽器／iOS 狀態列底色：沒有偏好時就是誓約紙本的紙色。 */
+export const DEFAULT_THEME_COLOR = "#f7f2ea";
+
 export const themeOptions: {
   value: ThemePreference;
   label: string;
@@ -48,6 +51,14 @@ export function isThemePreference(value: unknown): value is ThemePreference {
   return (
     value === "system" ||
     themeValues.includes(value as VowBookTheme)
+  );
+}
+
+/** 每個主題的紙色，套到 <meta name="theme-color">，讓 iOS 狀態列與網址列跟著換色。 */
+export function themeColorFor(theme: VowBookTheme): string {
+  return (
+    themeOptions.find((option) => option.value === theme)?.palette[0] ??
+    DEFAULT_THEME_COLOR
   );
 }
 

@@ -164,6 +164,7 @@ const table = {
   guests: [
     {
       id: "guest_internal",
+      version: 2,
       name: "王小明",
       partySize: 3,
       side: "PARTNER_A" as const,
@@ -174,6 +175,16 @@ const table = {
 };
 
 describe("SeatingPlan", () => {
+  it("marks vegetarian guests and totals only positive counts", () => {
+    render(<SeatingPlan workspaceId="workspace_internal" canEdit={false}
+      tables={[{ ...table, guests: [{ ...table.guests[0], vegetarianCount: 2 }] }]}
+      unassignedGuests={[{ ...unassigned({ id: "veg", name: "待安排素食", partySize: 3 }), vegetarianCount: 1 },
+        { ...unassigned({ id: "none", name: "無素食", partySize: 1 }), vegetarianCount: 0 }]} />);
+    expect(screen.getAllByText("素食 2 位").length).toBeGreaterThan(0);
+    expect(screen.getByText("素食 1 位")).toBeInTheDocument();
+    expect(screen.queryByText("素食 0 位")).not.toBeInTheDocument();
+  });
+
   it("groups every unassigned guest by side with accessible headings and preserved controls", () => {
     const { container } = render(
       <SeatingPlan
@@ -397,10 +408,12 @@ describe("SeatingPlan", () => {
     expect(container.querySelector("[data-assigned-guest-grid]")).toHaveClass(
       "grid",
       "grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))]",
+      "auto-rows-fr",
       "gap-3",
-      "items-start",
+      "items-stretch",
     );
     expect(container.querySelector("[data-assigned-guest-card]")).toHaveClass(
+      "h-full",
       "rounded-control",
       "border",
       "bg-surface-sunken/55",

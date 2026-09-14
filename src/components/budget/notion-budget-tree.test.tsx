@@ -15,6 +15,11 @@ vi.mock("./budget-forms", () => ({
   ChangeBudgetItemBookingStatusForm: ({ itemName }: { itemName: string }) => (
     <form aria-label={`更新狀態 ${itemName}`} />
   ),
+  ChangeBudgetItemPreparationStatusForm: ({
+    itemName,
+  }: {
+    itemName: string;
+  }) => <form aria-label={`更新準備方式 ${itemName}`} />,
 }));
 
 import type { BudgetItemListItem, BudgetSummary } from "@/lib/budget-list";
@@ -37,7 +42,6 @@ const richImportedItem: BudgetItemListItem = {
   directChildSetHash: "1".repeat(64),
   descendantCount: 1,
   source: "NOTION",
-  sourceHierarchyPath: ["合成根分類", "合成子分類", '<img src=x onerror="synthetic()">'],
   name: '<img src=x onerror="synthetic()">',
   kind: "EXPENSE",
   category: "OTHER_PENDING",
@@ -73,8 +77,11 @@ const summary: BudgetSummary = {
   actualTotal: "12000",
   balanceDueTotal: "34000",
   balanceDueCount: 1,
+  overdueBalanceDueCount: 0,
   balanceDueMissingAmountCount: 0,
-  nearestBalanceDueDate: null,
+  nearestUpcomingBalanceDueDate: null,
+  selfProvidedCount: 0,
+  notPlannedCount: 0,
 };
 
 describe("Notion Budget tree UI", () => {
@@ -132,7 +139,12 @@ describe("Notion Budget tree UI", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("synthetic-contact@example.test")).toBeInTheDocument();
     expect(screen.getByText("新郎")).toBeInTheDocument();
-    expect(screen.getByText("資料來源：Notion 單次匯入")).toBeInTheDocument();
+    // Notion 匯入痕跡完全不對使用者顯示。
+    expect(
+      screen.queryByText("資料來源：Notion 單次匯入"),
+    ).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("原始分類路徑");
+    expect(container).not.toHaveTextContent("Notion 原始路徑");
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("script")).toBeNull();
     expect(row).toHaveClass("min-w-0");

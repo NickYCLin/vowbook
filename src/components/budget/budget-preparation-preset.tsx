@@ -6,6 +6,10 @@ import {
   type BudgetItemMutationState,
 } from "@/actions/budget-items";
 import { BUDGET_PREPARATION_PRESET_STAGES } from "@/domain/budget-preparation-preset";
+import {
+  BUDGET_PREPARATION_STATUS_LABELS,
+  type BudgetPreparationStatus,
+} from "@/domain/budget-item";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
 
 const initialState: BudgetItemMutationState = { status: "idle" };
@@ -30,11 +34,13 @@ export function BudgetPreparationPreset({
   workspaceId,
   existingSuggestionKeys,
   coveredSuggestionKeys = emptySuggestionKeys,
+  showProcessionCeremony = false,
   onSuccess,
 }: {
   workspaceId: string;
   existingSuggestionKeys: ReadonlySet<string>;
   coveredSuggestionKeys?: ReadonlySet<string>;
+  showProcessionCeremony?: boolean;
   onSuccess?: (message: string) => void;
 }) {
   const idPrefix = useId();
@@ -42,12 +48,21 @@ export function BudgetPreparationPreset({
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [preparationStatuses, setPreparationStatuses] = useState<
+    Map<string, BudgetPreparationStatus>
+  >(new Map());
+  const preparationStatusesRef = useRef<
+    Map<string, BudgetPreparationStatus>
+  >(new Map());
   const [showOptionalSuggestions, setShowOptionalSuggestions] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [inputVersion, setInputVersion] = useState(0);
   const isUnavailable = (key: string) =>
     existingSuggestionKeys.has(key) || coveredSuggestionKeys.has(key);
-  const availableItems = preparationPresetItems.filter(
+  const visiblePreparationPresetItems = showProcessionCeremony
+    ? preparationPresetItems
+    : standardPreparationPresetItems;
+  const availableItems = visiblePreparationPresetItems.filter(
     (item) => !isUnavailable(item.key),
   );
   const availableKeys: ReadonlySet<string> = new Set(
@@ -76,10 +91,18 @@ export function BudgetPreparationPreset({
       const submittedKeys = formData
         .getAll("suggestionKey")
         .filter((value): value is string => typeof value === "string");
+      const submittedStatuses = new Map<string, BudgetPreparationStatus>(
+        submittedKeys.map((key) => [
+          key,
+          preparationStatusesRef.current.get(key) ?? "NEEDS_ACTION",
+        ]),
+      );
       const nextState = await action(previousState, formData);
       setShowFeedback(true);
       if (nextState.status === "success") {
         setSelectedKeys(new Set());
+        preparationStatusesRef.current = new Map();
+        setPreparationStatuses(new Map());
         dialogRef.current?.close();
         onSuccess?.(nextState.message ?? "已加入常見婚禮項目。");
       } else if (nextState.status === "error") {
@@ -87,6 +110,8 @@ export function BudgetPreparationPreset({
           setSelectedKeys(
             new Set(submittedKeys.filter((key) => !isUnavailable(key))),
           );
+          preparationStatusesRef.current = submittedStatuses;
+          setPreparationStatuses(submittedStatuses);
           setInputVersion((current) => current + 1);
         }, 0);
       }
@@ -119,6 +144,31 @@ export function BudgetPreparationPreset({
       else next.delete(key);
       return next;
     });
+    if (!selected) {
+      const nextRef = new Map(preparationStatusesRef.current);
+      nextRef.delete(key);
+      preparationStatusesRef.current = nextRef;
+      setPreparationStatuses((current) => {
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
+
+  function setPreparationStatus(
+    key: string,
+    status: BudgetPreparationStatus,
+  ) {
+    if (isUnavailable(key) || isPending) return;
+    const nextRef = new Map(preparationStatusesRef.current);
+    nextRef.set(key, status);
+    preparationStatusesRef.current = nextRef;
+    setPreparationStatuses((current) => {
+      const next = new Map(current);
+      next.set(key, status);
+      return next;
+    });
   }
 
   function selectAllStandard() {
@@ -131,6 +181,8 @@ export function BudgetPreparationPreset({
   function clearSelection() {
     if (isPending) return;
     setSelectedKeys(new Set());
+    preparationStatusesRef.current = new Map();
+    setPreparationStatuses(new Map());
   }
 
   return (
@@ -185,7 +237,7 @@ export function BudgetPreparationPreset({
             id={`${idPrefix}-description`}
             className="text-sm leading-6 text-stone-600"
           >
-            依 Drive 籌備階段列出常見項目；迎娶流程為選用，不會包含在一般項目的全選範圍。只會加入勾選內容，加入後可再編輯。
+            依 Drive 籌備階段列出常見項目；勾選後可分別標示需要安排、已有自備或不打算準備。{showProcessionCeremony ? "已明確選擇有迎娶儀式，因此一併提供迎娶項目。" : "此清單目前只包含一般婚禮項目。"}
           </p>
 
           <div className="mt-5 flex min-w-0 flex-col gap-2 rounded-xl border border-[#cbd8ce] bg-[#f4faf5] p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -223,6 +275,7 @@ export function BudgetPreparationPreset({
           >
             <legend className="sr-only">常見婚禮項目</legend>
             {BUDGET_PREPARATION_PRESET_STAGES.map((stage) => {
+              if (stage.optional && !showProcessionCeremony) return null;
               const stageTitleId = `${idPrefix}-${stage.stageKey}-title`;
               const stageContent = (
                 <section
@@ -252,54 +305,102 @@ export function BudgetPreparationPreset({
                             const covered =
                               !exists && coveredSuggestionKeys.has(item.key);
                             const unavailable = exists || covered;
+                            const selected =
+                              !unavailable &&
+                              availableSelectedKeys.has(item.key);
+                            const checkboxId = `${idPrefix}-${item.key}-selected`;
+                            const preparationStatusId = `${idPrefix}-${item.key}-preparation-status`;
                             return (
-                              <label
+                              <div
                                 key={item.key}
                                 className={[
-                                  "flex min-h-11 min-w-0 items-start gap-3 rounded-xl border px-3 py-3 text-sm",
+                                  "min-h-11 min-w-0 rounded-xl border px-3 py-3 text-sm",
                                   unavailable
                                     ? "border-stone-200 bg-stone-100 text-stone-500"
-                                    : "cursor-pointer border-stone-300 bg-white text-stone-800 hover:border-[#9bb1a2] hover:bg-[#f4faf5]",
+                                    : "border-stone-300 bg-white text-stone-800 hover:border-[#9bb1a2] hover:bg-[#f4faf5]",
                                 ].join(" ")}
                               >
-                                <input
-                                  key={item.key + ":" + inputVersion}
-                                  type="checkbox"
-                                  name="suggestionKey"
-                                  value={item.key}
-                                  checked={
-                                    !unavailable &&
-                                    availableSelectedKeys.has(item.key)
-                                  }
-                                  disabled={unavailable}
-                                  onChange={(event) =>
-                                    setSuggestionSelected(
-                                      item.key,
-                                      event.target.checked,
-                                    )
-                                  }
-                                  className="mt-0.5 shrink-0"
-                                />
-                                <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
-                                  <span className="font-semibold">
-                                    {item.name}
+                                <label
+                                  htmlFor={checkboxId}
+                                  className={[
+                                    "flex min-h-11 min-w-0 items-start gap-3",
+                                    unavailable ? "" : "cursor-pointer",
+                                  ].join(" ")}
+                                >
+                                  <input
+                                    key={`${item.key}:checkbox:${inputVersion}`}
+                                    id={checkboxId}
+                                    type="checkbox"
+                                    name="suggestionKey"
+                                    value={item.key}
+                                    checked={selected}
+                                    disabled={unavailable}
+                                    onChange={(event) =>
+                                      setSuggestionSelected(
+                                        item.key,
+                                        event.target.checked,
+                                      )
+                                    }
+                                    className="mt-0.5 shrink-0"
+                                  />
+                                  <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
+                                    <span className="font-semibold">
+                                      {item.name}
+                                    </span>
+                                    {item.notes ? (
+                                      <span className="mt-1 block text-xs leading-5 text-stone-500">
+                                        {item.notes}
+                                      </span>
+                                    ) : null}
+                                    {exists ? (
+                                      <span className="mt-1 block text-xs font-semibold text-[#567260]">
+                                        已加入
+                                      </span>
+                                    ) : covered ? (
+                                      <span className="mt-1 block text-xs font-semibold text-[#567260]">
+                                        已有相關紀錄
+                                      </span>
+                                    ) : null}
                                   </span>
-                                  {item.notes ? (
-                                    <span className="mt-1 block text-xs leading-5 text-stone-500">
-                                      {item.notes}
-                                    </span>
-                                  ) : null}
-                                  {exists ? (
-                                    <span className="mt-1 block text-xs font-semibold text-[#567260]">
-                                      已加入
-                                    </span>
-                                  ) : covered ? (
-                                    <span className="mt-1 block text-xs font-semibold text-[#567260]">
-                                      已有相關紀錄
-                                    </span>
-                                  ) : null}
-                                </span>
-                              </label>
+                                </label>
+                                {!unavailable ? (
+                                  <div className="mt-3 border-t border-stone-200 pt-3">
+                                    <label
+                                      htmlFor={preparationStatusId}
+                                      className="block text-xs font-semibold text-stone-600"
+                                    >
+                                      準備方式
+                                    </label>
+                                    <select
+                                      key={`${item.key}:status:${inputVersion}`}
+                                      id={preparationStatusId}
+                                      aria-label={`${item.name}的準備方式`}
+                                      name={`preparationStatus:${item.key}`}
+                                      disabled={!selected}
+                                      value={
+                                        preparationStatuses.get(item.key) ??
+                                        "NEEDS_ACTION"
+                                      }
+                                      onChange={(event) =>
+                                        setPreparationStatus(
+                                          item.key,
+                                          event.target
+                                            .value as BudgetPreparationStatus,
+                                        )
+                                      }
+                                      className="mt-2 min-h-11 w-full min-w-0 rounded-lg border border-stone-300 bg-white px-3 text-sm text-stone-800 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                                    >
+                                      {Object.entries(
+                                        BUDGET_PREPARATION_STATUS_LABELS,
+                                      ).map(([value, label]) => (
+                                        <option key={value} value={value}>
+                                          {label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                ) : null}
+                              </div>
                             );
                           })}
                         </div>
@@ -335,13 +436,15 @@ export function BudgetPreparationPreset({
                     </span>
                   </button>
                   <p className="mt-1 text-sm leading-6 text-stone-600">
-                    沒有迎娶流程時不需要加入；展開後再挑選實際會用到的項目。
+                    沒有中式迎娶流程時不需要加入；西式證婚不等於迎娶，不會自動帶入這些項目。展開後再挑選實際會用到的項目。
                   </p>
-                  {showOptionalSuggestions ? (
-                    <div id={optionalContentId} className="mt-4">
-                      {stageContent}
-                    </div>
-                  ) : null}
+                  <div
+                    id={optionalContentId}
+                    hidden={!showOptionalSuggestions}
+                    className="mt-4"
+                  >
+                    {stageContent}
+                  </div>
                 </section>
               );
             })}

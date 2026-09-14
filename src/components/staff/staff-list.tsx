@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  summarizeWeddingStaffMeals,
+  summarizeWeddingStaffRedEnvelopes,
+} from "@/domain/wedding-staff";
+import { setWeddingStaffRedEnvelopeSentAction } from "@/actions/wedding-staff";
+import { ActionFeedback } from "@/components/ui/action-feedback";
+import { SubmitButton } from "@/components/ui/button";
 import type { WeddingStaffListItem } from "@/lib/wedding-staff-list";
 import {
   CreateWeddingStaffForm,
@@ -17,6 +24,70 @@ const LEAD_RECEPTION_ROLE = "總招待";
 
 function staffEditTriggerId(staffId: string) {
   return `wedding-staff-edit-${staffId}`;
+}
+
+/** 只有份數與素食兩個數字，葷食一律由相減得出，避免兩處各記一次。 */
+function mealDescription(mealCount: number, vegetarianMealCount: number) {
+  const nonVegetarian = mealCount - vegetarianMealCount;
+  if (vegetarianMealCount === 0) return `便當 ${mealCount} 份（全葷食）`;
+  if (nonVegetarian === 0) return `便當 ${mealCount} 份（全素食）`;
+  return `便當 ${mealCount} 份（葷 ${nonVegetarian}／素 ${vegetarianMealCount}）`;
+}
+
+function formatTwd(amount: number) {
+  return `NT$ ${new Intl.NumberFormat("zh-TW", {
+    maximumFractionDigits: 0,
+  }).format(amount)}`;
+}
+
+/**
+ * 婚宴結束時逐一發紅包，最常做的事就是「發出去了，標一下」，因此做成一次點擊。
+ */
+function ToggleRedEnvelopeForm({
+  workspaceId,
+  person,
+}: {
+  workspaceId: string;
+  person: WeddingStaffListItem;
+}) {
+  const alreadySent = person.redEnvelopeSentAt !== null;
+  const toggleAction = setWeddingStaffRedEnvelopeSentAction.bind(
+    null,
+    workspaceId,
+    person.id,
+  );
+  const [state, formAction, isPending] = useActionState(toggleAction, {
+    status: "idle" as const,
+  });
+
+  return (
+    <form
+      action={formAction}
+      aria-label={
+        alreadySent
+          ? `改回 ${person.personName} 尚未發放紅包表單`
+          : `標記 ${person.personName} 已發放紅包表單`
+      }
+      className="min-w-0"
+    >
+      <input type="hidden" name="expectedVersion" value={person.version} />
+      {alreadySent ? null : (
+        <input type="hidden" name="redEnvelopeSent" value="on" />
+      )}
+      <SubmitButton
+        isPending={isPending}
+        pendingLabel="更新中…"
+        variant={alreadySent ? "ghost" : "secondary"}
+        size="sm"
+        className="min-h-11 sm:min-h-9"
+      >
+        {alreadySent ? "改回未發放" : "標記已發放"}
+      </SubmitButton>
+      {state.status === "error" ? (
+        <ActionFeedback state={state} className="mt-2" />
+      ) : null}
+    </form>
+  );
 }
 
 function groupedStaff(staff: WeddingStaffListItem[]) {
@@ -48,6 +119,8 @@ export function WeddingStaffList({
     staff.map(({ id, roleName }) => ({ id, roleName })),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const mealSummary = summarizeWeddingStaffMeals(staff);
+  const redEnvelopeSummary = summarizeWeddingStaffRedEnvelopes(staff);
 
   useEffect(() => {
     const previousStaff = previousStaffRef.current;
@@ -127,9 +200,46 @@ export function WeddingStaffList({
         <>
           <Card>
             <div className="px-5 py-5 sm:px-6">
-              <StatRow className="sm:grid-cols-2">
+              <StatRow className="sm:grid-cols-3">
                 <Stat label="工作人員" value={staff.length} unit="位" />
                 <Stat label="職務分組" value={groups.length} unit="組" />
+                <Stat
+                  label="便當份數"
+                  value={mealSummary.mealCount}
+                  unit="份"
+                  hint={`${mealSummary.entryCount} 筆需要便當`}
+                  tone="brand"
+                />
+                <Stat
+                  label="葷素分配"
+                  value={`葷 ${mealSummary.nonVegetarianMealCount}`}
+                  unit={`／素 ${mealSummary.vegetarianMealCount}`}
+                  hint="素食份數含在便當份數內"
+                />
+              </StatRow>
+              <StatRow className="mt-5 sm:grid-cols-3">
+                <Stat
+                  label="紅包總額"
+                  value={formatTwd(redEnvelopeSummary.plannedAmount)}
+                  hint={`${redEnvelopeSummary.plannedCount} 位要包紅包`}
+                  tone="brand"
+                />
+                <Stat
+                  label="已發放"
+                  value={redEnvelopeSummary.sentCount}
+                  unit="位"
+                  hint={formatTwd(redEnvelopeSummary.sentAmount)}
+                  tone="positive"
+                />
+                <Stat
+                  label="尚未發放"
+                  value={redEnvelopeSummary.pendingCount}
+                  unit="位"
+                  hint={formatTwd(redEnvelopeSummary.pendingAmount)}
+                  tone={
+                    redEnvelopeSummary.pendingCount > 0 ? "caution" : "neutral"
+                  }
+                />
               </StatRow>
             </div>
           </Card>
@@ -157,6 +267,26 @@ export function WeddingStaffList({
                           {person.contactPhone}
                         </p>
                       )}
+                      <p className="mt-1 text-caption text-ink-soft">
+                        {person.mealCount === null
+                          ? "不需要便當"
+                          : mealDescription(
+                              person.mealCount,
+                              person.vegetarianMealCount ?? 0,
+                            )}
+                      </p>
+                      {person.redEnvelopeAmount === null ? null : (
+                        <p
+                          className={
+                            person.redEnvelopeSentAt
+                              ? "mt-1 text-caption font-semibold text-positive"
+                              : "mt-1 text-caption font-semibold text-caution"
+                          }
+                        >
+                          紅包 {formatTwd(person.redEnvelopeAmount)}・
+                          {person.redEnvelopeSentAt ? "已發放" : "尚未發放"}
+                        </p>
+                      )}
                       {person.notes && (
                         <p className="mt-1.5 min-w-0 text-caption leading-6 break-words whitespace-pre-wrap text-ink-soft [overflow-wrap:anywhere]">
                           {person.notes}
@@ -166,6 +296,12 @@ export function WeddingStaffList({
                     {/* 動作區不能 shrink-0：觸發鈕帶著使用者輸入的姓名，會把整列撐爆。 */}
                     {canEdit && (
                       <div className="flex min-w-0 flex-wrap items-center gap-1 sm:justify-end">
+                        {person.redEnvelopeAmount === null ? null : (
+                          <ToggleRedEnvelopeForm
+                            workspaceId={workspaceId}
+                            person={person}
+                          />
+                        )}
                         <EditWeddingStaffForm
                           workspaceId={workspaceId}
                           staffId={person.id}
@@ -173,6 +309,9 @@ export function WeddingStaffList({
                           personName={person.personName}
                           contactPhone={person.contactPhone}
                           notes={person.notes}
+                          mealCount={person.mealCount}
+                          vegetarianMealCount={person.vegetarianMealCount}
+                          redEnvelopeAmount={person.redEnvelopeAmount}
                           expectedVersion={person.version}
                           triggerId={staffEditTriggerId(person.id)}
                         />
@@ -181,6 +320,9 @@ export function WeddingStaffList({
                           staffId={person.id}
                           personName={person.personName}
                           expectedVersion={person.version}
+                          timelineAssignmentFingerprint={
+                            person.timelineAssignmentFingerprint
+                          }
                         />
                       </div>
                     )}

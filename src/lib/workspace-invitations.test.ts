@@ -49,6 +49,35 @@ function serializableClient(transaction: ReturnType<typeof transactionClient>) {
   } as unknown as Pick<PrismaClient, "$transaction">;
 }
 
+function repeatableReadClient(
+  memberFindMany: ReturnType<typeof vi.fn>,
+  invitationQuery: ReturnType<typeof vi.fn>,
+) {
+  const transaction = {
+    membership: {
+      findUnique: vi.fn(),
+      findMany: memberFindMany,
+    },
+    $queryRaw: invitationQuery,
+  };
+  const run = vi.fn(
+    async (
+      operation: (client: typeof transaction) => Promise<unknown>,
+      options: unknown,
+    ) => {
+      expect(options).toEqual({ isolationLevel: "RepeatableRead" });
+      return operation(transaction);
+    },
+  );
+  return {
+    client: { $transaction: run } as unknown as NonNullable<
+      Parameters<typeof getWorkspaceMembersData>[1]
+    >,
+    transaction,
+    run,
+  };
+}
+
 function queryText(mock: ReturnType<typeof vi.fn>, call = 0) {
   const strings = mock.mock.calls[call]?.[0] as TemplateStringsArray;
   return Array.from(strings).join("?");
@@ -565,10 +594,25 @@ describe("workspace members privacy and DB-clock expiry query", () => {
         user: { name: "協作者", email: "member@example.com" },
       },
     ]);
-    const data = await getWorkspaceMembersData("workspace_1", {
-      membership: { findMany: memberFindMany },
-      $queryRaw: invitationQuery,
-    });
+    const readClient = repeatableReadClient(memberFindMany, invitationQuery);
+    const data = await getWorkspaceMembersData("workspace_1", readClient.client);
+
+    expect(requireWorkspaceAccess).toHaveBeenCalledWith(
+      "workspace_1",
+      "session_user",
+      "read",
+      readClient.transaction,
+    );
+    expect(readClient.run).toHaveBeenCalledOnce();
+    expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      readClient.run.mock.invocationCallOrder[0],
+    );
+    expect(readClient.run.mock.invocationCallOrder[0]).toBeLessThan(
+      requireWorkspaceAccess.mock.invocationCallOrder[0],
+    );
+    expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      memberFindMany.mock.invocationCallOrder[0],
+    );
 
     expect(data.members).toEqual([
       {
@@ -613,10 +657,8 @@ describe("workspace members privacy and DB-clock expiry query", () => {
     ]);
     const invitationQuery = vi.fn();
 
-    const data = await getWorkspaceMembersData("workspace_1", {
-      membership: { findMany: memberFindMany },
-      $queryRaw: invitationQuery,
-    });
+    const readClient = repeatableReadClient(memberFindMany, invitationQuery);
+    const data = await getWorkspaceMembersData("workspace_1", readClient.client);
     expect(data.pendingInvitations).toBeUndefined();
     expect(data.renewableInvitations).toBeUndefined();
     expect(data.members[0]).not.toHaveProperty("management");
@@ -635,24 +677,32 @@ describe("workspace members privacy and DB-clock expiry query", () => {
     requireWorkspaceAccess.mockRejectedValueOnce(
       new WorkspaceAccessDeniedError(),
     );
-    const client = {
-      membership: { findMany: vi.fn() },
-      $queryRaw: vi.fn(),
-    };
+    const memberFindMany = vi.fn();
+    const invitationQuery = vi.fn();
+    const readClient = repeatableReadClient(memberFindMany, invitationQuery);
     await expect(
-      getWorkspaceMembersData("workspace_secret", client),
+      getWorkspaceMembersData("workspace_secret", readClient.client),
     ).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
-    expect(client.membership.findMany).not.toHaveBeenCalled();
+    expect(memberFindMany).not.toHaveBeenCalled();
+    expect(invitationQuery).not.toHaveBeenCalled();
+    expect(readClient.run).toHaveBeenCalledOnce();
+
+    requireWorkspaceAccess.mockRejectedValueOnce(
+      new Error("membership database secret"),
+    );
+    await expect(
+      getWorkspaceMembersData("workspace_1", readClient.client),
+    ).rejects.toEqual(new WorkspaceMembersDataError());
+    expect(memberFindMany).not.toHaveBeenCalled();
+    expect(invitationQuery).not.toHaveBeenCalled();
 
     requireWorkspaceAccess.mockResolvedValueOnce({
       role: "OWNER",
       workspace: { id: "workspace_1", name: "合成婚宴" },
     });
-    client.membership.findMany.mockRejectedValueOnce(
-      new Error("postgres://secret"),
-    );
+    memberFindMany.mockRejectedValueOnce(new Error("postgres://secret"));
     await expect(
-      getWorkspaceMembersData("workspace_1", client),
+      getWorkspaceMembersData("workspace_1", readClient.client),
     ).rejects.toEqual(new WorkspaceMembersDataError());
   });
 });

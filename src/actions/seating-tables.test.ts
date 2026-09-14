@@ -139,6 +139,28 @@ function swapFormData(
   return formData;
 }
 
+function assignmentFormData(
+  tableId: string,
+  expectedGuestVersion = 0,
+  expectedSeatingTableId: string | null = null,
+) {
+  const formData = new FormData();
+  formData.set("tableId", tableId);
+  formData.set("expectedGuestVersion", String(expectedGuestVersion));
+  formData.set("expectedSeatingTableId", expectedSeatingTableId ?? "");
+  return formData;
+}
+
+function unassignmentFormData(
+  expectedSeatingTableId: string,
+  expectedGuestVersion = 0,
+) {
+  const formData = new FormData();
+  formData.set("expectedGuestVersion", String(expectedGuestVersion));
+  formData.set("expectedSeatingTableId", expectedSeatingTableId);
+  return formData;
+}
+
 const layoutTableRows = [
   {
     id: "table_1",
@@ -206,6 +228,7 @@ describe("seating table server actions", () => {
       partySize: 3,
       attendanceStatus: "ATTENDING",
       seatingTableId: null,
+      version: 0,
     });
     guestFindMany.mockResolvedValue([]);
     guestAggregate.mockResolvedValue({ _sum: { partySize: 4 } });
@@ -261,6 +284,47 @@ describe("seating table server actions", () => {
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: "Serializable",
     });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/tables",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/guests",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("keeps a committed seating write successful and attempts every dependent revalidation", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    revalidatePath.mockImplementationOnce(() => {
+      throw new Error("secret cache failure");
+    });
+
+    await expect(
+      createSeatingTableAction(
+        "workspace_1",
+        idleState,
+        validTableFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已新增桌次；畫面未自動更新，請重新整理。",
+    });
+
+    expect(tableCreate).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledTimes(4);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/guests",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(log).toHaveBeenCalledWith("桌次相關頁面重新驗證失敗。");
+    expect(log).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+    log.mockRestore();
   });
 
   it("rejects create before write when the candidate whole layout cannot resolve", async () => {
@@ -932,6 +996,10 @@ describe("seating table server actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/guests",
     );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
   it("rejects a name edit before write when 主桌 selection leaves an invalid whole layout", async () => {
@@ -1030,6 +1098,26 @@ describe("seating table server actions", () => {
       status: "success",
       message: "所有桌次都已是自動排列。",
     });
+  });
+
+  it("keeps a committed layout reset successful when its page revalidation fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    tableUpdateMany.mockResolvedValueOnce({ count: 2 });
+    revalidatePath.mockRejectedValueOnce(new Error("secret cache failure"));
+
+    await expect(
+      resetSeatingTableLayoutsAction("workspace_1", idleState, new FormData()),
+    ).resolves.toEqual({
+      status: "success",
+      message:
+        "已將 2 桌還原自動排列；畫面未自動更新，請重新整理。",
+    });
+
+    expect(tableUpdateMany).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith("桌次相關頁面重新驗證失敗。");
+    expect(log).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+    log.mockRestore();
   });
 
   it("denies a bulk layout reset without edit access", async () => {
@@ -1195,8 +1283,7 @@ describe("seating table server actions", () => {
   });
 
   it("assigns an unassigned guest without exceeding capacity", async () => {
-    const formData = new FormData();
-    formData.set("tableId", "table_1");
+    const formData = assignmentFormData("table_1");
     formData.set("workspaceId", "workspace_attacker");
     guestAggregate.mockResolvedValue({ _sum: { partySize: 7 } });
 
@@ -1213,6 +1300,7 @@ describe("seating table server actions", () => {
         partySize: true,
         attendanceStatus: true,
         seatingTableId: true,
+        version: true,
       },
     });
     expect(tableFindUnique).toHaveBeenCalledWith({
@@ -1230,24 +1318,27 @@ describe("seating table server actions", () => {
     expect(assignmentLockSql).toContain('"workspace_id" =');
     expect(assignmentLockSql).toContain('"id" =');
     expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      guestUpdate.mock.invocationCallOrder[0],
+      guestUpdateMany.mock.invocationCallOrder[0],
     );
-    expect(guestUpdate).toHaveBeenCalledWith({
+    expect(guestUpdateMany).toHaveBeenCalledWith({
       where: {
-        id_workspaceId: { id: "guest_1", workspaceId: "workspace_1" },
+        id: "guest_1",
+        workspaceId: "workspace_1",
+        version: 0,
+        seatingTableId: null,
       },
       data: { seatingTableId: "table_1", version: { increment: 1 } },
     });
   });
 
   it("rejects a declined guest submitted through a stale assignment form", async () => {
-    const formData = new FormData();
-    formData.set("tableId", "table_1");
+    const formData = assignmentFormData("table_1");
     guestFindUnique.mockResolvedValue({
       id: "guest_1",
       partySize: 3,
       attendanceStatus: "DECLINED",
       seatingTableId: null,
+      version: 0,
     });
 
     await expect(
@@ -1259,12 +1350,11 @@ describe("seating table server actions", () => {
 
     expect(tableFindUnique).not.toHaveBeenCalled();
     expect(guestAggregate).not.toHaveBeenCalled();
-    expect(guestUpdate).not.toHaveBeenCalled();
+    expect(guestUpdateMany).not.toHaveBeenCalled();
   });
 
   it("rejects over-capacity assignment and does not leak cross-workspace records", async () => {
-    const formData = new FormData();
-    formData.set("tableId", "table_from_workspace_2");
+    const formData = assignmentFormData("table_from_workspace_2");
     guestAggregate.mockResolvedValue({ _sum: { partySize: 10 } });
 
     await expect(
@@ -1273,7 +1363,7 @@ describe("seating table server actions", () => {
       status: "error",
       message: "此桌剩餘座位不足，請重新安排。",
     });
-    expect(guestUpdate).not.toHaveBeenCalled();
+    expect(guestUpdateMany).not.toHaveBeenCalled();
 
     tableFindUnique.mockResolvedValueOnce(null);
     await expect(
@@ -1294,19 +1384,20 @@ describe("seating table server actions", () => {
   });
 
   it("does not double-count a guest when the same table is saved again", async () => {
-    const formData = new FormData();
-    formData.set("tableId", "table_1");
+    const formData = assignmentFormData("table_1", 0, "table_1");
     guestFindUnique.mockResolvedValue({
       id: "guest_1",
       partySize: 3,
+      attendanceStatus: "ATTENDING",
       seatingTableId: "table_1",
+      version: 0,
     });
     guestAggregate.mockResolvedValue({ _sum: { partySize: 10 } });
 
     await expect(
       assignGuestToTableAction("workspace_1", "guest_1", idleState, formData),
     ).resolves.toEqual({ status: "success", message: "桌次安排沒有變更。" });
-    expect(guestUpdate).not.toHaveBeenCalled();
+    expect(guestUpdateMany).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/tables",
     );
@@ -1315,18 +1406,73 @@ describe("seating table server actions", () => {
     );
   });
 
+  it("rejects a stale assignment snapshot after another editor moved the guest", async () => {
+    guestFindUnique.mockResolvedValue({
+      id: "guest_1",
+      partySize: 3,
+      attendanceStatus: "ATTENDING",
+      seatingTableId: "table_2",
+      version: 1,
+    });
+
+    await expect(
+      assignGuestToTableAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        assignmentFormData("table_3", 0, "table_1"),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客桌次已由其他人更新，請重新載入後再試。",
+    });
+
+    expect(tableFindUnique).not.toHaveBeenCalled();
+    expect(guestUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale unassignment snapshot when the CAS no longer matches", async () => {
+    guestUpdateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      unassignGuestFromTableAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        unassignmentFormData("table_1", 0),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客桌次已由其他人更新，請重新載入後再試。",
+    });
+
+    expect(guestUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: "guest_1",
+        workspaceId: "workspace_1",
+        version: 0,
+        seatingTableId: "table_1",
+      },
+      data: { seatingTableId: null, version: { increment: 1 } },
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
   it("unassigns by composite selector and previews then confirms an empty-table deletion", async () => {
     await expect(
       unassignGuestFromTableAction(
         "workspace_1",
         "guest_1",
         idleState,
-        new FormData(),
+        unassignmentFormData("table_1"),
       ),
     ).resolves.toEqual({ status: "success", message: "已將賓客移出桌次。" });
-    expect(guestUpdate).toHaveBeenCalledWith({
+    expect(guestUpdateMany).toHaveBeenCalledWith({
       where: {
-        id_workspaceId: { id: "guest_1", workspaceId: "workspace_1" },
+        id: "guest_1",
+        workspaceId: "workspace_1",
+        version: 0,
+        seatingTableId: "table_1",
       },
       data: { seatingTableId: null, version: { increment: 1 } },
     });
@@ -1394,8 +1540,8 @@ describe("seating table server actions", () => {
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: "Serializable",
     });
-    expect(guestUpdate).toHaveBeenCalledTimes(1);
-    expect(guestUpdateMany).not.toHaveBeenCalled();
+    expect(guestUpdate).not.toHaveBeenCalled();
+    expect(guestUpdateMany).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a reduction candidate before returning a commit-capable confirmation", async () => {

@@ -12,6 +12,8 @@ const {
   aggregate,
   tableFindUnique,
   detailsUpsert,
+  detailsFindMany,
+  queryRaw,
   transaction,
   revalidatePath,
 } = vi.hoisted(() => ({
@@ -25,6 +27,8 @@ const {
   aggregate: vi.fn(),
   tableFindUnique: vi.fn(),
   detailsUpsert: vi.fn(),
+  detailsFindMany: vi.fn(),
+  queryRaw: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -37,7 +41,7 @@ vi.mock("@/lib/workspace-mutation-access", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     guest: { create, findUnique, aggregate, updateMany: update, deleteMany: remove },
-    guestImportRecord: { upsert: detailsUpsert },
+    guestImportRecord: { upsert: detailsUpsert, findMany: detailsFindMany },
     seatingTable: { findUnique: tableFindUnique },
     $transaction: transaction,
   },
@@ -67,6 +71,10 @@ function validGuestFormData() {
 function validDeleteFormData() {
   const formData = new FormData();
   formData.set("expectedVersion", "0");
+  formData.set("expectedWeddingGiftId", "");
+  formData.set("expectedWeddingGiftVersion", "");
+  formData.set("expectedGuestCheckInId", "");
+  formData.set("expectedGuestCheckInVersion", "");
   return formData;
 }
 
@@ -98,11 +106,22 @@ describe("guest server actions", () => {
     });
     aggregate.mockResolvedValue({ _sum: { partySize: 0 } });
     tableFindUnique.mockResolvedValue({ id: "table_1", capacity: 10 });
+    detailsFindMany.mockResolvedValue([]);
+    queryRaw.mockImplementation(async (statement) => {
+      const sql = Array.isArray(statement?.strings)
+        ? statement.strings.join(" ")
+        : "";
+      if (sql.includes('FROM "guests"')) return [{ id: "guest_1" }];
+      if (sql.includes('FROM "wedding_gifts"')) return [];
+      if (sql.includes('FROM "guest_check_ins"')) return [];
+      return [];
+    });
     transaction.mockImplementation(async (operation) =>
       operation({
         guest: { create, findUnique, aggregate, updateMany: update, deleteMany: remove },
-        guestImportRecord: { upsert: detailsUpsert },
+        guestImportRecord: { upsert: detailsUpsert, findMany: detailsFindMany },
         seatingTable: { findUnique: tableFindUnique },
+        $queryRaw: queryRaw,
       }),
     );
   });
@@ -144,6 +163,35 @@ describe("guest server actions", () => {
       "/workspaces/workspace_1/tables",
     );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+  });
+
+  it("keeps a committed guest write successful and attempts every dependent revalidation", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    revalidatePath.mockImplementationOnce(() => {
+      throw new Error("secret cache failure");
+    });
+
+    await expect(
+      createGuestAction("workspace_1", idleState, validGuestFormData()),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已新增賓客；畫面未自動更新，請重新整理。",
+    });
+
+    expect(create).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledTimes(4);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/tables",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(log).toHaveBeenCalledWith("賓客相關頁面重新驗證失敗。");
+    expect(log).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+    log.mockRestore();
   });
 
   it("persists an explicitly selected seniority for sorting", async () => {
@@ -175,7 +223,7 @@ describe("guest server actions", () => {
     });
   });
 
-  it("stores optional details for a manually created guest without an import label", async () => {
+  it("stores optional details but ignores a crafted legacy ceremony field", async () => {
     const formData = validGuestFormData();
     formData.set("relationshipLabel", "大學同學");
     formData.set("contactPhone", "0900-000-000");
@@ -213,7 +261,7 @@ describe("guest server actions", () => {
         relationshipLabel: "大學同學",
         contactPhone: "0900-000-000",
         contactEmail: "guest@example.test",
-        ceremonyAttendance: true,
+        ceremonyAttendance: null,
         childSeatCount: 1,
         vegetarianCount: 0,
         invitationDelivery: "DIGITAL",
@@ -226,6 +274,22 @@ describe("guest server actions", () => {
         contactPhone: "0900-000-000",
       }),
     });
+  });
+
+  it("rejects creating requirements that exceed the guest party size", async () => {
+    const formData = validGuestFormData();
+    formData.set("childSeatCount", "4");
+    formData.set("vegetarianCount", "1");
+
+    await expect(
+      createGuestAction("workspace_1", idleState, formData),
+    ).resolves.toEqual({
+      status: "error",
+      message: "兒童座椅不能超過邀請人數。",
+    });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(detailsUpsert).not.toHaveBeenCalled();
   });
 
   it("denies VIEWER mutations before validation or database access", async () => {
@@ -315,6 +379,109 @@ describe("guest server actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("rejects a full edit whose requirements exceed the submitted party size", async () => {
+    const formData = validGuestFormData();
+    formData.set("childSeatCount", "1");
+    formData.set("vegetarianCount", "4");
+
+    await expect(
+      updateGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({
+      status: "error",
+      message: "素食人數不能超過邀請人數。",
+    });
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(detailsUpsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a quick party-size reduction below effective stored requirements", async () => {
+    findUnique.mockResolvedValue({
+      id: "guest_1",
+      version: 0,
+      partySize: 5,
+      seatingTableId: null,
+    });
+    detailsFindMany.mockResolvedValue([
+      {
+        source: "LINEIN",
+        sourceInstance: "default",
+        sourceManaged: true,
+        childSeatCount: 1,
+        vegetarianCount: 1,
+      },
+      {
+        source: "MANUAL",
+        sourceInstance: "guest-details",
+        sourceManaged: false,
+        childSeatCount: 3,
+        vegetarianCount: 2,
+      },
+    ]);
+    const formData = validGuestFormData();
+    formData.set("partySize", "2");
+
+    await expect(
+      updateGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({
+      status: "error",
+      message: "兒童座椅不能超過邀請人數。",
+    });
+
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
+    expect(requireLockedWorkspaceAccess).toHaveBeenCalled();
+    expect(
+      requireLockedWorkspaceAccess.mock.invocationCallOrder[0],
+    ).toBeLessThan(detailsFindMany.mock.invocationCallOrder[0]);
+    expect(detailsFindMany).toHaveBeenCalledWith({
+      where: { guestId: "guest_1", workspaceId: "workspace_1" },
+      orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+      select: {
+        source: true,
+        sourceInstance: true,
+        sourceManaged: true,
+        childSeatCount: true,
+        vegetarianCount: true,
+      },
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(detailsUpsert).not.toHaveBeenCalled();
+  });
+
+  it("allows a quick party-size reduction to the effective requirement boundary without truncating details", async () => {
+    findUnique.mockResolvedValue({
+      id: "guest_1",
+      version: 0,
+      partySize: 5,
+      seatingTableId: null,
+    });
+    detailsFindMany.mockResolvedValue([
+      {
+        source: "LINEIN",
+        sourceInstance: "default",
+        sourceManaged: true,
+        childSeatCount: 2,
+        vegetarianCount: 2,
+      },
+    ]);
+    const formData = validGuestFormData();
+    formData.set("partySize", "2");
+
+    await expect(
+      updateGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ partySize: 2 }),
+      }),
+    );
+    expect(detailsUpsert).not.toHaveBeenCalled();
+  });
+
   it("rejects stale Guest updates before overwriting a collaborator", async () => {
     findUnique.mockResolvedValue({
       id: "guest_1",
@@ -395,6 +562,7 @@ describe("guest server actions", () => {
       select: {
         id: true,
         version: true,
+        partySize: true,
         seatingTableId: true,
       },
     });
@@ -418,6 +586,14 @@ describe("guest server actions", () => {
   });
 
   it("saves editable details as a manual overlay without changing import provenance", async () => {
+    detailsFindMany.mockResolvedValueOnce([
+      {
+        source: "LINEIN",
+        sourceInstance: "default",
+        sourceManaged: true,
+        ceremonyAttendance: true,
+      },
+    ]);
     const formData = validGuestFormData();
     formData.set("contactPhone", "0911-111-111");
     formData.set("ceremonyAttendance", "DECLINED");
@@ -440,18 +616,79 @@ describe("guest server actions", () => {
       create: expect.objectContaining({
         guestId: "guest_1",
         contactPhone: "0911-111-111",
-        ceremonyAttendance: false,
+        ceremonyAttendance: true,
         invitationDelivery: "NONE",
         invitationReply: "不需要喜帖",
       }),
       update: expect.objectContaining({
         contactPhone: "0911-111-111",
-        ceremonyAttendance: false,
+        ceremonyAttendance: true,
         invitationDelivery: "NONE",
         invitationReply: "不需要喜帖",
       }),
     });
   });
+
+  it.each([
+    {
+      label: "manual overlay",
+      records: [
+        {
+          source: "MANUAL",
+          sourceInstance: "guest-details",
+          sourceManaged: false,
+          ceremonyAttendance: false,
+        },
+        {
+          source: "LINEIN",
+          sourceInstance: "default",
+          sourceManaged: true,
+          ceremonyAttendance: true,
+        },
+      ],
+      expected: false,
+    },
+    {
+      label: "import provenance",
+      records: [
+        {
+          source: "LINEIN",
+          sourceInstance: "default",
+          sourceManaged: true,
+          ceremonyAttendance: true,
+        },
+      ],
+      expected: true,
+    },
+  ])(
+    "preserves legacy ceremony attendance from $label when the general form omits it",
+    async ({ records, expected }) => {
+      detailsFindMany.mockResolvedValueOnce(records);
+      const formData = validGuestFormData();
+      formData.set("contactPhone", "0911-111-111");
+
+      await expect(
+        updateGuestAction("workspace_1", "guest_1", idleState, formData),
+      ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+
+      expect(detailsFindMany).toHaveBeenCalledWith({
+        where: { guestId: "guest_1", workspaceId: "workspace_1" },
+        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+        select: {
+          source: true,
+          sourceInstance: true,
+          sourceManaged: true,
+          ceremonyAttendance: true,
+        },
+      });
+      expect(detailsUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ ceremonyAttendance: expected }),
+          update: expect.objectContaining({ ceremonyAttendance: expected }),
+        }),
+      );
+    },
+  );
 
   it("preserves existing details when a quick edit only sends core fields", async () => {
     await expect(
@@ -464,6 +701,18 @@ describe("guest server actions", () => {
     ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
 
     expect(detailsUpsert).not.toHaveBeenCalled();
+  });
+
+  it("ignores a crafted legacy ceremony-only field without creating a manual overlay", async () => {
+    const formData = validGuestFormData();
+    formData.set("ceremonyAttendance", "DECLINED");
+
+    await expect(
+      updateGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已更新賓客。" });
+
+    expect(detailsUpsert).not.toHaveBeenCalled();
+    expect(detailsFindMany).not.toHaveBeenCalled();
   });
 
   it("allows core edits when every import record is an editable copy", async () => {
@@ -699,6 +948,17 @@ describe("guest server actions", () => {
     expect(remove).toHaveBeenCalledWith({
       where: { id: "guest_1", workspaceId: "workspace_1", version: 0 },
     });
+    const lockStatements = queryRaw.mock.calls.map(([statement]) =>
+      Array.isArray(statement?.strings) ? statement.strings.join(" ") : "",
+    );
+    expect(lockStatements.find((sql) => sql.includes('FROM "guests"')))
+      .toMatch(/"workspace_id"[\s\S]*"version"[\s\S]*FOR UPDATE/u);
+    expect(
+      lockStatements.find((sql) => sql.includes('FROM "wedding_gifts"')),
+    ).toMatch(/"workspace_id"[\s\S]*FOR UPDATE/u);
+    expect(
+      lockStatements.find((sql) => sql.includes('FROM "guest_check_ins"')),
+    ).toMatch(/"workspace_id"[\s\S]*FOR UPDATE/u);
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/guests",
     );
@@ -706,6 +966,146 @@ describe("guest server actions", () => {
       "/workspaces/workspace_1/tables",
     );
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("deletes a guest only when the locked wedding-gift snapshot matches", async () => {
+    queryRaw.mockImplementation(async (statement) => {
+      const sql = Array.isArray(statement?.strings)
+        ? statement.strings.join(" ")
+        : "";
+      if (sql.includes('FROM "guests"')) return [{ id: "guest_1" }];
+      if (sql.includes('FROM "wedding_gifts"')) {
+        return [{ id: "gift_1", version: 2 }];
+      }
+      return [];
+    });
+    const formData = validDeleteFormData();
+    formData.set("expectedWeddingGiftId", "gift_1");
+    formData.set("expectedWeddingGiftVersion", "2");
+
+    await expect(
+      deleteGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已刪除賓客。" });
+
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
+  it("rejects guest deletion when a gift was added or updated after confirmation opened", async () => {
+    queryRaw.mockImplementation(async (statement) => {
+      const sql = Array.isArray(statement?.strings)
+        ? statement.strings.join(" ")
+        : "";
+      if (sql.includes('FROM "guests"')) return [{ id: "guest_1" }];
+      if (sql.includes('FROM "wedding_gifts"')) {
+        return [{ id: "gift_1", version: 3 }];
+      }
+      return [];
+    });
+
+    await expect(
+      deleteGuestAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        validDeleteFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客資料已被更新或不存在，請重新整理後再試。",
+    });
+    expect(remove).not.toHaveBeenCalled();
+
+    const staleVersionFormData = validDeleteFormData();
+    staleVersionFormData.set("expectedWeddingGiftId", "gift_1");
+    staleVersionFormData.set("expectedWeddingGiftVersion", "2");
+    await expect(
+      deleteGuestAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        staleVersionFormData,
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客資料已被更新或不存在，請重新整理後再試。",
+    });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("deletes a guest only when the locked check-in snapshot matches", async () => {
+    queryRaw.mockImplementation(async (statement) => {
+      const sql = Array.isArray(statement?.strings)
+        ? statement.strings.join(" ")
+        : "";
+      if (sql.includes('FROM "guests"')) return [{ id: "guest_1" }];
+      if (sql.includes('FROM "guest_check_ins"')) {
+        return [{ id: "check_in_1", version: 2 }];
+      }
+      return [];
+    });
+    const formData = validDeleteFormData();
+    formData.set("expectedGuestCheckInId", "check_in_1");
+    formData.set("expectedGuestCheckInVersion", "2");
+
+    await expect(
+      deleteGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已刪除賓客。" });
+
+    expect(remove).toHaveBeenCalledOnce();
+  });
+
+  it("never silently cascades a check-in the confirmation did not show", async () => {
+    queryRaw.mockImplementation(async (statement) => {
+      const sql = Array.isArray(statement?.strings)
+        ? statement.strings.join(" ")
+        : "";
+      if (sql.includes('FROM "guests"')) return [{ id: "guest_1" }];
+      if (sql.includes('FROM "guest_check_ins"')) {
+        return [{ id: "check_in_1", version: 3 }];
+      }
+      return [];
+    });
+
+    await expect(
+      deleteGuestAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        validDeleteFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客資料已被更新或不存在，請重新整理後再試。",
+    });
+    expect(remove).not.toHaveBeenCalled();
+
+    const staleVersionFormData = validDeleteFormData();
+    staleVersionFormData.set("expectedGuestCheckInId", "check_in_1");
+    staleVersionFormData.set("expectedGuestCheckInVersion", "2");
+    await expect(
+      deleteGuestAction(
+        "workspace_1",
+        "guest_1",
+        idleState,
+        staleVersionFormData,
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      message: "賓客資料已被更新或不存在，請重新整理後再試。",
+    });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("rejects a forged check-in snapshot before locking any row", async () => {
+    const formData = validDeleteFormData();
+    formData.set("expectedGuestCheckInId", "check_in_1");
+    formData.set("expectedGuestCheckInVersion", "-1");
+
+    await expect(
+      deleteGuestAction("workspace_1", "guest_1", idleState, formData),
+    ).resolves.toMatchObject({ status: "error" });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("rejects a stale Guest delete without removing newer data", async () => {

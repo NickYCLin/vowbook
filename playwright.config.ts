@@ -17,10 +17,12 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "PORT=3100 npm run start",
+    command: "node scripts/start-standalone.mjs",
     url: healthUrl,
     env: {
       ...process.env,
+      HOSTNAME: "127.0.0.1",
+      PORT: "3100",
       AUTH_SECRET: "vowbook-e2e-local-secret-not-for-production",
       GOOGLE_CLIENT_ID: "vowbook-e2e-client",
       GOOGLE_CLIENT_SECRET: "vowbook-e2e-client-secret",

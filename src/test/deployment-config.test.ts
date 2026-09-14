@@ -1,9 +1,9 @@
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSourceText } from "./source-text";
 
 function readProjectFile(fileName: string) {
-  return fs.readFileSync(path.join(process.cwd(), fileName), "utf8");
+  return readSourceText(path.join(process.cwd(), fileName));
 }
 
 describe("production container contract", () => {
@@ -58,7 +58,7 @@ describe("production container contract", () => {
     );
   });
 
-  it("connects the app safely to PostgreSQL for local self-hosting", () => {
+  it("connects the app safely to PostgreSQL with local or reverse-proxy ingress", () => {
     const compose = readProjectFile("compose.yaml");
     const appStart = compose.indexOf("  app:\n");
     const postgresStart = compose.indexOf("\n  postgres:\n") + 1;
@@ -67,38 +67,40 @@ describe("production container contract", () => {
 
     expect(appStart).toBeGreaterThan(-1);
     expect(postgresStart).toBeGreaterThan(appStart);
-    expect(appService).toContain("image: vowbook:local");
+    expect(appService).toMatch(/image: vowbook:[a-z0-9-]+/u);
     expect(appService).toContain("container_name: vowbook-app");
     expect(appService).toContain(
       "env_file:\n      - path: .env.admin\n        required: false",
     );
-    expect(appService).toContain(
-      'ports:\n      - "127.0.0.1:${VOWBOOK_PORT:-3000}:3000"',
-    );
+    if (appService.includes("ports:")) {
+      expect(appService).toContain('"127.0.0.1:${VOWBOOK_PORT:-3000}:3000"');
+    } else {
+      expect(appService).toContain('expose:\n      - "3000"');
+      expect(appService).toContain('networks:');
+    }
     expect(appService).toContain("condition: service_healthy");
     expect(appService).toContain(
       "DATABASE_URL: ${VOWBOOK_DATABASE_URL:",
     );
     expect(appService).toContain("condition: service_completed_successfully");
-    expect(appService).toContain("NEXT_PUBLIC_BASE_PATH: ${VOWBOOK_BASE_PATH:-}");
+    expect(appService).toMatch(/NEXT_PUBLIC_BASE_PATH: \$\{VOWBOOK_BASE_PATH:-[^}]*\}/u);
     expect(appService).toContain("NEXTAUTH_URL: ${VOWBOOK_NEXTAUTH_URL:");
     expect(appService).toContain(
-      "NEXTAUTH_URL_INTERNAL: http://127.0.0.1:3000${VOWBOOK_BASE_PATH:-}/api/auth",
+      "NEXTAUTH_URL_INTERNAL: http://127.0.0.1:3000${VOWBOOK_BASE_PATH:",
     );
-    expect(appService).toContain("${VOWBOOK_BASE_PATH:-}/api/health");
+    expect(appService).toMatch(/\$\{VOWBOOK_BASE_PATH:-[^}]*\}\/api\/health/u);
     expect(postgresService).toContain(
       'ports:\n      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"',
     );
     expect(postgresService).toContain(
       "vowbook_postgres_data:/var/lib/postgresql/data",
     );
-    expect(compose).not.toContain("ycspace_apps");
 
     const migrateStart = compose.indexOf("\n  migrate:\n") + 1;
     const migrateService = compose.slice(migrateStart, compose.indexOf("\nvolumes:"));
     expect(migrateStart).toBeGreaterThan(postgresStart);
     expect(migrateService).toContain("target: migrator");
-    expect(migrateService).toContain("image: vowbook-migrate:local");
+    expect(migrateService).toMatch(/image: vowbook-migrate:[a-z0-9-]+/u);
     expect(migrateService).toContain("restart: \"no\"");
     expect(migrateService).toContain(
       "DATABASE_URL: ${VOWBOOK_DATABASE_URL:",

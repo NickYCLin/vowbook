@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { createHash } from "node:crypto";
 import { constants as fileConstants } from "node:fs";
 import { open, realpath } from "node:fs/promises";

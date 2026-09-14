@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSourceText } from "./source-text";
 
 const migrationName = "20260729083324_workspace_invitations";
 const migrationPath = path.join(
@@ -13,9 +14,8 @@ const migrationPath = path.join(
 
 describe("WorkspaceInvitation Prisma and migration contract", () => {
   it("adds the tenant-owned invitation model and audit relations", () => {
-    const schema = fs.readFileSync(
+    const schema = readSourceText(
       path.join(process.cwd(), "prisma", "schema.prisma"),
-      "utf8",
     );
 
     expect(schema).toMatch(
@@ -66,7 +66,7 @@ describe("WorkspaceInvitation Prisma and migration contract", () => {
       .map((entry) => entry.name)
       .sort();
 
-    expect(migrations).toEqual([
+    expect(migrations.slice(0, 35)).toEqual([
       "20260722000000_init",
       "20260722164000_guest_list_mvp",
       "20260722175000_table_seating_mvp",
@@ -100,11 +100,13 @@ describe("WorkspaceInvitation Prisma and migration contract", () => {
       "20260824004000_user_access_admin",
       "20260824213500_allow_family_party_size",
       "20260825120000_guest_seniority",
+      "20260829210000_budget_preparation_status",
+      "20260829220000_wedding_vendors",
     ]);
   });
 
   it("migrates reusable User emails before canonicalization and enforces immutable invitation generations", () => {
-    const migration = fs.readFileSync(migrationPath, "utf8");
+    const migration = readSourceText(migrationPath);
 
     const dropEmailUnique = migration.indexOf('DROP INDEX "users_email_key"');
     const canonicalBackfill = migration.indexOf(

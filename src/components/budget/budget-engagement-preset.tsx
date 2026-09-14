@@ -113,7 +113,10 @@ export function BudgetEngagementPreset({
   }
 
   return (
-    <>
+    <div className="min-w-0 space-y-2">
+      <p className="max-w-sm text-xs leading-5 text-ink-soft">
+        已安排文定儀式，可依實際需求加入建議品項，也可以自行建立花費。
+      </p>
       <button
         ref={triggerRef}
         type="button"
@@ -262,6 +265,6 @@ export function BudgetEngagementPreset({
           </div>
         </form>
       </dialog>
-    </>
+    </div>
   );
 }

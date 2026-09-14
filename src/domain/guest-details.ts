@@ -38,6 +38,11 @@ export type NormalizedGuestDetailsInput = {
   invitationReply: string | null;
 };
 
+export type GuestRequirements = Pick<
+  NormalizedGuestDetailsInput,
+  "childSeatCount" | "vegetarianCount"
+>;
+
 function characterCount(value: string): number {
   return Array.from(value).length;
 }
@@ -163,6 +168,24 @@ export function normalizeGuestDetailsInput(
   }
 
   return normalized;
+}
+
+export function validateGuestRequirementsWithinPartySize(
+  requirements: GuestRequirements,
+  partySize: number,
+): void {
+  if (
+    requirements.childSeatCount !== null &&
+    requirements.childSeatCount > partySize
+  ) {
+    throw new GuestValidationError("兒童座椅不能超過邀請人數。");
+  }
+  if (
+    requirements.vegetarianCount !== null &&
+    requirements.vegetarianCount > partySize
+  ) {
+    throw new GuestValidationError("素食人數不能超過邀請人數。");
+  }
 }
 
 export function hasGuestDetails(details: NormalizedGuestDetailsInput): boolean {

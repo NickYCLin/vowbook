@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { buttonClassName } from "@/components/ui/button";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CreateGuestDialog } from "@/components/guests/guest-forms";
@@ -50,7 +52,7 @@ export default async function GuestsPage({ params }: GuestsPageProps) {
         workspaceId={workspaceId}
         workspaceName={data.workspace.name}
         sectionTitle="婚宴名單"
-        description="把新人、家人與受邀賓客放在同一份名單，桌次與宴席人數會一起計算。"
+        description="整理新人、家人與受邀賓客，確認宴席需求與座位安排；禮金請到「禮金」頁登記。"
         activeSection="guests"
         readOnlyNotice={
           canEdit
@@ -58,7 +60,9 @@ export default async function GuestsPage({ params }: GuestsPageProps) {
             : "你目前是唯讀成員，可以查看名單，但不能新增、編輯或刪除。"
         }
         actions={
-          canEdit ? <CreateGuestDialog workspaceId={workspaceId} /> : null
+          canEdit ? (
+            <div className="flex flex-wrap gap-3"><CreateGuestDialog workspaceId={workspaceId} /><Link href={`/workspaces/${workspaceId}/guests/cakes`} className={buttonClassName({ variant: "secondary" })}>發餅名單</Link></div>
+          ) : null
         }
       />
 

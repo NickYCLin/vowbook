@@ -90,6 +90,33 @@ function pressEscape(dialog: HTMLDialogElement) {
 }
 
 describe("Budget GROUP editor dialogs", () => {
+  it("returns the normalized rename snapshot for immediate list rendering", async () => {
+    actions.updateBudgetGroupAction.mockResolvedValueOnce({
+      status: "success",
+      message: "已更新群組。",
+    });
+    const onUpdated = vi.fn();
+    render(
+      <EditBudgetGroupDialog
+        workspaceId="workspace_internal"
+        itemId="group_internal"
+        name="原群組"
+        expectedVersion={4}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "編輯群組：原群組" }));
+    fireEvent.change(screen.getByLabelText("群組名稱"), {
+      target: { value: "  更新   群組  " },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "編輯群組：原群組" }));
+
+    await waitFor(() =>
+      expect(onUpdated).toHaveBeenCalledWith({ name: "更新 群組", version: 5 }),
+    );
+  });
+
   it("creates a root GROUP through a focused native dialog and keeps success feedback visible", async () => {
     actions.createBudgetGroupAction.mockResolvedValueOnce({
       status: "success",
@@ -121,7 +148,7 @@ describe("Budget GROUP editor dialogs", () => {
 
     fireEvent.change(name, { target: { value: "婚紗方案" } });
     expect(within(category).getAllByRole("group")).toHaveLength(6);
-    expect(within(category).getAllByRole("option")).toHaveLength(20);
+    expect(within(category).getAllByRole("option")).toHaveLength(21);
     expect(category).not.toHaveTextContent("其他");
     expect(category).not.toHaveTextContent("待分類");
     fireEvent.change(category, {

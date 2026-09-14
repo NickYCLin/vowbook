@@ -1,14 +1,13 @@
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSourceText } from "./source-text";
 
-const runner = readFileSync(
+const runner = readSourceText(
   path.join(
     process.cwd(),
     "scripts",
     "budget-attachment-browser-command.mjs",
   ),
-  "utf8",
 );
 
 describe("Budget attachment browser runner", () => {

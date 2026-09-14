@@ -36,8 +36,11 @@ const emptySummary: BudgetSummary = {
   actualTotal: "0",
   balanceDueTotal: "0",
   balanceDueCount: 0,
+  overdueBalanceDueCount: 0,
   balanceDueMissingAmountCount: 0,
-  nearestBalanceDueDate: null,
+  nearestUpcomingBalanceDueDate: null,
+  selfProvidedCount: 0,
+  notPlannedCount: 0,
 };
 
 describe("BudgetPage", () => {
@@ -58,7 +61,7 @@ describe("BudgetPage", () => {
     expect(getBudgetPageData).toHaveBeenCalledWith("workspace_1");
     expect(metadata.title).toBe("婚禮花費");
     expect(
-      screen.getByRole("heading", { name: "我們的婚宴・婚禮花費" }),
+      screen.getByRole("heading", { level: 1, name: "婚禮花費" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯花費")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回我的婚宴" })).toHaveAttribute(
@@ -73,7 +76,7 @@ describe("BudgetPage", () => {
     );
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(7);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(within(navigation).getByRole("link", { name: "花費" })).toHaveAttribute(
       "aria-current",
       "page",

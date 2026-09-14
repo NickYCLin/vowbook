@@ -20,6 +20,7 @@ const actions = vi.hoisted(() => ({
   createBudgetItemAction: vi.fn(),
   updateBudgetItemAction: vi.fn(),
   changeBudgetItemBookingStatusAction: vi.fn(),
+  changeBudgetItemPreparationStatusAction: vi.fn(),
   moveBudgetItemAction: vi.fn(),
   deleteBudgetItemAction: vi.fn(),
   resetBudgetDataAction: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock("@/actions/budget-items", () => actions);
 
 import {
   ChangeBudgetItemBookingStatusForm,
+  ChangeBudgetItemPreparationStatusForm,
   CreateBudgetItemForm,
   DeleteBudgetItemForm,
   EditBudgetItemForm,
@@ -173,6 +175,7 @@ describe("budget item forms", () => {
       "印喜帖及寄送",
       "保養療程",
       "婚禮小物",
+      "工作人員紅包",
       "文定儀式（男方準備）",
       "文定儀式（女方準備）",
       "迎娶儀式男方準備",
@@ -187,7 +190,7 @@ describe("budget item forms", () => {
       "relatedTaxonomyItemKey",
     );
     expect(within(relatedTaxonomy).getAllByRole("group")).toHaveLength(6);
-    expect(within(relatedTaxonomy).getAllByRole("option")).toHaveLength(21);
+    expect(within(relatedTaxonomy).getAllByRole("option")).toHaveLength(22);
     expect(relatedTaxonomy).toHaveValue("");
     const relatedTaxonomyHelp = screen.getByText(
       "主分類回答錢花在哪裡；用途關聯回答這筆費用為哪個品項產生，不會重複計入總額。",
@@ -333,7 +336,7 @@ describe("budget item forms", () => {
     expect(taxonomy).toBeRequired();
     expect(taxonomy).toHaveValue("");
     expect(within(taxonomy).getAllByRole("group")).toHaveLength(6);
-    expect(within(taxonomy).getAllByRole("option")).toHaveLength(20);
+    expect(within(taxonomy).getAllByRole("option")).toHaveLength(21);
     expect(taxonomy).not.toHaveTextContent("其他");
     expect(taxonomy).not.toHaveTextContent("待分類");
   });
@@ -1205,6 +1208,91 @@ describe("budget item forms", () => {
     expect(select).toHaveValue("PAID");
     expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
       "5",
+    );
+  });
+
+  it("submits the independent preparation decision with the exact item token", async () => {
+    actions.changeBudgetItemPreparationStatusAction.mockResolvedValueOnce({
+      status: "success",
+      message: "已更新準備方式；原有金額仍保留，但不再計入預算。",
+    });
+    const { container } = render(
+      <ChangeBudgetItemPreparationStatusForm
+        workspaceId="workspace_internal"
+        itemId="budget_internal"
+        preparationStatus="NEEDS_ACTION"
+        itemName="新郎皮鞋"
+        expectedVersion={8}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("準備方式：新郎皮鞋"), {
+      target: { value: "ALREADY_OWNED" },
+    });
+    fireEvent.submit(container.querySelector("form")!);
+
+    await waitFor(() => {
+      expect(
+        actions.changeBudgetItemPreparationStatusAction,
+      ).toHaveBeenCalledOnce();
+    });
+    const submitted = actions.changeBudgetItemPreparationStatusAction.mock
+      .calls[0][3] as FormData;
+    expect(submitted.get("preparationStatus")).toBe("ALREADY_OWNED");
+    expect(submitted.get("expectedVersion")).toBe("8");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "原有金額仍保留，但不再計入預算",
+    );
+  });
+
+  it("keeps a dirty preparation decision paired with its old token until a stale result rebases it", async () => {
+    actions.changeBudgetItemPreparationStatusAction.mockResolvedValueOnce({
+      status: "error",
+      code: "STALE",
+      message: "資料已更新或不存在，請重新整理後再試。",
+    });
+    const { container, rerender } = render(
+      <ChangeBudgetItemPreparationStatusForm
+        workspaceId="workspace_internal"
+        itemId="budget_internal"
+        preparationStatus="NEEDS_ACTION"
+        itemName="新郎西裝"
+        expectedVersion={3}
+      />,
+    );
+    const select = screen.getByLabelText("準備方式：新郎西裝");
+    fireEvent.change(select, { target: { value: "ALREADY_OWNED" } });
+
+    rerender(
+      <ChangeBudgetItemPreparationStatusForm
+        workspaceId="workspace_internal"
+        itemId="budget_internal"
+        preparationStatus="NOT_PLANNED"
+        itemName="新郎西裝"
+        expectedVersion={4}
+      />,
+    );
+    expect(select).toHaveValue("ALREADY_OWNED");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "3",
+    );
+
+    fireEvent.submit(container.querySelector("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "資料已更新或不存在，請重新整理後再試。",
+    );
+    rerender(
+      <ChangeBudgetItemPreparationStatusForm
+        workspaceId="workspace_internal"
+        itemId="budget_internal"
+        preparationStatus="NOT_PLANNED"
+        itemName="新郎西裝"
+        expectedVersion={4}
+      />,
+    );
+    expect(select).toHaveValue("ALREADY_OWNED");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "4",
     );
   });
 

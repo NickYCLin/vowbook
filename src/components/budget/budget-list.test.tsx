@@ -85,9 +85,35 @@ vi.mock("./budget-forms", () => ({
       </button>
     </form>
   ),
+  ChangeBudgetItemPreparationStatusForm: ({
+    itemName,
+    preparationStatus,
+  }: {
+    itemName: string;
+    preparationStatus: string;
+  }) => (
+    <form aria-label={`更新準備方式 ${itemName}`}>
+      <span>{preparationStatus}</span>
+    </form>
+  ),
 }));
 
 vi.mock("./budget-group-forms", () => ({
+  BudgetCeremonyStageCleanupCard: ({
+    cleanup,
+  }: {
+    cleanup: { label: string; removableItemCount: number };
+  }) => (
+    <div>
+      <p>你已選擇沒有迎娶儀式，「{cleanup.label}」已從花費清單隱藏。</p>
+      <button
+        type="button"
+        aria-label={`永久移除 ${cleanup.label} 底下的項目`}
+      >
+        永久移除這 {cleanup.removableItemCount} 筆
+      </button>
+    </div>
+  ),
   CreateBudgetGroupDialog: ({
     parentId = null,
     parentBreadcrumb = [],
@@ -208,19 +234,26 @@ vi.mock("./budget-engagement-preset", () => ({
 vi.mock("./budget-preparation-preset", () => ({
   BudgetPreparationPreset: ({
     existingSuggestionKeys,
+    showProcessionCeremony,
     onSuccess,
   }: {
     existingSuggestionKeys: ReadonlySet<string>;
+    showProcessionCeremony?: boolean;
     onSuccess?: (message: string) => void;
   }) => (
     <button
       type="button"
       data-existing-suggestion-keys={[...existingSuggestionKeys].sort().join(",")}
+      data-show-procession={showProcessionCeremony ? "true" : "false"}
       onClick={() => onSuccess?.("已加入常見婚禮項目。")}
     >
       測試常見婚禮建議
     </button>
   ),
+}));
+
+vi.mock("./budget-ceremony-preferences", () => ({
+  BudgetCeremonyPreferences: () => <button type="button">測試中式儀式設定</button>,
 }));
 
 import { BudgetList } from "./budget-list";
@@ -253,8 +286,11 @@ const summary: BudgetSummary = {
   actualTotal: "118000",
   balanceDueTotal: "90000",
   balanceDueCount: 2,
+  overdueBalanceDueCount: 1,
   balanceDueMissingAmountCount: 1,
-  nearestBalanceDueDate: "2027-12-31",
+  nearestUpcomingBalanceDueDate: "2027-12-31",
+  selfProvidedCount: 0,
+  notPlannedCount: 0,
 };
 
 const items: BudgetItemListItem[] = [
@@ -269,7 +305,6 @@ const items: BudgetItemListItem[] = [
     directChildSetHash: "0".repeat(64),
     descendantCount: 0,
     source: "MANUAL",
-    sourceHierarchyPath: [],
     name: "婚禮攝影",
     kind: "EXPENSE",
     category: "PHOTOGRAPHY_VIDEO",
@@ -307,7 +342,6 @@ const items: BudgetItemListItem[] = [
     directChildSetHash: "0".repeat(64),
     descendantCount: 0,
     source: "MANUAL",
-    sourceHierarchyPath: [],
     name: "婚宴場地",
     kind: "EXPENSE",
     category: "VENUE_CATERING",
@@ -442,6 +476,107 @@ function selectGroupView(): void {
 }
 
 describe("BudgetList", () => {
+  it("shows and filters owned or not-planned decisions without treating them as paid expenses", () => {
+    const active = {
+      ...items[0],
+      id: "budget_active",
+      name: "修改西裝",
+      preparationStatus: "NEEDS_ACTION" as const,
+    };
+    const owned = {
+      ...items[0],
+      id: "budget_owned",
+      name: "既有西裝",
+      preparationStatus: "ALREADY_OWNED" as const,
+      plannedAmount: 50000,
+      rolledUpPlannedAmount: "0",
+    };
+    const skipped = {
+      ...items[0],
+      id: "budget_skipped",
+      name: "不準備新皮鞋",
+      preparationStatus: "NOT_PLANNED" as const,
+      plannedAmount: 3000,
+      rolledUpPlannedAmount: "0",
+    };
+
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[active, owned, skipped]}
+        summary={{
+          ...summary,
+          itemCount: 1,
+          paidCount: 0,
+          plannedTotal: "88000",
+          actualTotal: "0",
+          selfProvidedCount: 1,
+          notPlannedCount: 1,
+        }}
+        canEdit
+      />,
+    );
+
+    expect(screen.getByText("已有／自備 1 筆")).toBeVisible();
+    expect(screen.getByText("不打算準備 1 筆")).toBeVisible();
+    expect(within(ledgerListItem("budget_owned")).getByText("已有／自備")).toBeVisible();
+    expect(within(ledgerListItem("budget_skipped")).getByText("不打算準備")).toBeVisible();
+    expect(ledgerListItem("budget_owned")).toHaveTextContent(
+      "不計入預算；原有金額仍保留",
+    );
+    expect(
+      screen.queryByRole("form", { name: "更新狀態 既有西裝" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(ledgerListItem("budget_owned")).getByRole("button", {
+        name: "開啟花費明細與附件：既有西裝",
+      }),
+    );
+    expect(
+      screen.getByRole("form", { name: "更新準備方式 既有西裝" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "已有／自備" }));
+    expect(ledgerListItem("budget_owned")).not.toHaveAttribute("hidden");
+    expect(ledgerListItem("budget_active")).toHaveAttribute("hidden");
+    expect(ledgerListItem("budget_skipped")).toHaveAttribute("hidden");
+  });
+
+  it("does not show first-expense onboarding when every recorded item is self-provided", () => {
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[
+          {
+            ...items[0],
+            id: "budget_owned_only",
+            name: "自己的皮鞋",
+            preparationStatus: "ALREADY_OWNED",
+            rolledUpPlannedAmount: "0",
+            rolledUpActualAmount: "0",
+          },
+        ]}
+        summary={{
+          ...summary,
+          itemCount: 0,
+          paidCount: 0,
+          plannedTotal: "0",
+          actualTotal: "0",
+          balanceDueTotal: "0",
+          balanceDueCount: 0,
+          overdueBalanceDueCount: 0,
+          balanceDueMissingAmountCount: 0,
+          nearestUpcomingBalanceDueDate: null,
+          selfProvidedCount: 1,
+          notPlannedCount: 0,
+        }}
+        canEdit
+      />,
+    );
+
+    expect(screen.getByText("已有／自備 1 筆")).toBeVisible();
+    expect(screen.queryByText("從第一筆自己的婚禮花費開始")).not.toBeInTheDocument();
+  });
   it("passes existing suggestion keys to both presets only for editors", () => {
     const suggestedItems = [
       {
@@ -459,6 +594,7 @@ describe("BudgetList", () => {
         items={suggestedItems}
         summary={summary}
         canEdit
+        hasEngagementCeremony
       />,
     );
 
@@ -477,6 +613,7 @@ describe("BudgetList", () => {
       "data-existing-suggestion-keys",
       "ENGAGEMENT_BRIDE_TEA_SET,ENGAGEMENT_GROOM_RED_ENVELOPE",
     );
+    expect(preparationPreset).toHaveAttribute("data-show-procession", "false");
     fireEvent.click(preparationPreset);
     expect(screen.getByRole("status")).toHaveTextContent(
       "已加入常見婚禮項目。",
@@ -586,8 +723,8 @@ describe("BudgetList", () => {
     expect(
       optionalGroupDisclosure.querySelector("summary"),
     ).toHaveAccessibleName("建立群組（選用）");
-    expect(actionDisclosures[2]).toHaveTextContent("測試文定建議");
-    expect(actionDisclosures[3]).toHaveTextContent("測試常見婚禮建議");
+    expect(actionDisclosures[2]).toHaveTextContent("測試常見婚禮建議");
+    expect(actionDisclosures[3]).toHaveTextContent("測試中式儀式設定");
 
     expect(
       screen.getByText(/籌備階段 → 品項分類 → 實際花費/),
@@ -871,9 +1008,9 @@ describe("BudgetList", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "查看全部 2 筆花費" }),
+      screen.getByRole("button", { name: "查看所有準備項目" }),
     ).toBeVisible();
-    expect(screen.getByText("已付款 1 / 2 筆花費")).toBeVisible();
+    expect(screen.getByText("已付款 1 / 2 筆需安排花費")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "顯示已付清 1 筆花費" }),
     ).toBeVisible();
@@ -1201,7 +1338,7 @@ describe("BudgetList", () => {
     fireEvent.change(screen.getByLabelText("搜尋花費項目"), {
       target: { value: "造型服務" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "查看全部 2 筆花費" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看所有準備項目" }));
     expect(screen.getByLabelText("搜尋花費項目")).toHaveValue("");
     expect(screen.getByRole("button", { name: "全部" })).toHaveAttribute(
       "aria-pressed",
@@ -1239,7 +1376,7 @@ describe("BudgetList", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("目前沒有待付尾款")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "查看全部 2 筆花費" }),
+      screen.getByRole("button", { name: "查看所有準備項目" }),
     ).toBeVisible();
   });
 
@@ -1629,8 +1766,11 @@ describe("BudgetList", () => {
           actualTotal: "0",
           balanceDueTotal: "0",
           balanceDueCount: 0,
+          overdueBalanceDueCount: 0,
           balanceDueMissingAmountCount: 0,
-          nearestBalanceDueDate: null,
+          nearestUpcomingBalanceDueDate: null,
+          selfProvidedCount: 0,
+          notPlannedCount: 0,
         }}
         canEdit={false}
       />,
@@ -1762,6 +1902,7 @@ describe("BudgetList", () => {
     expect(actualCell).toHaveTextContent("已記錄實付");
     expect(balanceDueCell).toHaveTextContent("待付尾款");
     expect(balanceDueCell).toHaveTextContent("共 2 筆花費待付");
+    expect(balanceDueCell).toHaveTextContent("已逾期 1 筆");
     expect(balanceDueCell).toHaveTextContent("1 筆花費未填金額");
     expect(balanceDueCell).toHaveClass(
       "col-span-2",
@@ -1841,7 +1982,44 @@ describe("BudgetList", () => {
     expect(balanceDueAmount).not.toHaveClass("font-serif");
     expect(
       balanceDueCell?.querySelector('time[datetime="2027-12-31"]'),
-    ).toHaveTextContent("最近期限 2027-12-31");
+    ).toHaveTextContent("最近到期日 2027-12-31");
+    expect(screen.getByText("已逾期 1 筆")).toHaveClass(
+      "font-semibold",
+      "text-danger",
+    );
+  });
+
+  it("marks an unpaid balance detail as overdue against the workspace date", () => {
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        workspaceToday="2027-12-01"
+        items={[
+          {
+            ...items[0],
+            id: "budget_overdue_balance",
+            name: "逾期場地尾款",
+            dueDate: "2027-11-30",
+            bookingStatus: "BOOKED_BALANCE_DUE",
+            balanceAmount: 90_000,
+          },
+        ]}
+        summary={{
+          ...summary,
+          itemCount: 1,
+          balanceDueCount: 1,
+          overdueBalanceDueCount: 1,
+          nearestUpcomingBalanceDueDate: null,
+        }}
+        canEdit={false}
+      />,
+    );
+
+    expect(
+      screen
+        .getByText("期限 2027-11-30（已逾期）")
+        .closest('[data-budget-ledger-column="due-date"]'),
+    ).toHaveClass("font-semibold", "text-danger");
   });
 
   it("keeps exact extreme summary totals in contained currency-and-digits rows", () => {
@@ -1914,7 +2092,7 @@ describe("BudgetList", () => {
       ),
     ).toHaveTextContent("NT$208,000");
     expect(screen.getAllByText("NT$118,000").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("已付款 1 / 3 筆花費")).toBeInTheDocument();
+    expect(screen.getByText("已付款 1 / 3 筆需安排花費")).toBeInTheDocument();
     expect(screen.getByText("期限 2028-02-29")).toHaveAttribute(
       "datetime",
       "2028-02-29",
@@ -2060,7 +2238,7 @@ describe("BudgetList", () => {
     }
   });
 
-  it("hides empty or non-Notion source hierarchy paths", () => {
+  it("hides empty or ineligible source hierarchy paths", () => {
     const { container } = render(
       <BudgetList
         workspaceId="workspace_source_path_guard"
@@ -2070,7 +2248,6 @@ describe("BudgetList", () => {
             id: "manual_source_path_guard",
             name: "手動建立的合成花費",
             breadcrumb: ["手動建立的合成花費"],
-            sourceHierarchyPath: ["不應顯示的路徑"],
           },
           {
             ...items[1],
@@ -2078,7 +2255,6 @@ describe("BudgetList", () => {
             name: "空路徑的合成匯入花費",
             breadcrumb: ["空路徑的合成匯入花費"],
             source: "NOTION",
-            sourceHierarchyPath: [],
           },
         ]}
         summary={summary}
@@ -2089,8 +2265,153 @@ describe("BudgetList", () => {
     expect(
       container.querySelector("[data-budget-notion-source-path]"),
     ).toBeNull();
-    expect(container).not.toHaveTextContent("Notion 原始路徑");
+    expect(container).not.toHaveTextContent("原始分類路徑");
     expect(container).not.toHaveTextContent("不應顯示的路徑");
+  });
+
+  it("hides a Chinese-ceremony stage and its items until the ceremony is switched on", () => {
+    const processionStage: BudgetItemListItem = {
+      ...groupedItems[0],
+      id: "stage_procession",
+      name: "迎娶儀式用品、工作人員紅包",
+      systemTaxonomyKey: "STAGE_WEDDING_PROCESSION",
+      depth: 0,
+      parentId: null,
+      breadcrumb: ["迎娶儀式用品、工作人員紅包"],
+      directParentName: null,
+      directChildren: [
+        { id: "item_procession_groom", name: "迎娶儀式男方準備", hasChildren: true },
+      ],
+      directChildCount: 1,
+      descendantCount: 2,
+      rolledUpPlannedAmount: "0",
+      rolledUpActualAmount: "0",
+      rolledUpDepositAmount: "0",
+      rolledUpBalanceAmount: "0",
+    };
+    const processionItem: BudgetItemListItem = {
+      ...groupedItems[0],
+      id: "item_procession_groom",
+      name: "迎娶儀式男方準備",
+      systemTaxonomyKey: "ITEM_PROCESSION_GROOM",
+      depth: 1,
+      parentId: processionStage.id,
+      breadcrumb: ["迎娶儀式用品、工作人員紅包", "迎娶儀式男方準備"],
+      directParentName: processionStage.name,
+      hasChildren: true,
+      directChildren: [{ id: "expense_door_gift", name: "開門禮", hasChildren: false }],
+      directChildCount: 1,
+      descendantCount: 1,
+      rolledUpPlannedAmount: "0",
+      rolledUpActualAmount: "0",
+      rolledUpDepositAmount: "0",
+      rolledUpBalanceAmount: "0",
+    };
+    const doorGift: BudgetItemListItem = {
+      ...items[0],
+      id: "expense_door_gift",
+      name: "開門禮",
+      parentId: processionItem.id,
+      depth: 2,
+      breadcrumb: [
+        "迎娶儀式用品、工作人員紅包",
+        "迎娶儀式男方準備",
+        "開門禮",
+      ],
+      directParentName: processionItem.name,
+      systemTaxonomyKey: null,
+      relatedTaxonomyItemKey: null,
+      hasChildren: false,
+      directChildren: [],
+      directChildCount: 0,
+      descendantCount: 0,
+      plannedAmount: 0,
+      rolledUpPlannedAmount: "0",
+      rolledUpActualAmount: "0",
+      rolledUpDepositAmount: "0",
+      rolledUpBalanceAmount: "0",
+    };
+    const ceremonyItems = [processionStage, processionItem, doorGift];
+
+    const { rerender } = render(
+      <BudgetList
+        workspaceId="workspace_1"
+        workspaceName="我們的婚宴"
+        workspaceToday="2026-08-31"
+        items={ceremonyItems}
+        summary={summary}
+        canEdit
+        hasProcessionCeremony={false}
+      />,
+    );
+
+    expect(screen.queryByText("迎娶儀式用品、工作人員紅包")).toBeNull();
+    expect(screen.queryByText("迎娶儀式男方準備")).toBeNull();
+    expect(screen.queryByText("開門禮")).toBeNull();
+
+    rerender(
+      <BudgetList
+        workspaceId="workspace_1"
+        workspaceName="我們的婚宴"
+        workspaceToday="2026-08-31"
+        items={ceremonyItems}
+        summary={summary}
+        canEdit
+        hasProcessionCeremony
+      />,
+    );
+
+    expect(
+      screen.getAllByText("迎娶儀式用品、工作人員紅包").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("開門禮").length).toBeGreaterThan(0);
+  });
+
+  it("offers a cleanup entry only while the ceremony stays switched off", () => {
+    const cleanup = {
+      stageKey: "STAGE_WEDDING_PROCESSION" as const,
+      label: "迎娶儀式用品、工作人員紅包",
+      removableItemCount: 18,
+      attachmentCount: 0,
+      snapshotToken: "a".repeat(64),
+    };
+
+    const { rerender } = render(
+      <BudgetList
+        workspaceId="workspace_1"
+        workspaceName="我們的婚宴"
+        workspaceToday="2026-08-31"
+        items={items}
+        summary={summary}
+        canEdit
+        hasProcessionCeremony={false}
+        ceremonyStageCleanups={[cleanup]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/你已選擇沒有迎娶儀式/u),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "永久移除 迎娶儀式用品、工作人員紅包 底下的項目",
+      }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <BudgetList
+        workspaceId="workspace_1"
+        workspaceName="我們的婚宴"
+        workspaceToday="2026-08-31"
+        items={items}
+        summary={summary}
+        canEdit
+        hasProcessionCeremony
+        ceremonyStageCleanups={[cleanup]}
+      />,
+    );
+
+    expect(screen.queryByText(/你已選擇沒有迎娶儀式/u)).toBeNull();
   });
 
   it("shows a wedding-shoes expense as a pre-wedding-photo extension exactly once", async () => {
@@ -2189,11 +2510,6 @@ describe("BudgetList", () => {
       category: "ATTIRE_STYLING",
       relatedTaxonomyItemKey: "ITEM_PRE_WEDDING_PHOTOGRAPHY",
       source: "NOTION",
-      sourceHierarchyPath: [
-        "婚紗拍攝",
-        "其他",
-        "合成姓名的小白鞋",
-      ],
       plannedAmount: 3200,
       rolledUpPlannedAmount: "3200",
       depositAmount: 1000,
@@ -2349,7 +2665,7 @@ describe("BudgetList", () => {
       JSON.parse(window.localStorage.getItem(expansionStorageKey) ?? "{}"),
     ).toEqual(JSON.parse(hydratedExpansion ?? "{}"));
     fireEvent.click(
-      screen.getByRole("button", { name: "查看全部 1 筆花費" }),
+      screen.getByRole("button", { name: "查看所有準備項目" }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "全部展開" }));
@@ -2370,12 +2686,6 @@ describe("BudgetList", () => {
     ).toHaveTextContent("合成姓名的小白鞋");
     expect(within(shoeRow!).getByText("拍攝延伸")).toBeVisible();
     expect(within(shoeRow!).getByText("用途：婚紗照拍攝")).toBeVisible();
-    const sourcePathText =
-      "Notion 原始路徑：婚紗拍攝 › 其他 › 合成姓名的小白鞋";
-    const shoeLedgerSurface = shoeRow!.querySelector<HTMLElement>(
-      "[data-budget-ledger-surface]",
-    );
-    expect(within(shoeLedgerSurface!).getByText(sourcePathText)).toBeVisible();
     const brandColumn = shoeRow!.querySelector<HTMLElement>(
       '[data-budget-ledger-column="brand"]',
     );
@@ -2395,7 +2705,6 @@ describe("BudgetList", () => {
     expect(relatedRegion).toHaveTextContent("合成姓名的小白鞋");
     expect(relatedRegion).toHaveTextContent("歸屬：婚鞋");
     expect(relatedRegion).toHaveTextContent("不計入本分類小計");
-    expect(within(relatedRegion).getByText(sourcePathText)).toBeVisible();
     expect(
       within(relatedRegion).getAllByText("合成姓名的小白鞋"),
     ).toHaveLength(1);
@@ -2408,20 +2717,23 @@ describe("BudgetList", () => {
     const shoeDialog = within(shoeRow!).getByRole("dialog", {
       name: "合成姓名的小白鞋",
     });
-    const sourcePathDetailLabel = within(shoeDialog).getByText(
-      "Notion 原始路徑",
-    );
-    expect(sourcePathDetailLabel.nextElementSibling).toHaveTextContent(
-      "婚紗拍攝 › 其他 › 合成姓名的小白鞋",
-    );
+    // Notion 匯入痕跡不再對使用者顯示：來源標示與原始分類路徑都不該出現。
+    expect(shoeDialog).not.toHaveTextContent("原始分類路徑");
+    expect(shoeDialog).not.toHaveTextContent("資料來源：Notion 單次匯入");
+    expect(shoeDialog).not.toHaveTextContent("婚紗拍攝 › 其他");
     fireEvent.click(
       within(shoeDialog).getByRole("button", {
         name: "關閉管理：合成姓名的小白鞋",
       }),
     );
 
+    // 來源路徑已不顯示，搜尋也不該再靠它命中；改以看得見的名稱搜尋。
     fireEvent.change(screen.getByLabelText("搜尋花費項目"), {
       target: { value: "其他" },
+    });
+    expect(ledgerListItem(whiteShoes.id)).toHaveAttribute("hidden");
+    fireEvent.change(screen.getByLabelText("搜尋花費項目"), {
+      target: { value: "小白鞋" },
     });
     expect(ledgerListItem(whiteShoes.id)).not.toHaveAttribute("hidden");
     expect(
@@ -2549,7 +2861,9 @@ describe("BudgetList", () => {
 
     fireEvent.click(
       within(
-        screen.getByRole("group", { name: "依下訂與付款狀態篩選" }),
+        screen.getByRole("group", {
+          name: "依準備、下訂與付款狀態篩選",
+        }),
       ).getByRole("button", { name: "已付清" }),
     );
 
@@ -2709,8 +3023,9 @@ describe("BudgetList", () => {
     fireEvent.click(screen.getByText("籌備階段與品項分類怎麼用？"));
     expect(screen.getByText(/籌備階段 → 品項分類 → 實際花費/)).toBeVisible();
     expect(
-      screen.getByText(/固定階段與品項無法重新命名、移動或刪除/),
+      screen.getByText(/文定與迎娶只有在下方開啟對應的中式儀式設定後才會出現/),
     ).toBeVisible();
+    expect(screen.getByText(/西式證婚不等於迎娶/)).toBeVisible();
     expect(
       screen.getByText(/文件中的品牌、金額與數量只是範例/),
     ).toBeVisible();
@@ -2735,8 +3050,11 @@ describe("BudgetList", () => {
           actualTotal: "0",
           balanceDueTotal: "0",
           balanceDueCount: 0,
+          overdueBalanceDueCount: 0,
           balanceDueMissingAmountCount: 0,
-          nearestBalanceDueDate: null,
+          nearestUpcomingBalanceDueDate: null,
+          selfProvidedCount: 0,
+          notPlannedCount: 0,
         }}
         canEdit={false}
       />,
@@ -3048,7 +3366,6 @@ describe("BudgetList", () => {
       id: "budget_source_layer",
       name: "婚禮攝影廠商",
       source: "NOTION",
-      sourceHierarchyPath: ["宴客", "婚禮攝影廠商"],
       hasChildren: true,
       directChildren: [{ id: "budget_leaf", name: "平面", hasChildren: false }],
       directChildCount: 1,
@@ -3071,7 +3388,6 @@ describe("BudgetList", () => {
       depth: 1,
       name: "平面",
       source: "NOTION",
-      sourceHierarchyPath: ["宴客", "婚禮攝影廠商", "平面"],
       breadcrumb: [passThrough.name, "平面"],
       directParentName: passThrough.name,
       plannedAmount: 25800,
@@ -3199,7 +3515,9 @@ describe("BudgetList", () => {
     const toolbar = container.querySelector("[data-budget-toolbar]");
     expect(toolbar).toContainElement(screen.getByLabelText("搜尋花費項目"));
     expect(toolbar).toContainElement(
-      screen.getByRole("group", { name: "依下訂與付款狀態篩選" }),
+      screen.getByRole("group", {
+        name: "依準備、下訂與付款狀態篩選",
+      }),
     );
     expect(toolbar).toContainElement(screen.getByText("顯示 3 / 3 筆花費"));
     expect(screen.getByText("顯示 3 / 3 筆花費")).toHaveAttribute(

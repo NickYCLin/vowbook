@@ -6,6 +6,7 @@ import {
   THEME_STORAGE_KEY,
   isThemePreference,
   resolveTheme,
+  themeColorFor,
   type ThemePreference,
 } from "@/lib/theme";
 
@@ -31,6 +32,9 @@ export function applyThemePreference(preference: ThemePreference): void {
   const theme = resolveTheme(preference, prefersDarkScheme());
   document.documentElement.dataset.themePreference = preference;
   document.documentElement.dataset.theme = theme;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", themeColorFor(theme));
 }
 
 export function persistThemePreference(preference: ThemePreference): void {

@@ -363,7 +363,7 @@ describe("seating table forms", () => {
     expect(screen.queryByText("table_internal")).not.toBeInTheDocument();
   });
 
-  it("keeps a dirty edit draft paired with its original CAS version", () => {
+  it("keeps a dirty edit draft paired with its original CAS version until loading the latest snapshot", async () => {
     const { container, rerender } = render(
       <EditSeatingTableForm
         workspaceId="workspace_internal"
@@ -374,6 +374,10 @@ describe("seating table forms", () => {
         notes="原始備註"
         version={3}
       />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "編輯 5 號桌 測試桌" }),
     );
 
     fireEvent.change(screen.getByLabelText("桌名"), {
@@ -404,6 +408,40 @@ describe("seating table forms", () => {
     expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
       "3",
     );
+    expect(screen.getByText(/這筆桌次已有較新的資料/u)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "載入最新資料" }));
+
+    expect(screen.getByLabelText("桌名")).toHaveValue("伺服器新桌名");
+    expect(screen.getByLabelText("容量")).toHaveValue(10);
+    expect(screen.getByLabelText(/備註/u)).toHaveValue("伺服器新備註");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "4",
+    );
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+
+    rerender(
+      <EditSeatingTableForm
+        workspaceId="workspace_internal"
+        tableId="table_internal"
+        tableLabel="5 號桌 測試桌"
+        name="再更新的桌名"
+        capacity={14}
+        notes="再更新的備註"
+        version={5}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("桌名")).toHaveValue("再更新的桌名");
+      expect(screen.getByLabelText("容量")).toHaveValue(14);
+      expect(screen.getByLabelText(/備註/u)).toHaveValue("再更新的備註");
+      expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+        "5",
+      );
+    });
   });
 
   it("synchronizes a pristine edit form to the latest server snapshot", async () => {
@@ -439,6 +477,62 @@ describe("seating table forms", () => {
         "4",
       );
     });
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+  });
+
+  it("clears action feedback that belongs to an older table snapshot", async () => {
+    actions.updateSeatingTableAction.mockResolvedValueOnce({
+      status: "error",
+      message: "舊資料儲存失敗。",
+    });
+    const { rerender } = render(
+      <EditSeatingTableForm
+        workspaceId="workspace_internal"
+        tableId="table_internal"
+        tableLabel="5 號桌 測試桌"
+        name="原始桌名"
+        capacity={8}
+        notes={null}
+        version={3}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "編輯 5 號桌 測試桌" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "編輯桌次" });
+    fireEvent.change(within(dialog).getByLabelText("桌名"), {
+      target: { value: "尚未送出的桌名" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "儲存桌次" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "舊資料儲存失敗。",
+    );
+
+    rerender(
+      <EditSeatingTableForm
+        workspaceId="workspace_internal"
+        tableId="table_internal"
+        tableLabel="5 號桌 測試桌"
+        name="伺服器新桌名"
+        capacity={10}
+        notes="伺服器新備註"
+        version={4}
+      />,
+    );
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "舊資料儲存失敗。",
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "載入最新資料" }),
+    );
+
+    expect(within(dialog).queryByRole("alert")).toBeNull();
   });
 
   it("records delete intent only for the confirmed submit and locks cancellation while pending", async () => {
@@ -532,6 +626,7 @@ describe("seating table forms", () => {
           guestId="guest_internal"
           guestName="王小明"
           guestPartySize={2}
+          guestVersion={4}
           tables={[
             { id: "table_internal", name: "主桌", remainingCapacity: 6 },
             { id: "table_full", name: "已滿親友桌", remainingCapacity: 1 },
@@ -541,6 +636,8 @@ describe("seating table forms", () => {
           workspaceId="workspace_internal"
           guestId="guest_internal"
           guestName="王小明"
+          guestVersion={4}
+          seatingTableId="table_internal"
         />
       </>,
     );
@@ -570,5 +667,122 @@ describe("seating table forms", () => {
     );
     expect(container.querySelector('[name="guestId"]')).toBeNull();
     expect(container.querySelector('[name="workspaceId"]')).toBeNull();
+    expect(
+      container.querySelectorAll(
+        'input[name="expectedGuestVersion"][value="4"]',
+      ),
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(
+        'input[name="expectedSeatingTableId"][value="table_internal"]',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("synchronizes a pristine assignment form to the latest guest snapshot", async () => {
+    const { container, rerender } = render(
+      <AssignGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        guestName="王小明"
+        guestPartySize={2}
+        guestVersion={4}
+        tables={[
+          { id: "table_internal", name: "主桌", remainingCapacity: 6 },
+        ]}
+      />,
+    );
+
+    rerender(
+      <AssignGuestForm
+        workspaceId="workspace_internal"
+        guestId="guest_internal"
+        guestName="王小明"
+        guestPartySize={4}
+        guestVersion={5}
+        tables={[
+          { id: "table_internal", name: "主桌", remainingCapacity: 6 },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("為王小明選擇桌次")).toBeEnabled();
+      expect(
+        container.querySelector(
+          'input[name="expectedGuestVersion"][value="5"]',
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "載入最新賓客資料" }),
+    ).toBeNull();
+  });
+
+  it("keeps assignment and unassignment intent frozen across live prop updates", () => {
+    const { container, rerender } = render(
+      <>
+        <AssignGuestForm
+          workspaceId="workspace_internal"
+          guestId="guest_internal"
+          guestName="原始賓客"
+          guestPartySize={2}
+          guestVersion={4}
+          tables={[
+            { id: "table_internal", name: "主桌", remainingCapacity: 6 },
+          ]}
+        />
+        <UnassignGuestForm
+          workspaceId="workspace_internal"
+          guestId="assigned_internal"
+          guestName="原始已安排賓客"
+          guestVersion={7}
+          seatingTableId="table_original"
+        />
+      </>,
+    );
+    fireEvent.change(screen.getByLabelText("為原始賓客選擇桌次"), {
+      target: { value: "table_internal" },
+    });
+
+    rerender(
+      <>
+        <AssignGuestForm
+          workspaceId="workspace_internal"
+          guestId="guest_internal"
+          guestName="協作者更新後"
+          guestPartySize={3}
+          guestVersion={5}
+          tables={[
+            { id: "table_internal", name: "主桌", remainingCapacity: 6 },
+          ]}
+        />
+        <UnassignGuestForm
+          workspaceId="workspace_internal"
+          guestId="assigned_internal"
+          guestName="協作者移桌後"
+          guestVersion={8}
+          seatingTableId="table_new"
+        />
+      </>,
+    );
+
+    expect(screen.getByText(/保留原本的桌次選擇/u)).toBeInTheDocument();
+    expect(screen.getByText(/不會送出舊的移出操作/u)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "安排原始賓客" }))
+      .toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "將原始已安排賓客移出桌次" }),
+    ).toBeDisabled();
+    expect(
+      container.querySelector(
+        'input[name="expectedGuestVersion"][value="7"]',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(
+        'input[name="expectedSeatingTableId"][value="table_original"]',
+      ),
+    ).toBeInTheDocument();
   });
 });

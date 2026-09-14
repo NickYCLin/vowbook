@@ -60,9 +60,11 @@ import {
   addBudgetEngagementSuggestionsAction,
   addBudgetPreparationSuggestionsAction,
   changeBudgetItemBookingStatusAction,
+  changeBudgetItemPreparationStatusAction,
   createChildBudgetItemAction,
   createBudgetGroupAction,
   createBudgetItemAction,
+  clearBudgetCeremonyStageAction,
   deleteBudgetGroupSubtreeAction,
   deleteBudgetItemAction,
   dissolveBudgetGroupAction,
@@ -154,6 +156,15 @@ function statusFormData(
   return formData;
 }
 
+function preparationStatusFormData(
+  preparationStatus: string,
+  expectedVersion = "0",
+) {
+  const formData = versionFormData(expectedVersion);
+  formData.set("preparationStatus", preparationStatus);
+  return formData;
+}
+
 function resetBudgetFormData({
   confirmationName = "我們的婚宴",
   preparedSnapshot = "READY",
@@ -184,6 +195,84 @@ const resetRows = [
     attachments: [{ id: "attachment_b" }, { id: "attachment_a" }],
   },
 ];
+
+const processionStageRows = [
+  {
+    id: "stage_procession",
+    parentId: null,
+    name: "迎娶儀式用品、工作人員紅包",
+    kind: "GROUP" as const,
+    version: 0,
+    source: "MANUAL" as const,
+    systemTaxonomyKey: "STAGE_WEDDING_PROCESSION",
+    attachments: [],
+  },
+  {
+    id: "item_procession_groom",
+    parentId: "stage_procession",
+    name: "迎娶儀式男方準備",
+    kind: "GROUP" as const,
+    version: 0,
+    source: "MANUAL" as const,
+    systemTaxonomyKey: "ITEM_PROCESSION_GROOM",
+    attachments: [],
+  },
+  {
+    id: "expense_door_gift",
+    parentId: "item_procession_groom",
+    name: "開門禮",
+    kind: "EXPENSE" as const,
+    version: 2,
+    source: "MANUAL" as const,
+    systemTaxonomyKey: null,
+    attachments: [{ id: "attachment_door_gift" }],
+  },
+  {
+    id: "expense_escort_gift",
+    parentId: "item_procession_groom",
+    name: "陪娶禮",
+    kind: "EXPENSE" as const,
+    version: 0,
+    source: "MANUAL" as const,
+    systemTaxonomyKey: null,
+    attachments: [],
+  },
+  {
+    id: "unrelated_expense",
+    parentId: "fixed_ITEM_WEDDING_VENUE",
+    name: "宴席訂金",
+    kind: "EXPENSE" as const,
+    version: 1,
+    source: "MANUAL" as const,
+    systemTaxonomyKey: null,
+    attachments: [],
+  },
+];
+
+function processionStageToken() {
+  return summarizeBudgetSubtreeSnapshot(
+    processionStageRows
+      .filter((row) => row.id !== "unrelated_expense")
+      .map(({ id, parentId, version, source, attachments }) => ({
+        id,
+        parentId,
+        version,
+        source,
+        attachments,
+      })),
+    "stage_procession",
+  ).token;
+}
+
+function ceremonyCleanupFormData({
+  confirmationName = "  迎娶儀式用品、工作人員紅包  ",
+  token = processionStageToken(),
+}: { confirmationName?: string; token?: string } = {}) {
+  const formData = new FormData();
+  formData.set("expectedSnapshotToken", token);
+  formData.set("confirmationName", confirmationName);
+  return formData;
+}
 
 const subtreeRows = [
   {
@@ -267,7 +356,15 @@ describe("budget item server actions", () => {
           }),
     );
     findMany.mockResolvedValue([]);
-    workspaceFindFirst.mockResolvedValue({ name: "我們的婚宴" });
+    workspaceFindFirst.mockImplementation((args) => {
+      if (args?.select?.hasEngagementCeremony) {
+        return Promise.resolve({ hasEngagementCeremony: true });
+      }
+      if (args?.select?.hasProcessionCeremony) {
+        return Promise.resolve({ hasProcessionCeremony: true });
+      }
+      return Promise.resolve({ name: "我們的婚宴" });
+    });
     updateMany.mockResolvedValue({ count: 1 });
     deleteMany.mockResolvedValue({ count: 1 });
     executeRaw.mockResolvedValue(1);
@@ -314,7 +411,6 @@ describe("budget item server actions", () => {
     formData.set("category", "OTHER_PENDING");
     formData.set("name", "forged_name");
     formData.set("plannedAmount", "999999");
-
     await expect(
       addBudgetEngagementSuggestionsAction(
         "workspace_1",
@@ -337,6 +433,10 @@ describe("budget item server actions", () => {
         },
       },
       select: { id: true },
+    });
+    expect(workspaceFindFirst).toHaveBeenCalledWith({
+      where: { id: "workspace_1" },
+      select: { hasEngagementCeremony: true },
     });
     expect(findFirst).toHaveBeenCalledWith({
       where: {
@@ -387,6 +487,24 @@ describe("budget item server actions", () => {
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       createMany.mock.invocationCallOrder[0],
     );
+  });
+
+  it("rejects engagement suggestions when the workspace did not configure engagement", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasEngagementCeremony: false,
+    });
+    await expect(
+      addBudgetEngagementSuggestionsAction(
+        "workspace_1",
+        idleState,
+        engagementSuggestionFormData("ENGAGEMENT_GROOM_LARGE_BETROTHAL_GIFT"),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "請先在花費頁開啟文定儀式設定，再加入文定建議項目。",
+    });
+    expect(createMany).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -455,6 +573,10 @@ describe("budget item server actions", () => {
       ),
     ).resolves.toEqual({ status: "success", message });
     expect(revalidatePath).toHaveBeenCalledWith(budgetPath);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
 
   it("fails closed when an engagement taxonomy parent is missing", async () => {
@@ -507,6 +629,18 @@ describe("budget item server actions", () => {
     formData.set("parentId", "forged_parent");
     formData.set("name", "forged_name");
     formData.set("plannedAmount", "999999");
+    formData.set(
+      "preparationStatus:PREPARATION_PROPOSAL_FAMILY_MEAL",
+      "NEEDS_ACTION",
+    );
+    formData.set(
+      "preparationStatus:PREPARATION_PRE_WEDDING_PHOTOGRAPHY_RETOUCHING",
+      "NOT_PLANNED",
+    );
+    formData.set(
+      "preparationStatus:PREPARATION_WEDDING_SHOES_BRIDE",
+      "ALREADY_OWNED",
+    );
 
     await expect(
       addBudgetPreparationSuggestionsAction(
@@ -516,7 +650,7 @@ describe("budget item server actions", () => {
       ),
     ).resolves.toEqual({
       status: "success",
-      message: "已新增 3 筆常見婚禮建議項目。",
+      message: "已記錄 3 筆常見婚禮建議項目。",
     });
 
     expect(createMany).toHaveBeenCalledWith({
@@ -527,6 +661,7 @@ describe("budget item server actions", () => {
           suggestionKey: "PREPARATION_PROPOSAL_FAMILY_MEAL",
           name: "兩家人見面餐費",
           category: "RINGS_KEEPSAKES",
+          preparationStatus: "NEEDS_ACTION",
         }),
         expect.objectContaining({
           parentId: "fixed_ITEM_PRE_WEDDING_PHOTOGRAPHY",
@@ -534,12 +669,14 @@ describe("budget item server actions", () => {
             "PREPARATION_PRE_WEDDING_PHOTOGRAPHY_RETOUCHING",
           name: "精修",
           category: "PHOTOGRAPHY_VIDEO",
+          preparationStatus: "NOT_PLANNED",
         }),
         expect.objectContaining({
           parentId: "fixed_ITEM_WEDDING_SHOES",
           suggestionKey: "PREPARATION_WEDDING_SHOES_BRIDE",
           name: "新娘婚鞋",
           category: "ATTIRE_STYLING",
+          preparationStatus: "ALREADY_OWNED",
         }),
       ],
       skipDuplicates: true,
@@ -563,6 +700,50 @@ describe("budget item server actions", () => {
     expect(requireLockedWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       createMany.mock.invocationCallOrder[0],
     );
+  });
+
+  it("rejects procession suggestions when the workspace did not configure procession", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasProcessionCeremony: false,
+    });
+    await expect(
+      addBudgetPreparationSuggestionsAction(
+        "workspace_1",
+        idleState,
+        engagementSuggestionFormData(
+          "PREPARATION_PROCESSION_GROOM_ESCORT_GIFT",
+        ),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "請先在花費頁開啟迎娶儀式設定，再加入迎娶建議項目。",
+    });
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a forged common-item preparation decision before opening a transaction", async () => {
+    const formData = engagementSuggestionFormData(
+      "PREPARATION_WEDDING_SHOES_GROOM",
+    );
+    formData.set(
+      "preparationStatus:PREPARATION_WEDDING_SHOES_GROOM",
+      "PAID",
+    );
+
+    await expect(
+      addBudgetPreparationSuggestionsAction(
+        "workspace_1",
+        idleState,
+        formData,
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "請選擇有效的準備方式。",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(createMany).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -609,7 +790,7 @@ describe("budget item server actions", () => {
   });
 
   it.each([
-    [1, "已新增 1 筆常見婚禮建議項目；其餘已存在。"],
+    [1, "已記錄 1 筆常見婚禮建議項目；其餘已存在。"],
     [0, "所選常見婚禮建議項目已存在。"],
   ])("keeps repeat common wedding submissions idempotent when %i rows are new", async (
     count,
@@ -660,7 +841,7 @@ describe("budget item server actions", () => {
     ).resolves.toEqual({
       status: "error",
       code: "UNAVAILABLE",
-      message: "目前無法新增常見婚禮建議項目，請稍後再試。",
+      message: "目前無法記錄常見婚禮建議項目，請稍後再試。",
     });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -1074,6 +1255,12 @@ describe("budget item server actions", () => {
         "budget_1",
         idleState,
         statusFormData("forged"),
+      ),
+      changeBudgetItemPreparationStatusAction(
+        "workspace_1",
+        "budget_1",
+        idleState,
+        preparationStatusFormData("forged"),
       ),
       deleteBudgetItemAction(
         "workspace_1",
@@ -1522,6 +1709,9 @@ describe("budget item server actions", () => {
       /"actual_amount" = CASE[\s\S]*WHEN 'PLANNING' THEN NULL[\s\S]*WHEN 'BOOKED_BALANCE_DUE' THEN "deposit_amount"[\s\S]*WHEN 'PAID' THEN "planned_amount"[\s\S]*END/u,
     );
     expect(statement.sql).toMatch(/"id" = [^\s]+[\s\S]*"workspace_id" = [^\s]+[\s\S]*"version" =/u);
+    expect(statement.sql).toMatch(
+      /"preparation_status" = 'NEEDS_ACTION'::"BudgetPreparationStatus"/u,
+    );
     expect(statement.values).toEqual(
       expect.arrayContaining([
         "PAID",
@@ -1532,6 +1722,56 @@ describe("budget item server actions", () => {
         4,
       ]),
     );
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("changes preparation status with tenant scope and version CAS while preserving retained financial fields", async () => {
+    await expect(
+      changeBudgetItemPreparationStatusAction(
+        "workspace_1",
+        "budget_1",
+        idleState,
+        preparationStatusFormData("ALREADY_OWNED", "7"),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已更新準備方式；原有金額仍保留，但不再計入預算。",
+    });
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "budget_1",
+        workspaceId: "workspace_1",
+        version: 7,
+        kind: "EXPENSE",
+      },
+      data: {
+        preparationStatus: "ALREADY_OWNED",
+        version: { increment: 1 },
+      },
+    });
+    expect(updateMany.mock.calls[0][0].data).not.toHaveProperty(
+      "plannedAmount",
+    );
+    expect(updateMany.mock.calls[0][0].data).not.toHaveProperty(
+      "bookingStatus",
+    );
+  });
+
+  it("rejects an invalid preparation status after authorization and does not write", async () => {
+    await expect(
+      changeBudgetItemPreparationStatusAction(
+        "workspace_1",
+        "budget_1",
+        idleState,
+        preparationStatusFormData("PAID", "2"),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "請選擇有效的準備方式。",
+    });
+    expect(requireWorkspaceAccess).toHaveBeenCalled();
     expect(updateMany).not.toHaveBeenCalled();
   });
 
@@ -1601,6 +1841,7 @@ describe("budget item server actions", () => {
         statusFormData("PLANNING", "6"),
       ),
     ).resolves.toMatchObject({ status: "success" });
+    revalidatePath.mockClear();
     await expect(
       changeBudgetItemBookingStatusAction(
         "workspace_1",
@@ -1611,6 +1852,161 @@ describe("budget item server actions", () => {
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
     expect(executeRaw).toHaveBeenCalledTimes(2);
     expect(revalidatePath).toHaveBeenCalledWith(budgetPath);
+  });
+
+  it("authorizes edit access before parsing a ceremony-stage cleanup form", async () => {
+    requireWorkspaceAccess.mockRejectedValueOnce(
+      new WorkspaceAccessDeniedError(),
+    );
+
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        new FormData(),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "FORBIDDEN",
+      message: "無權存取此婚宴工作區。",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "STAGE_PREPARATION_1_2_MONTHS",
+    "ITEM_PROCESSION_GROOM",
+    "INTERNAL_UNCLASSIFIED_STAGE",
+    "",
+  ])("refuses the non-ceremony stage key %j without opening a transaction", async (stageKey) => {
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        stageKey,
+        idleState,
+        ceremonyCleanupFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "儀式階段資訊無效，請重新整理後再試。",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses a mismatched stage-name confirmation without opening a transaction", async () => {
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        ceremonyCleanupFormData({ confirmationName: "迎娶" }),
+      ),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "階段名稱不相符，項目均未刪除。",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("removes only the user rows under a switched-off ceremony stage", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+    });
+    findMany.mockResolvedValueOnce(processionStageRows);
+    deleteMany.mockResolvedValueOnce({ count: 2 });
+
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        ceremonyCleanupFormData(),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message:
+        "已永久移除「迎娶儀式用品、工作人員紅包」底下的 2 筆項目，以及 1 個附件。",
+    });
+
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
+    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(
+      (executeRaw.mock.calls[0][0] as { strings: string[] }).strings.join(" "),
+    ).toContain("pg_advisory_xact_lock");
+    // 固定階段與品項分類必須留著，只清掉底下的使用者資料。
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        workspaceId: "workspace_1",
+        systemTaxonomyKey: null,
+        id: { in: ["expense_door_gift", "expense_escort_gift"] },
+      },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(budgetPath);
+  });
+
+  it("refuses to clear a stage whose ceremony is still switched on", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: true,
+    });
+
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        ceremonyCleanupFormData(),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
+    expect(findMany).not.toHaveBeenCalled();
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses a snapshot that no longer matches the stored stage subtree", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+    });
+    findMany.mockResolvedValueOnce(
+      processionStageRows.map((row) =>
+        row.id === "expense_door_gift" ? { ...row, version: 3 } : row,
+      ),
+    );
+
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        ceremonyCleanupFormData(),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the delete removed a different number of rows than the snapshot", async () => {
+    workspaceFindFirst.mockResolvedValueOnce({
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+    });
+    findMany.mockResolvedValueOnce(processionStageRows);
+    deleteMany.mockResolvedValueOnce({ count: 1 });
+
+    await expect(
+      clearBudgetCeremonyStageAction(
+        "workspace_1",
+        "STAGE_WEDDING_PROCESSION",
+        idleState,
+        ceremonyCleanupFormData(),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
   });
 
   it("authorizes edit access before parsing a group-subtree deletion form", async () => {
@@ -2356,6 +2752,11 @@ describe("budget item server actions", () => {
       status: "success",
       message: "已新增花費項目；畫面未自動更新，請重新整理。",
     });
+    expect(revalidatePath).toHaveBeenCalledTimes(3);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(log).toHaveBeenCalledWith("婚禮花費頁面重新驗證失敗。");
     expect(log).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
   });
@@ -2556,6 +2957,7 @@ describe("budget item server actions", () => {
       ),
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
     expect(deleteMany).toHaveBeenCalledOnce();
+    expect(revalidatePath).toHaveBeenCalledWith(budgetPath);
   });
 
   it("sanitizes unexpected Budget reset failures", async () => {

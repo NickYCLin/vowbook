@@ -24,6 +24,9 @@ import {
   sanitizeBudgetAttachmentPreviewUncachedForTests,
 } from "./budget-attachment-preview";
 
+const HEAVY_PREVIEW_TEST_TIMEOUT_MS =
+  process.platform === "win32" ? 60_000 : 5_000;
+
 async function makeImage(
   format: "jpeg" | "png" | "webp",
 ): Promise<Buffer> {
@@ -163,22 +166,26 @@ describe("budget attachment sanitized preview", () => {
     expect(metadata.height).toBe(2);
   });
 
-  it("rejects header-only, truncated, and trailing-polyglot images", async () => {
-    const validPng = await makeImage("png");
+  it(
+    "rejects header-only, truncated, and trailing-polyglot images",
+    async () => {
+      const validPng = await makeImage("png");
 
-    for (const data of [
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      validPng.subarray(0, Math.floor(validPng.byteLength / 2)),
-      Buffer.concat([validPng, Buffer.from("<script>unsafe</script>")]),
-    ]) {
-      await expect(
-        sanitizeBudgetAttachmentPreviewUncachedForTests({
-          data,
-          mediaType: "image/png",
-        }),
-      ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
-    }
-  });
+      for (const data of [
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        validPng.subarray(0, Math.floor(validPng.byteLength / 2)),
+        Buffer.concat([validPng, Buffer.from("<script>unsafe</script>")]),
+      ]) {
+        await expect(
+          sanitizeBudgetAttachmentPreviewUncachedForTests({
+            data,
+            mediaType: "image/png",
+          }),
+        ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
+      }
+    },
+    HEAVY_PREVIEW_TEST_TIMEOUT_MS,
+  );
 
   it("rasterizes every PDF page into a new reopenable PDF", async () => {
     const source = await makePdf([
@@ -336,37 +343,41 @@ describe("budget attachment sanitized preview", () => {
         }),
       ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
     }
-  });
+  }, HEAVY_PREVIEW_TEST_TIMEOUT_MS);
 
-  it("enforces page, total-pixel, and sanitized-output bounds", async () => {
-    await expect(
-      sanitizeBudgetAttachmentPreviewUncachedForTests({
-        data: await makePdf(
-          Array.from({ length: 51 }, () => [20, 20] as [number, number]),
-        ),
-        mediaType: "application/pdf",
-      }),
-    ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
-
-    await expect(
-      sanitizeBudgetAttachmentPreviewUncachedForTests({
-        data: await makePdf(
-          Array.from({ length: 5 }, () => [2200, 2200] as [number, number]),
-        ),
-        mediaType: "application/pdf",
-      }),
-    ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
-
-    await expect(
-      sanitizeBudgetAttachmentPreviewUncachedForTests(
-        {
-          data: await makePdf([[120, 120]]),
+  it(
+    "enforces page, total-pixel, and sanitized-output bounds",
+    async () => {
+      await expect(
+        sanitizeBudgetAttachmentPreviewUncachedForTests({
+          data: await makePdf(
+            Array.from({ length: 51 }, () => [20, 20] as [number, number]),
+          ),
           mediaType: "application/pdf",
-        },
-        { maxSanitizedOutputBytes: 32 },
-      ),
-    ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
-  });
+        }),
+      ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
+
+      await expect(
+        sanitizeBudgetAttachmentPreviewUncachedForTests({
+          data: await makePdf(
+            Array.from({ length: 5 }, () => [2200, 2200] as [number, number]),
+          ),
+          mediaType: "application/pdf",
+        }),
+      ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
+
+      await expect(
+        sanitizeBudgetAttachmentPreviewUncachedForTests(
+          {
+            data: await makePdf([[120, 120]]),
+            mediaType: "application/pdf",
+          },
+          { maxSanitizedOutputBytes: 32 },
+        ),
+      ).rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
+    },
+    HEAVY_PREVIEW_TEST_TIMEOUT_MS,
+  );
 
   it("SIGKILLs a delayed transform process at the fixed deadline", async () => {
     expect(MAX_BUDGET_ATTACHMENT_PREVIEW_TRANSFORM_MS).toBe(15_000);

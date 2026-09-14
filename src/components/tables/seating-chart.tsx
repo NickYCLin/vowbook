@@ -16,7 +16,7 @@ export type SeatingChartTable = {
   name: string;
   layoutX: number | null;
   layoutY: number | null;
-  guests: Array<{ side: GuestSideValue; childSeatCount?: number | null }>;
+  guests: Array<{ side: GuestSideValue; childSeatCount?: number | null; vegetarianCount?: number | null }>;
 };
 
 const SIDE_DOT_CLASSNAMES = {
@@ -140,6 +140,7 @@ export function SeatingChart({
             if (!position) return null;
             const percent = seatingFloorPlanCoordinateToBoardPercent(position);
             const side = seatingTableSide(table.guests);
+            const vegetarianCount = table.guests.reduce((sum, guest) => sum + (guest.vegetarianCount ?? 0), 0);
             const childSeats = table.guests.reduce(
               (total, guest) =>
                 total + Math.max(guest.childSeatCount ?? 0, 0),
@@ -150,7 +151,7 @@ export function SeatingChart({
                 key={table.id}
                 aria-label={`${seatingTableLabel(table)}${
                   side ? `，${GUEST_SIDE_LABELS[side]}` : ""
-                }${childSeats > 0 ? `，兒童椅 ${childSeats} 張` : ""}`}
+                }${childSeats > 0 ? `，兒童椅 ${childSeats} 張` : ""}${vegetarianCount > 0 ? `，素食 ${vegetarianCount} 位` : ""}`}
                 className={cn(
                   "absolute grid -translate-x-1/2 -translate-y-1/2 place-content-center justify-items-center gap-[0.2cqw] rounded-full border border-line-strong bg-surface px-[0.6cqw] text-center shadow-card",
                   density.marker,
@@ -196,6 +197,9 @@ export function SeatingChart({
                       </span>
                     ) : null}
                   </span>
+                ) : null}
+                {vegetarianCount > 0 ? (
+                  <span className="absolute -bottom-[0.5cqw] rounded-full border border-sage bg-surface px-[0.4cqw] text-[0.9cqw] font-semibold text-sage">素 {vegetarianCount}</span>
                 ) : null}
                 {childSeats > 0 && density.childSeats ? (
                   <span

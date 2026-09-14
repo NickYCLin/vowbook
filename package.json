@@ -13,13 +13,13 @@
     "test": "node scripts/secret-free-command.mjs -- vitest run",
     "test:db": "node scripts/secret-free-command.mjs -- node scripts/postgres-integration-command.mjs",
     "e2e:install": "node scripts/playwright-command.mjs install",
-    "pretest:e2e": "NEXT_PUBLIC_BASE_PATH=/VowBook npm run build",
-    "test:e2e": "NEXT_PUBLIC_BASE_PATH=/VowBook node scripts/secret-free-command.mjs -- node scripts/playwright-command.mjs test",
+    "pretest:e2e": "node scripts/e2e-command.mjs build",
+    "test:e2e": "node scripts/e2e-command.mjs test",
     "rwd:audit": "node scripts/secret-free-command.mjs -- node scripts/rwd-audit.mjs",
-    "pretest:e2e:attachments": "NEXT_PUBLIC_BASE_PATH=/VowBook npm run build",
-    "test:e2e:attachments": "node scripts/secret-free-command.mjs -- node scripts/budget-attachment-browser-command.mjs",
-    "pretest:e2e:crud": "NEXT_PUBLIC_BASE_PATH=/VowBook npm run build",
-    "test:e2e:crud": "node scripts/secret-free-command.mjs -- node scripts/crud-browser-command.mjs",
+    "pretest:e2e:attachments": "node scripts/e2e-command.mjs build",
+    "test:e2e:attachments": "node scripts/e2e-command.mjs attachments",
+    "pretest:e2e:crud": "node scripts/e2e-command.mjs build",
+    "test:e2e:crud": "node scripts/e2e-command.mjs crud",
     "db:validate": "node scripts/prisma-command.mjs validate",
     "db:generate": "node scripts/prisma-command.mjs generate"
   },
@@ -56,12 +56,13 @@
     "node": ">=20.9.0"
   },
   "overrides": {
+    "deepmerge-ts": "8.0.2",
     "minimatch@3.1.5": "10.2.6",
     "minimatch@10.2.5": {
       "brace-expansion": "5.0.9"
     },
     "postcss": "8.5.26",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "undici": "7.29.0",
     "sharp": "0.35.4"
   }

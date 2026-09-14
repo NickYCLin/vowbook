@@ -154,13 +154,13 @@ describe("budget preparation preset", () => {
       },
       {
         taxonomyItemKey: "ITEM_PRE_WEDDING_PHOTOGRAPHY",
-        name: "新人的小白鞋",
+        name: "洋琛的小白鞋",
       },
       {
         taxonomyItemKey: "ITEM_PRE_WEDDING_PHOTOGRAPHY",
         name: "拍攝用小白鞋",
       },
-      { taxonomyItemKey: "ITEM_WEDDING_SHOES", name: "新人的小白鞋" },
+      { taxonomyItemKey: "ITEM_WEDDING_SHOES", name: "洋琛的小白鞋" },
       { taxonomyItemKey: "ITEM_PROPOSAL", name: "求婚企劃" },
       { taxonomyItemKey: "ITEM_WEDDING_VENUE", name: "宴客" },
       { taxonomyItemKey: "ITEM_WEDDING_CAKES", name: "喜餅" },

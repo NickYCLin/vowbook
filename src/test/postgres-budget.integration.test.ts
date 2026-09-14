@@ -14,6 +14,7 @@ import {
   addBudgetEngagementSuggestionsAction,
   addBudgetPreparationSuggestionsAction,
   changeBudgetItemBookingStatusAction,
+  changeBudgetItemPreparationStatusAction,
   createBudgetGroupAction,
   createBudgetItemAction,
   deleteBudgetGroupSubtreeAction,
@@ -310,6 +311,15 @@ function bookingStatusForm(
 ): FormData {
   const formData = versionForm(expectedVersion);
   formData.set("bookingStatus", bookingStatus);
+  return formData;
+}
+
+function preparationStatusForm(
+  preparationStatus: "NEEDS_ACTION" | "ALREADY_OWNED" | "NOT_PLANNED",
+  expectedVersion: number,
+): FormData {
+  const formData = versionForm(expectedVersion);
+  formData.set("preparationStatus", preparationStatus);
   return formData;
 }
 
@@ -2733,6 +2743,121 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
     });
   });
 
+  it("keeps preparation decisions reversible without losing or miscounting cost data", async () => {
+    const { workspace } = await createOwnerWorkspace();
+    const item = await createBudgetItem({
+      data: {
+        workspaceId: workspace.id,
+        name: "既有西裝",
+        category: "ATTIRE_STYLING",
+        plannedAmount: 50000,
+        actualAmount: 48000,
+        bookingStatus: "BOOKED_BALANCE_DUE",
+        balanceAmount: 2000,
+        dueDate: new Date("2028-04-30T00:00:00.000Z"),
+        notes: "保留修改費與原始估價",
+      },
+    });
+
+    await expect(
+      changeBudgetItemPreparationStatusAction(
+        workspace.id,
+        item.id,
+        idleState,
+        preparationStatusForm("ALREADY_OWNED", 0),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+
+    const owned = await prisma.budgetItem.findUniqueOrThrow({
+      where: { id: item.id },
+    });
+    expect(owned).toMatchObject({
+      preparationStatus: "ALREADY_OWNED",
+      plannedAmount: 50000,
+      actualAmount: 48000,
+      bookingStatus: "BOOKED_BALANCE_DUE",
+      balanceAmount: 2000,
+      notes: "保留修改費與原始估價",
+      version: 1,
+    });
+
+    const ownedPage = await getBudgetPageData(workspace.id);
+    expect(ownedPage.summary).toMatchObject({
+      itemCount: 0,
+      plannedTotal: "0",
+      actualTotal: "0",
+      balanceDueTotal: "0",
+      selfProvidedCount: 1,
+      notPlannedCount: 0,
+    });
+
+    await expect(
+      changeBudgetItemBookingStatusAction(
+        workspace.id,
+        item.id,
+        idleState,
+        bookingStatusForm("PAID", 1),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
+    expect(
+      await prisma.budgetItem.findUniqueOrThrow({ where: { id: item.id } }),
+    ).toMatchObject({
+      preparationStatus: "ALREADY_OWNED",
+      bookingStatus: "BOOKED_BALANCE_DUE",
+      version: 1,
+    });
+
+    await expect(
+      changeBudgetItemPreparationStatusAction(
+        workspace.id,
+        item.id,
+        idleState,
+        preparationStatusForm("NOT_PLANNED", 1),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect((await getBudgetPageData(workspace.id)).summary).toMatchObject({
+      itemCount: 0,
+      selfProvidedCount: 0,
+      notPlannedCount: 1,
+    });
+
+    await expect(
+      changeBudgetItemPreparationStatusAction(
+        workspace.id,
+        item.id,
+        idleState,
+        preparationStatusForm("NEEDS_ACTION", 2),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect((await getBudgetPageData(workspace.id)).summary).toMatchObject({
+      itemCount: 1,
+      plannedTotal: "50000",
+      actualTotal: "48000",
+      balanceDueTotal: "2000",
+      selfProvidedCount: 0,
+      notPlannedCount: 0,
+    });
+
+    const groupParentId = await internalTaxonomyItemId(workspace.id);
+    const group = await prisma.budgetItem.create({
+      data: {
+        workspaceId: workspace.id,
+        parentId: groupParentId,
+        name: "服裝群組",
+        kind: "GROUP",
+        category: null,
+        plannedAmount: 0,
+      },
+    });
+    await expect(
+      prisma.$executeRaw`
+        UPDATE "budget_items"
+        SET "preparation_status" = 'ALREADY_OWNED'::"BudgetPreparationStatus"
+        WHERE "id" = ${group.id}
+      `,
+    ).rejects.toThrow();
+  });
+
   it("moves hierarchy only with same-workspace non-descendant targets and fresh CAS", async () => {
     const { user, workspace } = await createOwnerWorkspace("移動階層");
     const pendingItemId = await internalTaxonomyItemId(workspace.id);
@@ -3148,6 +3273,10 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
 
   it("adds selected engagement suggestions under fixed parents without duplicate rows", async () => {
     const { workspace } = await createOwnerWorkspace();
+    await prisma.weddingWorkspace.update({
+      where: { id: workspace.id },
+      data: { hasEngagementCeremony: true },
+    });
     const keys = [
       "ENGAGEMENT_GROOM_LARGE_BETROTHAL_GIFT",
       "ENGAGEMENT_BRIDE_ACCEPTANCE_GIFT",
@@ -3212,6 +3341,59 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
         where: { workspaceId: workspace.id, suggestionKey: { not: null } },
       }),
     ).toBe(2);
+  });
+
+  it("requires explicit workspace opt-in before Chinese ceremony suggestions", async () => {
+    const { workspace } = await createOwnerWorkspace();
+    await expect(
+      addBudgetEngagementSuggestionsAction(
+        workspace.id,
+        idleState,
+        engagementSuggestionForm("ENGAGEMENT_GROOM_LARGE_BETROTHAL_GIFT"),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    await expect(
+      addBudgetPreparationSuggestionsAction(
+        workspace.id,
+        idleState,
+        engagementSuggestionForm("PREPARATION_PROCESSION_GROOM_ESCORT_GIFT"),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(
+      await prisma.budgetItem.count({
+        where: { workspaceId: workspace.id, suggestionKey: { not: null } },
+      }),
+    ).toBe(0);
+
+    await prisma.weddingCeremony.create({
+      data: { workspaceId: workspace.id, type: "PROCESSION", name: "迎娶" },
+    });
+    await expect(
+      addBudgetPreparationSuggestionsAction(
+        workspace.id,
+        idleState,
+        engagementSuggestionForm("PREPARATION_PROCESSION_GROOM_ESCORT_GIFT"),
+      ),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    await prisma.weddingWorkspace.update({
+      where: { id: workspace.id },
+      data: { hasProcessionCeremony: true },
+    });
+    await expect(
+      addBudgetPreparationSuggestionsAction(
+        workspace.id,
+        idleState,
+        engagementSuggestionForm("PREPARATION_PROCESSION_GROOM_ESCORT_GIFT"),
+      ),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(
+      await prisma.budgetItem.count({
+        where: {
+          workspaceId: workspace.id,
+          suggestionKey: "PREPARATION_PROCESSION_GROOM_ESCORT_GIFT",
+        },
+      }),
+    ).toBe(1);
   });
 
   it("adds common wedding suggestions under fixed parents without duplicate rows", async () => {
@@ -3457,7 +3639,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
         plan,
         apply: true,
       }),
-    ).resolves.toMatchObject({ create: 0, update: 0, unchanged: 31 });
+    ).resolves.toMatchObject({ create: 0, update: 0, unchanged: 32 });
     const afterRerun = await prisma.budgetItem.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { name: "asc" },

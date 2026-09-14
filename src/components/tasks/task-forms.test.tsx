@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const actions = vi.hoisted(() => ({
@@ -79,17 +85,16 @@ describe("wedding task forms", () => {
       </>,
     );
 
-    expect(screen.getByText(`編輯 ${longTitle}`)).toHaveClass(
-      "break-words",
-      "min-h-11",
-    );
+    // 長標題只留在可及性名稱裡；畫面上只顯示短動詞。
+    const editTrigger = screen.getByRole("button", { name: `編輯 ${longTitle}` });
+    expect(editTrigger).toHaveTextContent(/^編輯$/u);
+    expect(editTrigger).toHaveClass("min-h-11");
     expect(
       screen.getByRole("button", { name: `標記完成：${longTitle}` }),
     ).toHaveClass("min-h-11");
-    expect(screen.getByText(`刪除 ${longTitle}`)).toHaveClass(
-      "break-words",
-      "min-h-11",
-    );
+    const deleteTrigger = screen.getByRole("button", { name: `刪除 ${longTitle}` });
+    expect(deleteTrigger).toHaveTextContent(/^刪除$/u);
+    expect(deleteTrigger).toHaveClass("min-h-11");
 
     // 刪除仍是兩段式：先開啟確認對話框，才會出現不可復原的警告與確認鈕。
     expect(screen.getByText("此動作無法復原。")).not.toBeVisible();
@@ -160,12 +165,17 @@ describe("wedding task forms", () => {
     });
   });
 
-  it("preserves stale feedback and attempted values while rebasing the version", async () => {
-    actions.updateWeddingTaskAction.mockResolvedValueOnce({
-      status: "error",
-      code: "STALE",
-      message: "這項任務已被其他人更新，請確認最新內容後再試一次。",
-    });
+  it("keeps a stale draft paired with its original version until the latest snapshot is loaded", async () => {
+    actions.updateWeddingTaskAction
+      .mockResolvedValueOnce({
+        status: "error",
+        code: "STALE",
+        message: "這項任務已被其他人更新，請確認最新內容後再試一次。",
+      })
+      .mockResolvedValueOnce({
+        status: "success",
+        message: "已更新任務內容。",
+      });
     const { container, rerender } = render(
       <EditWeddingTaskForm
         workspaceId="workspace_internal"
@@ -215,6 +225,182 @@ describe("wedding task forms", () => {
     expect(screen.getByLabelText("任務名稱")).toHaveValue("修改後任務");
     expect(screen.getByLabelText(/任務說明/)).toHaveValue("修改後說明");
     expect(screen.getByLabelText("任務歸屬")).toHaveValue("PARTNER_A");
+    expect(screen.getByLabelText(/到期日/)).toHaveValue("2028-02-29");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("4");
+    expect(
+      screen.getByText(
+        "這筆任務已有較新的資料，目前表單仍保留原本的草稿與版本。",
+      ),
+    ).toBeInTheDocument();
+
+    const loadLatestButton = screen.getByRole("button", {
+      name: "載入最新資料",
+    });
+    expect(loadLatestButton).toHaveAttribute("type", "button");
+    fireEvent.click(loadLatestButton);
+
+    expect(screen.getByLabelText("任務名稱")).toHaveValue("伺服器最新任務");
+    expect(screen.getByLabelText(/任務說明/)).toHaveValue("伺服器最新說明");
+    expect(screen.getByLabelText(/到期日/)).toHaveValue("2028-03-01");
+    expect(screen.getByLabelText("任務歸屬")).toHaveValue("PARTNER_B");
     expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("5");
+    expect(screen.queryByRole("button", { name: "載入最新資料" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    fireEvent.submit(form!);
+    await waitFor(() => {
+      expect(actions.updateWeddingTaskAction).toHaveBeenCalledTimes(2);
+    });
+    const submitted = actions.updateWeddingTaskAction.mock.calls[1]?.[3];
+    expect(submitted).toBeInstanceOf(FormData);
+    expect((submitted as FormData).get("expectedVersion")).toBe("5");
+    expect((submitted as FormData).get("title")).toBe("伺服器最新任務");
+    expect((submitted as FormData).get("description")).toBe("伺服器最新說明");
+    expect((submitted as FormData).get("dueDate")).toBe("2028-03-01");
+    expect((submitted as FormData).get("side")).toBe("PARTNER_B");
+  });
+
+  it("advances an own successful edit snapshot before the next submit and accepts matching server props", async () => {
+    actions.updateWeddingTaskAction
+      .mockResolvedValueOnce({
+        status: "success",
+        message: "已更新任務內容。",
+      })
+      .mockResolvedValueOnce({
+        status: "success",
+        message: "已更新任務內容。",
+      });
+    const { container, rerender } = render(
+      <EditWeddingTaskForm
+        workspaceId="workspace_internal"
+        taskId="task_internal"
+        title="原始任務"
+        description="原始說明"
+        dueDate="2028-02-29"
+        side="SHARED"
+        expectedVersion={4}
+      />,
+    );
+    openDialog("編輯 原始任務");
+    const form = screen.getByRole("form", { name: "編輯任務表單" });
+
+    fireEvent.change(screen.getByLabelText("任務名稱"), {
+      target: { value: "  已   更新任務  " },
+    });
+    fireEvent.change(screen.getByLabelText(/任務說明/u), {
+      target: { value: "  已更新說明  " },
+    });
+    fireEvent.change(screen.getByLabelText("任務歸屬"), {
+      target: { value: "PARTNER_A" },
+    });
+    fireEvent.submit(form);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "已更新任務內容。",
+    );
+    expect(screen.getByLabelText("任務名稱")).toHaveValue("已 更新任務");
+    expect(screen.getByLabelText(/任務說明/u)).toHaveValue("已更新說明");
+    expect(screen.getByLabelText("任務歸屬")).toHaveValue("PARTNER_A");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "5",
+    );
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+
+    rerender(
+      <EditWeddingTaskForm
+        workspaceId="workspace_internal"
+        taskId="task_internal"
+        title="已 更新任務"
+        description="已更新說明"
+        dueDate="2028-02-29"
+        side="PARTNER_A"
+        expectedVersion={5}
+      />,
+    );
+
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue(
+      "5",
+    );
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("任務名稱"), {
+      target: { value: "再次更新任務" },
+    });
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(actions.updateWeddingTaskAction).toHaveBeenCalledTimes(2);
+    });
+    const secondSubmission = actions.updateWeddingTaskAction.mock.calls[1]?.[3];
+    expect(secondSubmission).toBeInstanceOf(FormData);
+    expect((secondSubmission as FormData).get("expectedVersion")).toBe("5");
+    await waitFor(() =>
+      expect(
+        container.querySelector('[name="expectedVersion"]'),
+      ).toHaveValue("6"),
+    );
+    expect(
+      screen.queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+  });
+
+  it("freezes the destructive task snapshot until the dialog is closed and reopened", () => {
+    const { rerender } = render(
+      <DeleteWeddingTaskForm
+        workspaceId="workspace_internal"
+        taskId="task_internal"
+        title="原始任務"
+        expectedVersion={4}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "刪除 原始任務" }));
+    const dialog = screen.getByRole("dialog", { name: "原始任務" });
+
+    rerender(
+      <DeleteWeddingTaskForm
+        workspaceId="workspace_internal"
+        taskId="task_internal"
+        title="協作者更新的任務"
+        expectedVersion={5}
+      />,
+    );
+
+    expect(dialog).toHaveAttribute("open");
+    expect(dialog.querySelector('input[name="expectedVersion"]')).toHaveValue(
+      "4",
+    );
+    expect(dialog).toHaveTextContent("原始任務");
+    expect(
+      within(dialog).getByText(
+        "這筆任務已有較新的資料，請關閉後重新確認刪除。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "確認刪除 原始任務" }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "關閉刪除任務" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "刪除 協作者更新的任務" }),
+    );
+
+    const reopenedDialog = screen.getByRole("dialog", {
+      name: "協作者更新的任務",
+    });
+    expect(
+      reopenedDialog.querySelector('input[name="expectedVersion"]'),
+    ).toHaveValue("5");
+    expect(within(reopenedDialog).queryByRole("alert")).toBeNull();
+    expect(
+      within(reopenedDialog).getByRole("button", {
+        name: "確認刪除 協作者更新的任務",
+      }),
+    ).toBeEnabled();
   });
 });

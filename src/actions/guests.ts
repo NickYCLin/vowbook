@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   hasGuestDetails,
   normalizeGuestDetailsInput,
   type NormalizedGuestDetailsInput,
+  validateGuestRequirementsWithinPartySize,
 } from "@/domain/guest-details";
 import {
   GuestValidationError,
@@ -13,6 +14,9 @@ import {
   normalizeGuestVersion,
   type NormalizedGuestInput,
 } from "@/domain/guest";
+import { normalizeGuestCheckInExpectedVersion } from "@/domain/guest-check-in";
+import { normalizeWeddingGiftExpectedVersion } from "@/domain/wedding-gift";
+import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import {
@@ -33,6 +37,18 @@ class GuestStaleWriteError extends Error {}
 
 class GuestPartyCapacityError extends Error {}
 
+/**
+ * 刪除賓客會 cascade 掉禮金與報到紀錄。操作者必須連同自己看到的那一筆
+ * 一起送回來，server 才敢刪；否則畫面沒顯示的紀錄會被無聲清掉。
+ */
+type ExpectedCascadeSnapshot = {
+  id: string;
+  version: number;
+} | null;
+
+type LockedGuestDeleteRow = { id: string };
+type LockedCascadeDeleteRow = { id: string; version: number };
+
 const MANUAL_DETAILS_SOURCE = "MANUAL";
 const MANUAL_DETAILS_SOURCE_INSTANCE = "guest-details";
 const MANUAL_DETAILS_SOURCE_LABEL = "自行填寫";
@@ -40,7 +56,6 @@ const GUEST_DETAILS_FORM_FIELDS = [
   "relationshipLabel",
   "contactPhone",
   "contactEmail",
-  "ceremonyAttendance",
   "childSeatCount",
   "vegetarianCount",
   "invitationDelivery",
@@ -77,10 +92,37 @@ function tablesPath(workspaceId: string): string {
   return `/workspaces/${workspaceId}/tables`;
 }
 
-function revalidateGuestViews(workspaceId: string): void {
-  revalidatePath(guestPath(workspaceId));
-  revalidatePath("/dashboard");
-  revalidatePath(tablesPath(workspaceId));
+async function revalidateGuestViews(workspaceId: string): Promise<boolean> {
+  const revalidations = [
+    () => revalidatePath(guestPath(workspaceId)),
+    () => revalidatePath("/dashboard"),
+    () => revalidatePath(tablesPath(workspaceId)),
+    () => revalidatePath(`/workspaces/${workspaceId}/overview`),
+  ];
+  let revalidated = true;
+
+  for (const revalidate of revalidations) {
+    try {
+      await revalidate();
+    } catch {
+      revalidated = false;
+      console.error("賓客相關頁面重新驗證失敗。");
+    }
+  }
+
+  return revalidated;
+}
+
+function guestSuccessState(
+  message: string,
+  revalidated: boolean,
+): GuestMutationState {
+  return {
+    status: "success",
+    message: revalidated
+      ? message
+      : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`,
+  };
 }
 
 function validationState(error: unknown): GuestMutationState {
@@ -105,12 +147,12 @@ function guestInputFromFormData(formData: FormData): NormalizedGuestInput {
 
 function guestDetailsFromFormData(
   formData: FormData,
+  partySize: number,
 ): NormalizedGuestDetailsInput {
-  return normalizeGuestDetailsInput({
+  const details = normalizeGuestDetailsInput({
     relationshipLabel: formData.get("relationshipLabel"),
     contactPhone: formData.get("contactPhone"),
     contactEmail: formData.get("contactEmail"),
-    ceremonyAttendance: formData.get("ceremonyAttendance"),
     childSeatCount: formData.get("childSeatCount"),
     vegetarianCount: formData.get("vegetarianCount"),
     invitationDelivery: formData.get("invitationDelivery"),
@@ -119,6 +161,76 @@ function guestDetailsFromFormData(
     attendanceReply: formData.get("attendanceReply"),
     invitationReply: formData.get("invitationReply"),
   });
+  validateGuestRequirementsWithinPartySize(details, partySize);
+  return details;
+}
+
+function expectedCascadeSnapshotFromFormData(
+  formData: FormData,
+  {
+    idField,
+    versionField,
+    normalizeVersion,
+    invalidMessage,
+  }: {
+    idField: string;
+    versionField: string;
+    normalizeVersion: (value: unknown) => number;
+    invalidMessage: string;
+  },
+): ExpectedCascadeSnapshot {
+  const id = formData.get(idField);
+  const version = formData.get(versionField);
+  const hasId = id !== null && id !== "";
+  const hasVersion = version !== null && version !== "";
+
+  if (!hasId && !hasVersion) return null;
+  if (
+    !hasId ||
+    !hasVersion ||
+    typeof id !== "string" ||
+    id.length > 191 ||
+    id.trim() !== id
+  ) {
+    throw new GuestValidationError(invalidMessage);
+  }
+
+  return { id, version: normalizeVersion(version) };
+}
+
+function expectedWeddingGiftSnapshotFromFormData(
+  formData: FormData,
+): ExpectedCascadeSnapshot {
+  return expectedCascadeSnapshotFromFormData(formData, {
+    idField: "expectedWeddingGiftId",
+    versionField: "expectedWeddingGiftVersion",
+    normalizeVersion: normalizeWeddingGiftExpectedVersion,
+    invalidMessage: "禮金快照資訊無效，請重新整理後再試。",
+  });
+}
+
+function expectedGuestCheckInSnapshotFromFormData(
+  formData: FormData,
+): ExpectedCascadeSnapshot {
+  return expectedCascadeSnapshotFromFormData(formData, {
+    idField: "expectedGuestCheckInId",
+    versionField: "expectedGuestCheckInVersion",
+    normalizeVersion: normalizeGuestCheckInExpectedVersion,
+    invalidMessage: "報到快照資訊無效，請重新整理後再試。",
+  });
+}
+
+function cascadeSnapshotMatches(
+  locked: readonly LockedCascadeDeleteRow[],
+  expected: ExpectedCascadeSnapshot,
+): boolean {
+  if (!expected) return locked.length === 0;
+  const current = locked[0] ?? null;
+  return (
+    locked.length === 1 &&
+    current?.id === expected.id &&
+    current.version === expected.version
+  );
 }
 
 function includesGuestDetailsFields(formData: FormData): boolean {
@@ -150,10 +262,29 @@ async function upsertManualGuestDetails(
     sourceSubmittedAt: null,
   };
 
+  // 舊版單一證婚回覆只保留作離線匯入相容資料。互動式表單即使被
+  // crafted FormData 塞入 ceremonyAttendance，也不得再建立或改寫它。
+  const patchedDetails = {
+    ...details,
+    ceremonyAttendance: effectiveGuestDetailValue(
+      await transaction.guestImportRecord.findMany({
+        where: { guestId, workspaceId },
+        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+        select: {
+          source: true,
+          sourceInstance: true,
+          sourceManaged: true,
+          ceremonyAttendance: true,
+        },
+      }),
+      (record) => record.ceremonyAttendance,
+    ),
+  };
+
   await transaction.guestImportRecord.upsert({
     where: { workspaceId_source_sourceInstance_externalId: identity },
-    create: { ...provenance, ...details },
-    update: { ...provenance, ...details },
+    create: { ...provenance, ...patchedDetails },
+    update: { ...provenance, ...patchedDetails },
   });
 }
 
@@ -190,7 +321,7 @@ export async function createGuestAction(
   let details: NormalizedGuestDetailsInput;
   try {
     input = guestInputFromFormData(formData);
-    details = guestDetailsFromFormData(formData);
+    details = guestDetailsFromFormData(formData, input.partySize);
   } catch (error) {
     return validationState(error);
   }
@@ -228,8 +359,10 @@ export async function createGuestAction(
     };
   }
 
-  revalidateGuestViews(workspaceId);
-  return { status: "success", message: "已新增賓客。" };
+  return guestSuccessState(
+    "已新增賓客。",
+    await revalidateGuestViews(workspaceId),
+  );
 }
 
 export async function updateGuestAction(
@@ -251,7 +384,7 @@ export async function updateGuestAction(
     // 素食等既有資料誤當成空白並覆寫。完整賓客表單會帶這些欄位，
     // 即使值為空也代表使用者明確要清除。
     details = includesGuestDetailsFields(formData)
-      ? guestDetailsFromFormData(formData)
+      ? guestDetailsFromFormData(formData, input.partySize)
       : null;
     expectedVersion = normalizeGuestVersion(formData.get("expectedVersion"));
   } catch (error) {
@@ -272,6 +405,7 @@ export async function updateGuestAction(
         select: {
           id: true,
           version: true,
+          partySize: true,
           seatingTableId: true,
         },
       });
@@ -280,6 +414,33 @@ export async function updateGuestAction(
       }
       if (guest.version !== expectedVersion) {
         throw new GuestStaleWriteError();
+      }
+
+      if (details === null && input.partySize < guest.partySize) {
+        const detailRecords = await transaction.guestImportRecord.findMany({
+          where: { guestId, workspaceId },
+          orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+          select: {
+            source: true,
+            sourceInstance: true,
+            sourceManaged: true,
+            childSeatCount: true,
+            vegetarianCount: true,
+          },
+        });
+        validateGuestRequirementsWithinPartySize(
+          {
+            childSeatCount: effectiveGuestDetailValue(
+              detailRecords,
+              (record) => record.childSeatCount,
+            ),
+            vegetarianCount: effectiveGuestDetailValue(
+              detailRecords,
+              (record) => record.vegetarianCount,
+            ),
+          },
+          input.partySize,
+        );
       }
 
       const removesFromTable =
@@ -330,6 +491,9 @@ export async function updateGuestAction(
       removedFromTable = removesFromTable;
     });
   } catch (error) {
+    if (error instanceof GuestValidationError) {
+      return validationState(error);
+    }
     if (error instanceof WorkspaceAccessDeniedError) {
       return { status: "error", message: error.message };
     }
@@ -363,13 +527,12 @@ export async function updateGuestAction(
     };
   }
 
-  revalidateGuestViews(workspaceId);
-  return {
-    status: "success",
-    message: removedFromTable
+  return guestSuccessState(
+    removedFromTable
       ? "已更新賓客；已從桌次移除不出席者。"
       : "已更新賓客。",
-  };
+    await revalidateGuestViews(workspaceId),
+  );
 }
 
 export async function deleteGuestAction(
@@ -385,8 +548,12 @@ export async function deleteGuestAction(
   const currentUserId = authorization;
 
   let expectedVersion: number;
+  let expectedWeddingGift: ExpectedCascadeSnapshot;
+  let expectedGuestCheckIn: ExpectedCascadeSnapshot;
   try {
     expectedVersion = normalizeGuestVersion(_formData.get("expectedVersion"));
+    expectedWeddingGift = expectedWeddingGiftSnapshotFromFormData(_formData);
+    expectedGuestCheckIn = expectedGuestCheckInSnapshotFromFormData(_formData);
   } catch (error) {
     return validationState(error);
   }
@@ -399,6 +566,44 @@ export async function deleteGuestAction(
         "edit",
         transaction,
       );
+      const lockedGuests = await transaction.$queryRaw<LockedGuestDeleteRow[]>(
+        Prisma.sql`
+          SELECT "id"
+          FROM "guests"
+          WHERE "id" = ${guestId}
+            AND "workspace_id" = ${workspaceId}
+            AND "version" = ${expectedVersion}
+          FOR UPDATE
+        `,
+      );
+      if (lockedGuests.length !== 1) throw new GuestStaleWriteError();
+
+      const lockedWeddingGifts =
+        await transaction.$queryRaw<LockedCascadeDeleteRow[]>(Prisma.sql`
+          SELECT "id", "version"
+          FROM "wedding_gifts"
+          WHERE "guest_id" = ${guestId}
+            AND "workspace_id" = ${workspaceId}
+          ORDER BY "id" ASC
+          FOR UPDATE
+        `);
+      if (!cascadeSnapshotMatches(lockedWeddingGifts, expectedWeddingGift)) {
+        throw new GuestStaleWriteError();
+      }
+
+      const lockedCheckIns =
+        await transaction.$queryRaw<LockedCascadeDeleteRow[]>(Prisma.sql`
+          SELECT "id", "version"
+          FROM "guest_check_ins"
+          WHERE "guest_id" = ${guestId}
+            AND "workspace_id" = ${workspaceId}
+          ORDER BY "id" ASC
+          FOR UPDATE
+        `);
+      if (!cascadeSnapshotMatches(lockedCheckIns, expectedGuestCheckIn)) {
+        throw new GuestStaleWriteError();
+      }
+
       const result = await transaction.guest.deleteMany({
         where: { id: guestId, workspaceId, version: expectedVersion },
       });
@@ -420,6 +625,8 @@ export async function deleteGuestAction(
     };
   }
 
-  revalidateGuestViews(workspaceId);
-  return { status: "success", message: "已刪除賓客。" };
+  return guestSuccessState(
+    "已刪除賓客。",
+    await revalidateGuestViews(workspaceId),
+  );
 }

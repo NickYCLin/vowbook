@@ -14,7 +14,8 @@ export default function WorkspaceSectionLoading() {
       >
         <div className="h-11 w-28 rounded-control bg-surface-sunken" />
 
-        <div className="mt-3 flex min-w-0 gap-1 overflow-hidden border-b border-line pb-px">
+        {/* 手機改用固定底部功能列，頁籤骨架只在桌機顯示。 */}
+        <div className="mt-3 flex min-w-0 gap-1 overflow-hidden border-b border-line pb-px max-md:hidden">
           {Array.from({ length: 7 }, (_, index) => (
             <div
               key={index}
@@ -23,10 +24,14 @@ export default function WorkspaceSectionLoading() {
           ))}
         </div>
 
-        <div className="py-5">
+        <div className="py-4 sm:py-5">
           <div
             data-loading-line
-            className="h-8 w-64 max-w-full rounded-control bg-surface-sunken"
+            className="h-4 w-40 max-w-full rounded-control bg-surface-sunken"
+          />
+          <div
+            data-loading-line
+            className="mt-2 h-8 w-64 max-w-full rounded-control bg-surface-sunken"
           />
           <div
             data-loading-line

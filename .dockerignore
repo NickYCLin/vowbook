@@ -15,3 +15,7 @@ AGENTS.md
 docs/internal/
 backups/
 *.dump
+output/
+.npm-cache/
+.rwd-audit/
+.vowbook-secret-free.lock/

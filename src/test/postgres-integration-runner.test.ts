@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSourceText } from "./source-text";
 
-const runner = readFileSync(
+const runner = readSourceText(
   path.join(process.cwd(), "scripts/postgres-integration-command.mjs"),
-  "utf8",
 );
 
 describe("PostgreSQL canonical integration runner", () => {
@@ -31,6 +30,8 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-15\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-16\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-17\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-18\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-19\)/);
     expect(runner).toContain("familyPartySizeMigration");
     expect(runner).toContain("userAccessMigration");
     expect(runner).toContain("avatarMigration");
@@ -132,6 +133,63 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("migration_name = ${userAccessMigration}");
     expect(runner).toContain("migration_name = ${familyPartySizeMigration}");
     expect(runner).toContain("migration_name = ${guestSeniorityMigration}");
+    expect(runner).toContain("migration_name = ${preparationStatusMigration}");
+    expect(runner).toContain("migration_name = ${vendorMigration}");
+    expect(runner).toContain("appliedVendor.length !== 1");
+    expect(runner).toContain("migration_name = ${ceremonyMigration}");
+    expect(runner).toContain("appliedCeremony.length !== 1");
+    expect(runner).toContain("upgradedCeremonies !== 0");
+    expect(runner).toContain("ceremonyAttendanceMigration");
+    expect(runner).toContain("appliedCeremonyAttendance.length !== 1");
+    expect(runner).toContain("upgradedCeremonyAttendances !== 0");
+    expect(runner).toContain("declinedSeatingConsistencyMigration");
+    expect(runner).toContain("appliedDeclinedSeatingConsistency.length !== 1");
+    expect(runner).toContain("declinedSeatingViolations !== 0");
+    expect(runner).toContain(
+      "declinedSeatingConsistencyHistory.length !== 1",
+    );
+    expect(runner).toContain(
+      "repairedDeclinedSeatingConstraints.length !== 1",
+    );
+    expect(runner).toContain("repairedDeclinedSeatingViolations !== 0");
+    expect(runner).toContain(
+      "currentHeadDeclinedSeatingConstraints.length !== 1",
+    );
+    expect(runner).toContain("afterNoOpDeclinedSeatingViolations !== 0");
+    expect(runner).toContain("migration_name = ${giftMigration}");
+    expect(runner).toContain("appliedGift.length !== 1");
+    expect(runner).toContain("upgradedGifts !== 0");
+    expect(runner).toContain("giftHistory.length !== 1");
+    expect(runner).toContain("giftRows !== 0");
+    expect(runner).toContain("appliedGifts.length !== 1");
+    expect(runner).toContain("afterNoOpGifts !== 0");
+    expect(runner).toContain("planningPreferencesMigration");
+    expect(runner).toContain("appliedPlanningPreferences.length !== 1");
+    expect(runner).toContain(
+      "planningPreferenceAfterSnapshot !== planningPreferencePriorSnapshot",
+    );
+    expect(runner).toContain("afterNoOpPlanningPreferenceSnapshot");
+    expect(runner).toContain("afterNoOpCeremonies !== 3");
+    expect(runner).toContain("afterNoOpCeremonyAttendances !== 1");
+    expect(runner).toContain(
+      "src/test/postgres-wedding-gifts.integration.test.ts",
+    );
+    expect(runner).toContain(
+      "src/test/postgres-guest-check-ins.integration.test.ts",
+    );
+    expect(runner).toContain('guestCheckInMigration !== "20260831000000_guest_check_ins"');
+    expect(runner).toContain(
+      'staffMealMigration !== "20260831010000_wedding_staff_meals"',
+    );
+    expect(runner).toContain(
+      'giftReturnMigration !== "20260831020000_wedding_gift_returns"',
+    );
+    expect(runner).toContain(
+      'staffRedEnvelopeMigration !== "20260901000000_wedding_staff_red_envelopes"',
+    );
+    expect(runner).toContain(
+      '"20260901010000_budget_staff_red_envelopes"',
+    );
     expect(runner).toContain(
       "preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP",
     );
@@ -144,7 +202,37 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 33");
+    expect(runner).toContain("migrationEntries.length !== 49");
+    expect(runner).toContain(
+      'dropVendorMigration !== "20260908000000_drop_wedding_vendors"',
+    );
+    expect(runner).toContain("appliedDropVendor.length !== 1");
+    expect(runner).toContain("vendor tables or enum still exist after the drop migration");
+    expect(runner).toContain(
+      'planningPreferencesMigration !==\n    "20260830040000_wedding_planning_preferences"',
+    );
+    expect(runner).toContain(
+      'giftMigration !== "20260830030000_wedding_gifts"',
+    );
+    expect(runner).toContain(
+      'declinedSeatingConsistencyMigration !==\n    "20260830020000_declined_guest_seating_consistency"',
+    );
+    expect(runner).toContain(
+      'ceremonyAttendanceMigration !==\n    "20260830010000_wedding_ceremony_guest_attendance"',
+    );
+    expect(runner).toContain(
+      'ceremonyMigration !== "20260830000000_wedding_ceremonies"',
+    );
+    expect(runner).toContain(
+      'vendorMigration !== "20260829220000_wedding_vendors"',
+    );
+    expect(runner).toContain(
+      'preparationStatusMigration !==\n    "20260829210000_budget_preparation_status"',
+    );
+    expect(runner).toContain("postRepairShape?.preparationStatusColumns !== 1");
+    expect(runner).toContain(
+      "postRepairCounts?.preparationStatusViolations !== 0",
+    );
     expect(runner).toContain(
       'guestSeniorityMigration !== "20260825120000_guest_seniority"',
     );
@@ -230,13 +318,13 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain('storedGuest?.category !== "GUEST"');
     expect(runner).toContain("duplicateNameIndexes");
     expect(runner).toContain("seating_tables_workspace_id_name_key");
-    expect(runner).toContain("fixedTaxonomyNodes.length === 28");
+    expect(runner).toContain("fixedTaxonomyNodes.length === 29");
     expect(runner).toContain('.filter((key) => key.startsWith("ITEM_"))');
     expect(runner).toContain(
       'fixedTaxonomyByKey.get("ITEM_PROPOSAL")?.name === "求婚"',
     );
     expect(runner).toContain("expectedStageKeys.size === 7");
-    expect(runner).toContain("expectedItemParentKeys.size === 21");
+    expect(runner).toContain("expectedItemParentKeys.size === 22");
     expect(runner).toContain("storedTable?.position !== 1");
     expect(runner).toContain(
       "preserved the table ID, name, capacity, position, and target Guest assignment",
@@ -275,7 +363,7 @@ describe("PostgreSQL canonical integration runner", () => {
     );
     expect(runner).toContain('INSERT INTO "wedding_tasks"');
     expect(runner).toContain('INSERT INTO "guest_rsvps"');
-    expect(runner).toContain("budgetItems !== 33");
+    expect(runner).toContain("budgetItems !== 34");
     expect(runner).toContain("fixedTaxonomyTopologyIsValid");
     expect(runner).toContain("systemTaxonomyKey: { not: null }");
     expect(runner).toContain(
@@ -365,12 +453,12 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(driftSection).toContain("- 'suggestion_key'");
     expect(driftSection).toContain("beforeRoots.length !== 16");
     expect(driftSection).toContain("postRepairCounts?.ordinaryRows !== 20");
-    expect(driftSection).toContain("row.nodeCount !== 28");
+    expect(driftSection).toContain("row.nodeCount !== 29");
     expect(driftSection).toContain("row.stageCount !== 7");
-    expect(driftSection).toContain("row.itemCount !== 21");
-    expect(driftSection).toContain("row.publicItemCount !== 20");
-    expect(driftSection).toContain("fixedTaxonomyExpectedParents.size === 28");
-    expect(driftSection).toContain("taxonomyNodes.length === 56");
+    expect(driftSection).toContain("row.itemCount !== 22");
+    expect(driftSection).toContain("row.publicItemCount !== 21");
+    expect(driftSection).toContain("fixedTaxonomyExpectedParents.size === 29");
+    expect(driftSection).toContain("taxonomyNodes.length === 58");
     expect(driftSection).toContain("node.parentKey === fixedTaxonomyExpectedParents.get(node.key)");
     expect(driftSection).toContain(
       'node.key !== "ITEM_PROPOSAL" || node.name === "求婚"',
@@ -384,6 +472,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(driftSection).toContain("root.version === before.version + 1");
     expect(driftSection).toContain("repairedHistory.length !== 1");
     expect(driftSection).toContain("proposalLabelHistory.length !== 1");
+    expect(driftSection).toContain("vendorHistory.length !== 1");
     expect(driftSection).toContain("snapshotAllBudgetRows");
     expect(driftSection).toContain("currentHeadNoOpStatus");
     expect(driftSection).toContain(

@@ -17,15 +17,18 @@ vi.mock("@/components/guests/guest-list", () => ({
     <div>{canEdit ? "可編輯名單" : "唯讀名單"}</div>
   ),
 }));
-
 import GuestsPage from "./page";
+
+function navigationOf() {
+  return screen.getByRole("navigation", { name: "工作區功能" });
+}
 
 describe("GuestsPage", () => {
   it("uses Next 16 async params and renders workspace-scoped data", async () => {
     listGuestsForWorkspace.mockResolvedValue({
       role: "PLANNER",
       workspace: { id: "workspace_1", name: "我們的婚宴" },
-      guests: [],
+      guests: [{ id: "guest_1" }],
     });
 
     render(
@@ -34,15 +37,44 @@ describe("GuestsPage", () => {
 
     expect(listGuestsForWorkspace).toHaveBeenCalledWith("workspace_1");
     expect(
-      screen.getByRole("heading", { name: "我們的婚宴・婚宴名單" }),
+      screen.getByRole("heading", { level: 1, name: "婚宴名單" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯名單")).toBeInTheDocument();
+    // 禮金已移到自己的頁面，賓客頁不再內嵌禮金簿。
+    expect(screen.queryByText(/禮金簿/u)).toBeNull();
+    expect(
+      screen.getByText(
+        "整理新人、家人與受邀賓客，確認宴席需求與座位安排；禮金請到「禮金」頁登記。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(navigationOf()).getByRole("link", { name: "禮金" }),
+    ).toHaveAttribute("href", "/workspaces/workspace_1/gifts");
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(7);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(within(navigation).getByRole("link", { name: "賓客" })).toHaveAttribute(
       "aria-current",
       "page",
     );
+  });
+
+  it("lets a viewer inspect the guest list without edit access", async () => {
+    listGuestsForWorkspace.mockResolvedValue({
+      role: "VIEWER",
+      workspace: { id: "workspace_1", name: "我們的婚宴" },
+      guests: [{ id: "guest_1" }],
+    });
+
+    render(
+      await GuestsPage({ params: Promise.resolve({ workspaceId: "workspace_1" }) }),
+    );
+
+    expect(screen.getByText("唯讀名單")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "你目前是唯讀成員，可以查看名單，但不能新增、編輯或刪除。",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("returns not found for unauthorized workspace access", async () => {

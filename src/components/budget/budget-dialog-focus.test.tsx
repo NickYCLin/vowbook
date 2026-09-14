@@ -11,6 +11,7 @@ vi.mock("@/actions/budget-items", () => ({
   createChildBudgetItemAction: vi.fn(),
   updateBudgetItemAction: vi.fn(),
   changeBudgetItemBookingStatusAction: vi.fn(),
+  changeBudgetItemPreparationStatusAction: vi.fn(),
   moveBudgetItemAction: vi.fn(),
   deleteBudgetItemAction: vi.fn(),
 }));
@@ -45,7 +46,6 @@ const item: BudgetItemListItem = {
   directChildSetHash: "0".repeat(64),
   descendantCount: 0,
   source: "MANUAL",
-  sourceHierarchyPath: [],
   name: "婚禮攝影",
   kind: "EXPENSE",
   category: "PHOTOGRAPHY_VIDEO",
@@ -80,8 +80,11 @@ const summary: BudgetSummary = {
   actualTotal: "0",
   balanceDueTotal: "0",
   balanceDueCount: 0,
+  overdueBalanceDueCount: 0,
   balanceDueMissingAmountCount: 0,
-  nearestBalanceDueDate: null,
+  nearestUpcomingBalanceDueDate: null,
+  selfProvidedCount: 0,
+  notPlannedCount: 0,
 };
 
 describe("budget nested dialog focus containment", () => {

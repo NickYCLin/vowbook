@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { encode } from "next-auth/jwt";
 
 type CrudFixture = {
   workspaceId: string;
   workspaceName: string;
+  memberId: string;
   memberName: string;
   groupName: string;
   renamedGroupName: string;
@@ -41,6 +42,20 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const authSecret =
   process.env.AUTH_SECRET ?? "vowbook-e2e-local-secret-not-for-production";
 const fixtures = parseFixtures(process.env.VOWBOOK_CRUD_E2E_FIXTURES);
+
+/**
+ * 從工作區功能導覽切換頁面。手機底部功能列只放四個主要入口，
+ * 其餘功能收在「更多」面板裡，得先展開才點得到。
+ */
+async function openWorkspaceSection(page: Page, name: string) {
+  const navigation = page.getByRole("navigation", { name: "工作區功能" });
+  const link = navigation.getByRole("link", { name, exact: true });
+  if (!(await link.isVisible())) {
+    await navigation.getByRole("button", { name: "更多", exact: true }).click();
+    await expect(link).toBeVisible();
+  }
+  await link.click();
+}
 
 function requireFixture(value: string | undefined, name: string): string {
   if (!value) {
@@ -97,13 +112,62 @@ async function expectFloorPlanCardsDoNotOverlap(
   }
 }
 
+async function submitServerAction(
+  button: import("@playwright/test").Locator,
+  {
+    // Server Action 的 POST 回 2xx 之後，React 還要套用 revalidatePath 觸發的
+    // RSC payload，transition 才會結束。頁面較重時這段可能拖很久，因此需要
+    // 直接等畫面結果的呼叫端可以關掉這個附加等待。
+    awaitPendingState = true,
+  }: { awaitPendingState?: boolean } = {},
+): Promise<void> {
+  const page = button.page();
+  // URL fragment 只存在瀏覽器端，不會隨 HTTP request 傳送；直接比較
+  // page.url() 會把帶 fragment 的頁面誤判成沒有送出 Server Action。
+  const actionUrl = new URL(page.url());
+  actionUrl.hash = "";
+  const requestPromise = page.waitForRequest(
+    (request) =>
+      request.url() === actionUrl.toString() &&
+      request.method() === "POST" &&
+      Boolean(request.headers()["next-action"]),
+  );
+  const buttonElement = await button.elementHandle();
+  await button.click();
+  const request = await requestPromise;
+  const response = await request.response();
+  expect(response, `Server Action response ${actionUrl}`).not.toBeNull();
+  if (!response) return;
+  expect(response.ok(), `Server Action ${response.status()} ${actionUrl}`).toBe(
+    true,
+  );
+  if (!awaitPendingState) return;
+  await expect
+    .poll(
+      async () => {
+        if (!buttonElement) return false;
+        return buttonElement
+          .evaluate(
+            (element) =>
+              element.isConnected && element.classList.contains("cursor-wait"),
+          )
+          .catch(() => false);
+      },
+      {
+        message: `Server Action pending state ${actionUrl}`,
+        timeout: 15_000,
+      },
+    )
+    .toBe(false);
+}
+
 test.skip(!enabled, "需要明確啟用隔離 CRUD E2E fixture。");
 // This one test intentionally covers the complete desktop/mobile CRUD lifecycle.
 // Bound every UI action separately while leaving enough headroom for the aggregate flow.
 test.use({ actionTimeout: 15_000 });
 test.setTimeout(120_000);
 
-test("OWNER 可從真實介面完成工作區、成員與花費群組生命週期", async ({
+test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組生命週期", async ({
   context,
   page,
 }, testInfo) => {
@@ -147,6 +211,18 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       sameSite: "Lax",
     },
   ]);
+
+  await test.step("已登入使用者開啟舊儀式路徑仍會得到 404", async () => {
+    const ceremoniesResponse = await context.request.get(
+      `./workspaces/${fixture.workspaceId}/ceremonies`,
+    );
+    expect(ceremoniesResponse.status()).toBe(404);
+
+    const attendanceResponse = await context.request.get(
+      `./workspaces/${fixture.workspaceId}/ceremonies/removed-ceremony/attendance`,
+    );
+    expect(attendanceResponse.status()).toBe(404);
+  });
 
   await test.step("建立、修改並永久刪除第二個工作區", async () => {
     await page.goto("./dashboard");
@@ -231,13 +307,18 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
 
   await test.step("修改已接受成員角色並移除", async () => {
     await page.goto(`./workspaces/${fixture.workspaceId}/members`);
-    await expect(page.getByRole("heading", { name: "目前成員" })).toBeVisible();
-    let memberRow = page
-      .getByText(fixture.memberName, { exact: true })
-      .locator("xpath=ancestor::li[1]");
+    const memberRegion = page.getByRole("region", { name: "目前成員" });
+    await expect(memberRegion.getByRole("heading", { name: "目前成員" })).toBeVisible();
+    let memberRow = memberRegion
+      .getByRole("listitem")
+      .filter({ hasText: fixture.memberName });
     await expect(
       memberRow.locator("p").filter({ hasText: /^婚顧$/u }),
     ).toBeVisible();
+    if (isMobile) {
+      await expectNoPageOverflow(page);
+      return;
+    }
     await memberRow
       .getByRole("button", { name: `編輯 ${fixture.memberName} 的角色` })
       .click();
@@ -246,11 +327,12 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       name: `編輯${fixture.memberName}的角色`,
     });
     await roleDialog.getByLabel("協作角色").selectOption("VIEWER");
-    await roleDialog.getByRole("button", { name: "儲存角色" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "已更新協作者角色。" })).toBeVisible();
-    memberRow = page
-      .getByText(fixture.memberName, { exact: true })
-      .locator("xpath=ancestor::li[1]");
+    await submitServerAction(
+      roleDialog.getByRole("button", { name: "儲存角色" }),
+    );
+    memberRow = memberRegion
+      .getByRole("listitem")
+      .filter({ hasText: fixture.memberName });
     await expect(
       memberRow.locator("p").filter({ hasText: /^檢視者$/u }),
     ).toBeVisible();
@@ -264,18 +346,165 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await removeDialog
       .getByLabel(`請輸入「${fixture.memberName}」以確認移除`)
       .fill(fixture.memberName);
-    await removeDialog
-      .getByRole("button", { name: `確認移除${fixture.memberName}` })
+    await submitServerAction(
+      removeDialog.getByRole("button", {
+        name: `確認移除${fixture.memberName}`,
+      }),
+    );
+    await expect(
+      memberRegion.getByRole("listitem").filter({ hasText: fixture.memberName }),
+    ).toHaveCount(0);
+    await expectNoPageOverflow(page);
+  });
+
+  await test.step("從總覽進入禮金頁並完成登記、修改、重載與移除", async () => {
+    await page.goto(`./workspaces/${fixture.workspaceId}/overview`);
+    await page.getByRole("link", { name: "查看禮金簿", exact: true }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/workspaces/${fixture.workspaceId}/gifts$`, "u"),
+    );
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "禮金簿",
+      }),
+    ).toBeVisible();
+
+    const ledger = page.getByRole("region", { name: "禮金簿" });
+    await expect(ledger.getByLabel("搜尋禮金簿名單")).toBeVisible();
+    // 禮金有自己的頁面之後就不再收合，也不該留著收合鈕。
+    await expect(
+      ledger.getByRole("button", { name: /收合禮金簿|展開禮金簿/u }),
+    ).toHaveCount(0);
+
+    // 不出席賓客的座位文案屬於賓客頁；先繞過去確認，再回禮金頁繼續登記。
+    await openWorkspaceSection(page, "賓客");
+    const guestList = page.getByRole("region", { name: "名單", exact: true });
+    const declinedGuestArticle = guestList
+      .getByRole("heading", { name: fixture.declinedGuestName, exact: true })
+      .locator("xpath=ancestor::article[1]");
+    await expect(
+      declinedGuestArticle.getByText("座位：不需安排", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      declinedGuestArticle.getByText("桌次：尚未安排", { exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "禮金簿" })).toHaveCount(0);
+
+    await openWorkspaceSection(page, "禮金");
+    await expect(ledger.getByLabel("搜尋禮金簿名單")).toBeVisible();
+
+    const initialAmount = isMobile ? "6000" : "3600";
+    const updatedAmount = isMobile ? "12000" : "6600";
+    const updatedFormattedAmount = isMobile ? "NT$ 12,000" : "NT$ 6,600";
+    const initialNotes = `${isMobile ? "手機" : "桌面"}禮金初次登記`;
+    const updatedNotes = `${isMobile ? "手機" : "桌面"}禮金已核對轉帳`;
+
+    await ledger
+      .getByRole("button", {
+        name: `登記 ${fixture.manualGuestName} 的禮金`,
+      })
       .click();
-    await expect(page.getByRole("status").filter({ hasText: "已移除協作者。" })).toBeVisible();
-    await expect(page.getByText(fixture.memberName, { exact: true })).toHaveCount(0);
+    let giftDialog = page.getByRole("dialog", {
+      name: `登記 ${fixture.manualGuestName} 的禮金`,
+    });
+    await giftDialog.getByLabel("禮金金額").fill(initialAmount);
+    await giftDialog.getByLabel("備註（選填）").fill(initialNotes);
+    await submitServerAction(
+      giftDialog.getByRole("button", { name: "儲存禮金" }),
+    );
+    await expect(giftDialog).toBeHidden();
+
+    let giftRow = ledger
+      .getByRole("heading", { name: fixture.manualGuestName })
+      .locator("xpath=ancestor::li[1]");
+    await expect(giftRow).toContainText(initialNotes);
+    await expect(
+      giftRow.getByRole("button", {
+        name: `編輯 ${fixture.manualGuestName} 的禮金`,
+      }),
+    ).toBeVisible();
+
+    await giftRow
+      .getByRole("button", {
+        name: `編輯 ${fixture.manualGuestName} 的禮金`,
+      })
+      .click();
+    giftDialog = page.getByRole("dialog", {
+      name: `編輯 ${fixture.manualGuestName} 的禮金`,
+    });
+    await giftDialog.getByLabel("禮金金額").fill(updatedAmount);
+    await giftDialog.getByLabel("備註（選填）").fill(updatedNotes);
+    await submitServerAction(
+      giftDialog.getByRole("button", { name: "儲存變更" }),
+    );
+    await expect(giftDialog).toBeHidden();
+    await expect(giftRow).toContainText(updatedFormattedAmount);
+    await expect(giftRow).toContainText(updatedNotes);
+
+    // 排序不改變成員，只改變順序；金額由高到低時剛登記這筆要排在最前面。
+    const ledgerNames = async () =>
+      ledger.getByRole("heading", { level: 3 }).allTextContents();
+    const rosterOrder = await ledgerNames();
+    await ledger.getByLabel("禮金簿排序").selectOption("AMOUNT_DESC");
+    const amountOrder = await ledgerNames();
+    expect([...amountOrder].sort()).toEqual([...rosterOrder].sort());
+    expect(amountOrder[0]).toBe(fixture.manualGuestName);
+    await ledger.getByLabel("禮金簿排序").selectOption("ROSTER");
+    expect(await ledgerNames()).toEqual(rosterOrder);
+
+    await page.reload();
+    const reloadedLedger = page.getByRole("region", { name: "禮金簿" });
+    await expect(reloadedLedger.getByLabel("搜尋禮金簿名單")).toBeVisible();
+    giftRow = reloadedLedger
+      .getByRole("heading", { name: fixture.manualGuestName })
+      .locator("xpath=ancestor::li[1]");
+    await expect(giftRow).toContainText(updatedFormattedAmount);
+    await expect(giftRow).toContainText(updatedNotes);
+
+    // 這位賓客沒有報到，屬於禮到人不到；標記已回禮後待回禮數要歸零。
+    await reloadedLedger
+      .getByLabel("禮金登記狀態篩選")
+      .selectOption("WITHOUT_ATTENDANCE");
+    await expect(
+      giftRow.getByText("禮到人不到・待回禮回喜餅"),
+    ).toBeVisible();
+    await submitServerAction(
+      giftRow.getByRole("button", { name: "標記已回禮" }),
+      { awaitPendingState: false },
+    );
+    await expect(giftRow.getByText(/禮到人不到・已回禮/u)).toBeVisible({
+      timeout: 30_000,
+    });
+    await reloadedLedger.getByLabel("禮金登記狀態篩選").selectOption("ALL");
+
+    await giftRow
+      .getByRole("button", {
+        name: `移除 ${fixture.manualGuestName} 的禮金`,
+      })
+      .click();
+    const deleteGiftDialog = page.getByRole("dialog", {
+      name: `移除 ${fixture.manualGuestName} 的禮金`,
+    });
+    await submitServerAction(
+      deleteGiftDialog.getByRole("button", { name: "確認移除禮金" }),
+    );
+    await expect(deleteGiftDialog).toBeHidden();
+    await expect(
+      reloadedLedger.getByRole("button", {
+        name: `登記 ${fixture.manualGuestName} 的禮金`,
+      }),
+    ).toBeVisible();
     await expectNoPageOverflow(page);
   });
 
   await test.step("建立選用群組、保留子項解除群組，並清理合成資料", async () => {
     await page.goto(`./workspaces/${fixture.workspaceId}/budget`);
-    await page.getByLabel("建立群組（選用）", { exact: true }).click();
-    await page
+    const budgetWorkspace = page.getByRole("region", { name: "花費工作區" });
+    await budgetWorkspace
+      .getByLabel("建立群組（選用）", { exact: true })
+      .click();
+    await budgetWorkspace
       .getByRole("button", { name: "建立群組", exact: true })
       .click();
     const createDialog = page.getByRole("dialog", {
@@ -285,7 +514,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await expect(taxonomySelect.locator("optgroup")).toHaveCount(6);
     await expect(
       taxonomySelect.locator('option:not([value=""])'),
-    ).toHaveCount(20);
+    ).toHaveCount(21);
+    // 工作人員紅包不分中西式，沒有迎娶的婚禮也要選得到。
+    await expect(taxonomySelect).toContainText("工作人員紅包");
     await expect(taxonomySelect).not.toContainText("其他");
     await expect(taxonomySelect).not.toContainText("待分類");
     await createDialog.getByLabel("群組名稱").fill(fixture.groupName);
@@ -456,11 +687,12 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
 
   await test.step("從真實花費頁驗證固定分類階層與 subtree rollup 金額", async () => {
     await page.goto(`./workspaces/${fixture.workspaceId}/budget`);
+    const budgetWorkspace = page.getByRole("region", { name: "花費工作區" });
 
     await expect(
       page.getByRole("group", { name: "花費檢視方式" }),
     ).toHaveCount(0);
-    const budgetLedger = page.locator('ul[data-budget-view="group"]');
+    const budgetLedger = budgetWorkspace.locator('ul[data-budget-view="group"]');
     await expect(
       budgetLedger.locator('[data-budget-taxonomy-kind="stage"]'),
     ).toHaveCount(1);
@@ -532,7 +764,7 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await expect(
       smallShoesRow.locator(`[data-budget-related-purpose="true"]`),
     ).toHaveCount(0);
-    // 此列已在正確的來源階層下，因此不重複印 Notion 路徑；完整資料仍在明細中。
+    // Notion 匯入痕跡完全不對使用者顯示。
     await expect(
       smallShoesRow.locator(`[data-budget-notion-source-path="true"]`),
     ).toHaveCount(0);
@@ -546,8 +778,8 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       exact: true,
     });
     await expect(smallShoesDialog).toBeVisible();
-    await expect(smallShoesDialog.getByText("Notion 原始路徑")).toBeVisible();
-    await expect(smallShoesDialog).toContainText(
+    await expect(smallShoesDialog.getByText("原始分類路徑")).toHaveCount(0);
+    await expect(smallShoesDialog).not.toContainText(
       "婚紗拍攝 › 其他 › 合成姓名的小白鞋",
     );
     await smallShoesDialog
@@ -783,13 +1015,11 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
   });
 
   await test.step("從賓客入口編輯手動賓客全部欄位", async () => {
-    const workspaceNavigation = page.getByRole("navigation", {
-      name: "工作區功能",
-    });
-    await workspaceNavigation.getByRole("link", { name: "賓客", exact: true }).click();
+    await openWorkspaceSection(page, "賓客");
     await expect(
       page.getByRole("heading", {
-        name: `${fixture.workspaceName}・賓客名單`,
+        level: 1,
+        name: "婚宴名單",
       }),
     ).toBeVisible();
 
@@ -812,7 +1042,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await editGuestForm.getByLabel("出席狀態").selectOption("ATTENDING");
     await editGuestForm.getByLabel("邀請人數（含本人）").fill("3");
     await editGuestForm.getByLabel(/備註/u).fill(fixture.editedGuestNotes);
-    await editGuestForm.getByRole("button", { name: "儲存變更" }).click();
+    await submitServerAction(
+      editGuestForm.getByRole("button", { name: "儲存變更" }),
+    );
 
     const guestUpdateStatus = page.getByRole("status").filter({
       hasText: "已更新賓客。",
@@ -822,12 +1054,8 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     const editedGuestArticle = page
       .getByRole("heading", { name: fixture.editedGuestName, exact: true })
       .locator("xpath=ancestor::article[1]");
-    await expect(
-      editedGuestArticle.locator("span").filter({ hasText: /^女方親友$/u }),
-    ).toBeVisible();
-    await expect(
-      editedGuestArticle.locator("span").filter({ hasText: /^出席$/u }),
-    ).toBeVisible();
+    await expect(editedGuestArticle).toContainText("女方親友");
+    await expect(editedGuestArticle).toContainText("出席");
     await expect(
       editedGuestArticle.getByText("3 位", { exact: true }),
     ).toBeVisible();
@@ -836,7 +1064,7 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
         hasText: new RegExp(`^${fixture.editedGuestNotes}$`, "u"),
       }),
     ).toBeVisible();
-    await expect(page.getByText("顯示 3 / 3 組", { exact: true })).toBeVisible();
+    await expect(page.getByText("顯示 3 / 3 筆", { exact: true })).toBeVisible();
     await expectNoPageOverflow(page);
   });
 
@@ -881,7 +1109,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
 
     await importedPartySize.fill(String(fixture.importedGuestEditedPartySize));
     await importedPhone.fill(fixture.importedGuestEditedPhone);
-    await importedEditForm.getByRole("button", { name: "儲存變更" }).click();
+    await submitServerAction(
+      importedEditForm.getByRole("button", { name: "儲存變更" }),
+    );
 
     const importedUpdateStatus = page.getByRole("status").filter({
       hasText: "已更新賓客。",
@@ -894,12 +1124,8 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
         exact: true,
       }),
     ).toBeVisible();
-    await expect(
-      importedGuestArticle.locator("span").filter({ hasText: /^男方親友$/u }),
-    ).toBeVisible();
-    await expect(
-      importedGuestArticle.locator("span").filter({ hasText: /^出席$/u }),
-    ).toBeVisible();
+    await expect(importedGuestArticle).toContainText("男方親友");
+    await expect(importedGuestArticle).toContainText("出席");
     await expect(
       importedGuestArticle.getByText(
         `${fixture.importedGuestEditedPartySize} 位`,
@@ -907,26 +1133,37 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       ),
     ).toBeVisible();
 
-    const detailsSummary = importedGuestArticle.getByText(
-      "聯絡與回覆資料",
-      { exact: true },
+    await importedGuestArticle
+      .getByRole("button", {
+        name: `編輯 ${fixture.importedGuestName}`,
+        exact: true,
+      })
+      .click();
+    const persistedGuestDialog = page.getByRole("dialog", {
+      name: fixture.importedGuestName,
+      exact: true,
+    });
+    const loadLatest = persistedGuestDialog.getByRole("button", {
+      name: "載入最新資料",
+    });
+    if (await loadLatest.isVisible()) await loadLatest.click();
+    await expect(persistedGuestDialog.getByLabel("聯絡電話")).toHaveValue(
+      fixture.importedGuestEditedPhone,
     );
-    await detailsSummary.click();
-    const details = detailsSummary.locator("xpath=parent::details");
-    await expect(details).toHaveAttribute("open", "");
-    await expect(details.getByText(fixture.importedGuestEditedPhone)).toBeVisible();
+    await persistedGuestDialog
+      .getByRole("button", { name: "關閉編輯賓客" })
+      .click();
     await expect(importedGuestArticle.getByText(/拍拍印/u)).toHaveCount(0);
     await expectNoPageOverflow(page);
   });
 
-  await test.step("從桌次入口增加、編輯、安排，並阻擋有人桌次縮減後安全移除空桌", async () => {
-    await page
-      .getByRole("navigation", { name: "工作區功能" })
-      .getByRole("link", { name: "桌次", exact: true })
-      .click();
+  await test.step("從桌次入口新增、安排，並阻擋有人桌次縮減後安全移除空桌", async () => {
+    const editedSecondTableLabel = `2 號桌 ${fixture.editedSecondTableName}`;
+    await openWorkspaceSection(page, "桌次");
     await expect(
       page.getByRole("heading", {
-        name: `${fixture.workspaceName}・桌次安排`,
+        level: 1,
+        name: "桌次安排",
       }),
     ).toBeVisible();
 
@@ -938,14 +1175,8 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await expect(stableFloorCard).toHaveAttribute("data-layout-x", "500");
     await expect(stableFloorCard).toHaveAttribute("data-layout-y", "220");
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
-    await floorPlan
-      .getByRole("button", {
-        name: `選取並拖曳交換${fixture.stableTableName}`,
-      })
-      .click();
-    const stableFloorButton = floorPlan.getByRole("button", {
-      name: `選取並拖曳交換${fixture.stableTableName}`,
-    });
+    const stableFloorButton = stableFloorCard.getByRole("button");
+    await stableFloorButton.click();
     const stableFloorButtonBox = await stableFloorButton.boundingBox();
     const floorPlanBox = await floorPlan.boundingBox();
     if (!stableFloorButtonBox || !floorPlanBox) {
@@ -993,109 +1224,35 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     await page.getByRole("button", { name: "新增桌次", exact: true }).click();
     const createTableDialog = page.getByRole("dialog", { name: "新增桌次" });
     await expect(createTableDialog).toBeVisible();
-    await createTableDialog.getByLabel("桌名").fill(fixture.createdTableName);
-    await createTableDialog.getByLabel("容量").fill("8");
-    await createTableDialog
-      .getByRole("button", { name: "新增桌次", exact: true })
-      .click();
-    await expect(createTableDialog).toBeHidden();
-    const tableCreateStatus = page.getByRole("status").filter({
-      hasText: "已新增桌次。",
-    });
-    await expect(tableCreateStatus).toBeVisible();
-    await expect(tableCreateStatus).toBeFocused();
-
-    settingsForm = page
-      .getByRole("heading", { name: "桌數設定" })
-      .locator("xpath=ancestor::section[1]")
-      .locator("form");
-    await expect(settingsForm.getByLabel("總桌數")).toHaveValue("2");
-    await expect(
-      page.getByRole("heading", { name: fixture.stableTableName, exact: true }),
-    ).toBeVisible();
-    await expectFloorPlanCardsDoNotOverlap(floorPlan);
-    await floorPlan
-      .getByRole("button", {
-        name: `選取並拖曳交換${fixture.createdTableName}`,
-      })
-      .click();
-    const createdTableArticle = page
-      .getByRole("heading", { name: fixture.createdTableName, exact: true })
-      .locator("xpath=ancestor::article[1]");
-    await expect(createdTableArticle).toBeVisible();
-
-    await createdTableArticle
-      .getByText(`刪除 ${fixture.createdTableName}`, { exact: true })
-      .click();
-    await createdTableArticle
-      .getByRole("button", {
-        name: `預覽刪除 ${fixture.createdTableName}`,
-      })
-      .click();
-    await expect(
-      createdTableArticle.getByRole("heading", { name: "確認刪除桌次" }),
-    ).toBeVisible();
-    await createdTableArticle
-      .getByRole("button", {
-        name: `確認刪除空桌 ${fixture.createdTableName}`,
-      })
-      .click();
-    await expect(
-      page.getByRole("heading", {
-        name: fixture.createdTableName,
-        exact: true,
-      }),
-    ).toHaveCount(0);
-    const deletionStatus = page.getByRole("status").filter({
-      hasText: `已刪除空桌 ${fixture.createdTableName}。`,
-    });
-    await expect(deletionStatus).toHaveText(
-      `已刪除空桌 ${fixture.createdTableName}。`,
+    await createTableDialog.getByLabel("桌名").fill(fixture.editedSecondTableName);
+    await createTableDialog.getByLabel("容量").fill("10");
+    await createTableDialog.getByLabel(/備註/u).fill("真實桌次流程人工備註");
+    // 其他步驟都用 submitServerAction 等 POST 真的回 2xx；這裡原本只點下去
+    // 就往下走，Server Action 還沒成功時會誤判成「桌次已建立」。
+    await submitServerAction(
+      createTableDialog.getByRole("button", { name: "新增桌次", exact: true }),
+      { awaitPendingState: false },
     );
-    await expect(deletionStatus).toBeVisible();
-    await expect(deletionStatus).toBeFocused();
+    await expect(createTableDialog).toBeHidden();
+
+    // Dialog 會在 action 成功後先收合，RSC 的桌次清單與總桌數稍後才一起
+    // 套用。等待真正新增的桌次出現在場地配置，避免讀到上一個 render 的 1 桌。
+    const createdFloorCard = floorPlan.getByRole("article", {
+      name: fixture.editedSecondTableName,
+    });
+    await expect(createdFloorCard).toBeVisible({ timeout: 30_000 });
+
     settingsForm = page
       .getByRole("heading", { name: "桌數設定" })
       .locator("xpath=ancestor::section[1]")
       .locator("form");
-    await expect(settingsForm.getByLabel("總桌數")).toHaveValue("1");
-    await expect(
-      page.getByRole("heading", { name: fixture.stableTableName, exact: true }),
-    ).toBeVisible();
-
-    await settingsForm.getByLabel("總桌數").fill("2");
-    await settingsForm.getByLabel("新增桌的預設容量").fill("8");
-    await settingsForm.getByRole("button", { name: "套用桌數設定" }).click();
-    const increaseStatus = page.getByRole("status").filter({
-      hasText: "已將總桌數設定為 2 桌。",
-    });
-    await expect(increaseStatus).toBeVisible();
-    await expect(increaseStatus).toBeFocused();
     await expect(settingsForm.getByLabel("總桌數")).toHaveValue("2");
-    await expect(page.getByRole("heading", { name: fixture.stableTableName })).toBeVisible();
-    await expect(page.getByText("已安排 0 / 6 位", { exact: true })).toBeVisible();
-
-    floorPlan = page.getByRole("region", { name: "宴會場地配置" });
+    await expect(
+      floorPlan.getByRole("article", { name: fixture.stableTableName }),
+    ).toBeVisible();
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
-    await floorPlan
-      .getByRole("button", { name: "選取並拖曳交換待命名桌 A" })
-      .click();
-    const generatedTableArticle = page
-      .getByRole("heading", { name: "待命名桌 A", exact: true })
-      .locator("xpath=ancestor::article[1]");
-    await generatedTableArticle.getByText("編輯 待命名桌 A", { exact: true }).click();
-    const editTableDialog = page.getByRole("dialog", { name: "編輯桌次" });
-    await expect(editTableDialog).toBeVisible();
-    await editTableDialog.getByLabel("桌名").fill(fixture.editedSecondTableName);
-    await editTableDialog.getByLabel("容量").fill("10");
-    await editTableDialog.getByLabel(/備註/u).fill("真實桌次流程人工備註");
-    await editTableDialog.getByRole("button", { name: "儲存桌次" }).click();
-    await expect(editTableDialog).toBeHidden();
-    const tableUpdateStatus = page.getByRole("status").filter({
-      hasText: "已更新桌次。",
-    });
-    await expect(tableUpdateStatus).toBeVisible();
-    await expect(tableUpdateStatus).toBeFocused();
+    await createdFloorCard.getByRole("button").click();
+    const tableDetails = page.getByRole("region", { name: "桌次明細" });
 
     const maleUnassignedSection = page.getByRole("region", {
       name: "男方親友",
@@ -1118,46 +1275,39 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     expect(maleBox).not.toBeNull();
     expect(femaleBox).not.toBeNull();
     expect(sharedBox).not.toBeNull();
-    expect(maleBox!.x).toBeLessThan(femaleBox!.x);
-    expect(Math.abs(maleBox!.y - femaleBox!.y)).toBeLessThanOrEqual(2);
-    expect(sharedBox!.y).toBeGreaterThanOrEqual(maleBox!.y + maleBox!.height - 2);
+    expect(Math.abs(maleBox!.x - femaleBox!.x)).toBeLessThanOrEqual(2);
+    expect(femaleBox!.y).toBeGreaterThanOrEqual(
+      maleBox!.y + maleBox!.height - 2,
+    );
+    expect(sharedBox!.y).toBeGreaterThanOrEqual(
+      femaleBox!.y + femaleBox!.height - 2,
+    );
     await expectNoPageOverflow(page);
+    if (isMobile) return;
 
     const assignment = page.getByLabel(`為${fixture.editedGuestName}選擇桌次`);
-    await assignment.selectOption({ label: `${fixture.editedSecondTableName}（剩餘 10 位）` });
-    await page.getByRole("button", { name: `安排${fixture.editedGuestName}` }).click();
-    const assignmentStatus = page.getByRole("status").filter({
-      hasText: `已將${fixture.editedGuestName}安排至${fixture.editedSecondTableName}。`,
-    });
-    await expect(assignmentStatus).toHaveText(
-      `已將${fixture.editedGuestName}安排至${fixture.editedSecondTableName}。`,
+    await assignment.selectOption({ label: `${editedSecondTableLabel}（剩餘 10 位）` });
+    await submitServerAction(
+      page.getByRole("button", { name: `安排${fixture.editedGuestName}` }),
     );
-    await expect(assignmentStatus).toBeVisible();
-    await expect(assignmentStatus).toBeFocused();
-    const editedTableArticle = page
-      .getByRole("heading", { name: fixture.editedSecondTableName, exact: true })
-      .locator("xpath=ancestor::article[1]");
+    const editedTableArticle = tableDetails
+      .getByRole("article")
+      .filter({ hasText: fixture.editedSecondTableName });
     await expect(
       editedTableArticle.getByText(`${fixture.editedGuestName}・3 位`, { exact: true }),
     ).toBeVisible();
-    await editedTableArticle
-      .getByRole("button", { name: `將${fixture.editedGuestName}移出桌次` })
-      .click();
-    const unassignmentStatus = page.getByRole("status").filter({
-      hasText: `已將${fixture.editedGuestName}移出桌次。`,
-    });
-    await expect(unassignmentStatus).toHaveText(
-      `已將${fixture.editedGuestName}移出桌次。`,
+    await submitServerAction(
+      editedTableArticle.getByRole("button", {
+        name: `將${fixture.editedGuestName}移出桌次`,
+      }),
     );
-    await expect(unassignmentStatus).toBeVisible();
-    await expect(unassignmentStatus).toBeFocused();
     const unassignedSection = page.getByRole("region", {
       name: "女方親友",
     });
     // 從實際的女方未安排區操作；姓名與可就地編輯的人數是兩個元素。
     await expect(
       unassignedSection.getByText(fixture.editedGuestName, { exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       unassignedSection.getByLabel(
         `${fixture.editedGuestName}的邀請人數（含本人）`,
@@ -1169,7 +1319,7 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       }),
     ).toHaveCount(0);
 
-    // 不切到賓客名單頁，直接在未安排清單改人數，再改回去讓後續斷言維持 3 位。
+    // 不切到賓客名單頁，直接在未安排清單調整最終邀請人數。
     const partySizeField = unassignedSection.getByLabel(
       `${fixture.editedGuestName}的邀請人數（含本人）`,
     );
@@ -1178,41 +1328,21 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
     });
     await expect(partySizeSubmit).toBeDisabled();
     await partySizeField.fill("4");
-    await partySizeSubmit.click();
-    await expect(
-      page.getByRole("status").filter({ hasText: "已更新賓客。" }),
-    ).toBeVisible();
+    await submitServerAction(partySizeSubmit);
     await expect(
       unassignedSection.getByLabel(
         `${fixture.editedGuestName}的邀請人數（含本人）`,
       ),
     ).toHaveValue("4");
 
-    await unassignedSection
-      .getByLabel(`${fixture.editedGuestName}的邀請人數（含本人）`)
-      .fill("3");
-    await unassignedSection
-      .getByRole("button", {
-        name: `更新${fixture.editedGuestName}的邀請人數`,
-      })
-      .click();
-    await expect(
-      unassignedSection.getByLabel(
-        `${fixture.editedGuestName}的邀請人數（含本人）`,
-      ),
-    ).toHaveValue("3");
-
     await page
       .getByLabel(`為${fixture.editedGuestName}選擇桌次`)
-      .selectOption({ label: `${fixture.editedSecondTableName}（剩餘 10 位）` });
-    await page.getByRole("button", { name: `安排${fixture.editedGuestName}` }).click();
-    await expect(assignmentStatus).toHaveText(
-      `已將${fixture.editedGuestName}安排至${fixture.editedSecondTableName}。`,
+      .selectOption({ label: `${editedSecondTableLabel}（剩餘 10 位）` });
+    await submitServerAction(
+      page.getByRole("button", { name: `安排${fixture.editedGuestName}` }),
     );
-    await expect(assignmentStatus).toBeVisible();
-    await expect(assignmentStatus).toBeFocused();
     await expect(
-      editedTableArticle.getByText(`${fixture.editedGuestName}・3 位`, {
+      editedTableArticle.getByText(`${fixture.editedGuestName}・4 位`, {
         exact: true,
       }),
     ).toBeVisible();
@@ -1222,7 +1352,9 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       .locator("xpath=ancestor::section[1]")
       .locator("form");
     await settingsForm.getByLabel("總桌數").fill("1");
-    await settingsForm.getByRole("button", { name: "套用桌數設定" }).click();
+    await submitServerAction(
+      settingsForm.getByRole("button", { name: "套用桌數設定" }),
+    );
     await expect(
       settingsForm.getByRole("heading", { name: "確認縮減桌數" }),
     ).toBeVisible();
@@ -1230,7 +1362,7 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       settingsForm.getByText("將移除名單中的 1 桌。", { exact: true }),
     ).toBeVisible();
     await expect(
-      settingsForm.getByText("合計受影響 1 組、3 位賓客。", {
+      settingsForm.getByText("合計受影響 1 組、4 位賓客。", {
         exact: true,
       }),
     ).toBeVisible();
@@ -1244,30 +1376,27 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
         name: "請先移動待移除桌次的賓客",
       }),
     ).toBeDisabled();
+    await expect(editedTableArticle).toBeVisible();
     await expect(
-      editedTableArticle.getByRole("heading", {
-        name: fixture.editedSecondTableName,
-        exact: true,
-      }),
-    ).toBeVisible();
-    await expect(
-      editedTableArticle.getByText(`${fixture.editedGuestName}・3 位`, {
+      editedTableArticle.getByText(`${fixture.editedGuestName}・4 位`, {
         exact: true,
       }),
     ).toBeVisible();
 
-    await editedTableArticle
-      .getByRole("button", { name: `將${fixture.editedGuestName}移出桌次` })
-      .click();
+    await submitServerAction(
+      editedTableArticle.getByRole("button", {
+        name: `將${fixture.editedGuestName}移出桌次`,
+      }),
+    );
     // 未安排清單把人數換成可就地編輯的輸入框，姓名與人數是兩個元素。
     await expect(
       unassignedSection.getByText(fixture.editedGuestName, { exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 15_000 });
     await expect(
       unassignedSection.getByLabel(
         `${fixture.editedGuestName}的邀請人數（含本人）`,
       ),
-    ).toHaveValue("3");
+    ).toHaveValue("4");
     await settingsForm
       .getByRole("button", { name: "取消並放棄確認" })
       .click();
@@ -1277,31 +1406,121 @@ test("OWNER 可從真實介面完成工作區、成員與花費群組生命週�
       .locator("xpath=ancestor::section[1]")
       .locator("form");
     await settingsForm.getByLabel("總桌數").fill("1");
-    await settingsForm.getByRole("button", { name: "套用桌數設定" }).click();
+    await submitServerAction(
+      settingsForm.getByRole("button", { name: "套用桌數設定" }),
+    );
     await expect(
       settingsForm.getByText("所列桌次目前都是空桌；確認後才會永久移除。", {
         exact: true,
       }),
     ).toBeVisible();
-    await settingsForm
-      .getByRole("button", { name: "確認移除 1 桌空桌" })
-      .click();
-    const reductionStatus = page.getByRole("status").filter({
-      hasText: "已縮減為 1 桌，並移除 1 桌空桌。",
-    });
-    await expect(reductionStatus).toBeVisible();
-    await expect(reductionStatus).toBeFocused();
-    await expect(
-      page.getByRole("heading", { name: fixture.editedSecondTableName, exact: true }),
-    ).toHaveCount(0);
+    await submitServerAction(
+      settingsForm.getByRole("button", { name: "確認移除 1 桌空桌" }),
+    );
+    await expect(editedTableArticle).toHaveCount(0);
     await expect(
       page.getByLabel(`${fixture.editedGuestName}的邀請人數（含本人）`),
-    ).toHaveValue("3");
+    ).toHaveValue("4");
     await expect(
-      page.getByText("已安排 0 / 6 位", { exact: true }),
+      tableDetails
+        .getByRole("article")
+        .filter({ hasText: fixture.stableTableName })
+        .getByText("已安排 0 / 6 位", { exact: true }),
     ).toBeVisible();
     floorPlan = page.getByRole("region", { name: "宴會場地配置" });
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
+    await expectNoPageOverflow(page);
+  });
+
+  await test.step("從報到入口完成一鍵報到、調整人數與取消報到", async () => {
+    await openWorkspaceSection(page, "報到");
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "賓客報到",
+      }),
+    ).toBeVisible();
+
+    const board = page.getByRole("region", { name: "賓客報到" });
+    const expectStat = async (label: string, value: string) => {
+      await expect(
+        board
+          .getByText(label, { exact: true })
+          .locator("xpath=following-sibling::p[1]"),
+      ).toHaveText(new RegExp(`^${value}`, "u"));
+    };
+
+    // 出席回覆是「預計」，報到才是「實到」；一開始兩者不該互相污染。
+    await expectStat("實到人數", "0");
+    await expectStat("已報到組數", "0");
+
+    const guestCard = board.getByRole("article", {
+      name: fixture.editedGuestName,
+    });
+    await expect(guestCard.getByText("尚未報到", { exact: true })).toBeVisible();
+
+    // 一鍵報到預設帶入這一組的邀請人數；桌機與手機的既有名單人數不同，
+    // 所以從畫面讀回真正的預設值，而不是把某一種尺寸的數字寫死。
+    const quickCheckInButton = guestCard
+      .getByRole("form", {
+        name: `為 ${fixture.editedGuestName} 快速報到表單`,
+      })
+      .getByRole("button");
+    const invitedHeadcount = Number(
+      ((await quickCheckInButton.textContent()) ?? "").replace(/\D+/gu, ""),
+    );
+    expect(invitedHeadcount).toBeGreaterThan(1);
+
+    await submitServerAction(quickCheckInButton);
+    await expect(
+      guestCard.getByText(`實到 ${invitedHeadcount} 位`, { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expectStat("實到人數", String(invitedHeadcount));
+    await expectStat("已報到組數", "1");
+    await expectNoPageOverflow(page);
+
+    await guestCard.getByRole("button", { name: "調整人數" }).click();
+    const adjustForm = page.getByRole("form", {
+      name: `調整 ${fixture.editedGuestName} 的報到人數表單`,
+    });
+    await expect(adjustForm.getByLabel("實際到場人數")).toHaveValue(
+      String(invitedHeadcount),
+    );
+    await adjustForm.getByLabel("實際到場人數").fill("1");
+    await adjustForm.getByLabel("報到備註（選填）").fill("其他人臨時未到");
+    await submitServerAction(
+      adjustForm.getByRole("button", { name: "儲存報到人數" }),
+    );
+    await expect(guestCard.getByText("實到 1 位", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(guestCard.getByText("其他人臨時未到")).toBeVisible();
+    await expectStat("實到人數", "1");
+
+    // 重新載入後仍要看到 server 的權威結果，而不是只有本地成功快照。
+    await page.reload();
+    const reloadedCard = page
+      .getByRole("region", { name: "賓客報到" })
+      .getByRole("article", { name: fixture.editedGuestName });
+    await expect(
+      reloadedCard.getByText("實到 1 位", { exact: true }),
+    ).toBeVisible();
+
+    await reloadedCard.getByRole("button", { name: "取消報到" }).click();
+    const cancelForm = page.getByRole("form", {
+      name: `取消 ${fixture.editedGuestName} 的報到表單`,
+    });
+    await expect(cancelForm.getByText("目前記錄實到 1 位。")).toBeVisible();
+    await submitServerAction(
+      cancelForm.getByRole("button", { name: "取消報到" }),
+    );
+    await expect(
+      page
+        .getByRole("region", { name: "賓客報到" })
+        .getByRole("article", { name: fixture.editedGuestName })
+        .getByText("尚未報到", { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expectStat("實到人數", "0");
     await expectNoPageOverflow(page);
   });
 

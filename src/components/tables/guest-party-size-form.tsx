@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import {
   updateGuestAction,
   type GuestMutationState,
@@ -27,7 +27,54 @@ export type UnassignedSeatingGuest = {
   side: GuestSideValue;
   attendanceStatus: GuestAttendanceStatusValue;
   notes: string | null;
+  vegetarianCount?: number | null;
 };
+
+type GuestPartySizeSubmissionSnapshot = UnassignedSeatingGuest & {
+  workspaceId: string;
+};
+
+function createGuestPartySizeSubmissionSnapshot(
+  workspaceId: string,
+  guest: UnassignedSeatingGuest,
+): GuestPartySizeSubmissionSnapshot {
+  return { workspaceId, ...guest };
+}
+
+function isSameGuestPartySizeSubmissionSnapshot(
+  current: GuestPartySizeSubmissionSnapshot,
+  latest: GuestPartySizeSubmissionSnapshot,
+): boolean {
+  return (
+    current.workspaceId === latest.workspaceId &&
+    current.id === latest.id &&
+    current.name === latest.name &&
+    current.category === latest.category &&
+    current.seniority === latest.seniority &&
+    current.partySize === latest.partySize &&
+    current.version === latest.version &&
+    current.side === latest.side &&
+    current.attendanceStatus === latest.attendanceStatus &&
+    current.notes === latest.notes
+  );
+}
+
+function isGuestPartySizeSubmissionSnapshotOutdated(
+  current: GuestPartySizeSubmissionSnapshot,
+  latest: GuestPartySizeSubmissionSnapshot,
+): boolean {
+  if (
+    current.workspaceId !== latest.workspaceId ||
+    current.id !== latest.id
+  ) {
+    return true;
+  }
+  if (latest.version !== current.version) {
+    // 自己剛寫入成功時，本地 CAS 會暫時領先仍未刷新的 RSC props。
+    return latest.version > current.version;
+  }
+  return !isSameGuestPartySizeSubmissionSnapshot(current, latest);
+}
 
 /**
  * 未安排賓客的人數就地編輯。
@@ -41,40 +88,92 @@ export function EditGuestPartySizeForm({
   guest: UnassignedSeatingGuest;
 }) {
   const inputId = useId();
-  const updateAction = updateGuestAction.bind(null, workspaceId, guest.id);
+  const latestSnapshot = createGuestPartySizeSubmissionSnapshot(
+    workspaceId,
+    guest,
+  );
+  const [snapshot, setSnapshot] = useState(() => latestSnapshot);
+  const [draft, setDraft] = useState(String(snapshot.partySize));
+  const [hideActionFeedback, setHideActionFeedback] = useState(false);
+  const snapshotIsOutdated = isGuestPartySizeSubmissionSnapshotOutdated(
+    snapshot,
+    latestSnapshot,
+  );
+  const updateAction = updateGuestAction.bind(
+    null,
+    snapshot.workspaceId,
+    snapshot.id,
+  );
   const [state, formAction, isPending] = useActionState(
-    updateAction,
+    async (previousState: GuestMutationState, formData: FormData) => {
+      setHideActionFeedback(false);
+      const nextState = await updateAction(previousState, formData);
+      if (nextState.status === "success") {
+        const committedPartySize = Number(formData.get("partySize"));
+        const submittedVersion = Number(formData.get("expectedVersion"));
+        setSnapshot((current) => ({
+          ...current,
+          partySize: committedPartySize,
+          version: submittedVersion + 1,
+        }));
+        setDraft(String(committedPartySize));
+      }
+      return nextState;
+    },
     initialState,
   );
-  const [draft, setDraft] = useState(String(guest.partySize));
-  const syncedVersionRef = useRef(guest.version);
 
-  useEffect(() => {
-    // 只有伺服器寫出新版本時才覆蓋草稿，避免打到一半被重新整理蓋掉。
-    if (syncedVersionRef.current === guest.version) return;
-    syncedVersionRef.current = guest.version;
-    setDraft(String(guest.partySize));
-  }, [guest.partySize, guest.version]);
+  function loadLatestSnapshot() {
+    setSnapshot(latestSnapshot);
+    setDraft(String(latestSnapshot.partySize));
+    setHideActionFeedback(true);
+  }
 
-  if (guest.category === "COUPLE") {
+  const newerSnapshotNotice = snapshotIsOutdated ? (
+    <div
+      role="alert"
+      className="mt-2 rounded-control border border-caution/30 bg-caution-soft px-3 py-2 text-caption leading-6 text-caution"
+    >
+      <p>這筆賓客已有較新的資料，目前仍保留原本的人數草稿與版本。</p>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={loadLatestSnapshot}
+        className="mt-2 inline-flex min-h-11 items-center rounded-control border border-caution/40 px-3 font-semibold transition hover:bg-caution/10 disabled:cursor-wait disabled:opacity-60"
+      >
+        載入最新資料
+      </button>
+    </div>
+  ) : null;
+
+  if (snapshot.category === "COUPLE") {
     return (
-      <p className="mt-2 text-caption text-ink-faint">
-        名單人數 1 位・新人一人一筆
-      </p>
+      <div className="mt-2 min-w-0">
+        <p className="text-caption text-ink-faint">
+          名單人數 1 位・新人一人一筆
+        </p>
+        {newerSnapshotNotice}
+      </div>
     );
   }
 
-  const isDirty = draft.trim() !== String(guest.partySize);
+  const isDirty = draft.trim() !== String(snapshot.partySize);
 
   return (
-    <form action={formAction} className="mt-2 min-w-0">
+    <form
+      action={formAction}
+      className="mt-2 min-w-0"
+      onSubmit={(event) => {
+        if (snapshotIsOutdated) event.preventDefault();
+      }}
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
         {/*
           可及性名稱要帶賓客姓名（同一頁有很多個），但畫面上只需要短短兩個字，
           否則沒人看得出這個數字框是做什麼的。
         */}
         <label htmlFor={inputId} className="sr-only">
-          {guest.name}的邀請人數（含本人）
+          {snapshot.name}的邀請人數（含本人）
         </label>
         <span aria-hidden="true" className="text-caption text-ink-soft">
           邀請人數
@@ -107,8 +206,8 @@ export function EditGuestPartySizeForm({
           isPending={isPending}
           pendingLabel="更新中…"
           variant="secondary"
-          disabled={!isDirty}
-          aria-label={`更新${guest.name}的邀請人數`}
+          disabled={!isDirty || snapshotIsOutdated}
+          aria-label={`更新${snapshot.name}的邀請人數`}
         >
           更新
         </SubmitButton>
@@ -118,19 +217,23 @@ export function EditGuestPartySizeForm({
         updateGuestAction 要求整筆賓客內容與 CAS 版本，這裡只改人數，
         其餘欄位原樣帶回；版本不符時伺服器會擋下並要求重新整理。
       */}
-      <input type="hidden" name="name" value={guest.name} />
-      <input type="hidden" name="category" value={guest.category} />
-      <input type="hidden" name="seniority" value={guest.seniority} />
-      <input type="hidden" name="side" value={guest.side} />
+      <input type="hidden" name="name" value={snapshot.name} />
+      <input type="hidden" name="category" value={snapshot.category} />
+      <input type="hidden" name="seniority" value={snapshot.seniority} />
+      <input type="hidden" name="side" value={snapshot.side} />
       <input
         type="hidden"
         name="attendanceStatus"
-        value={guest.attendanceStatus}
+        value={snapshot.attendanceStatus}
       />
-      <input type="hidden" name="notes" value={guest.notes ?? ""} />
-      <input type="hidden" name="expectedVersion" value={guest.version} />
+      <input type="hidden" name="notes" value={snapshot.notes ?? ""} />
+      <input type="hidden" name="expectedVersion" value={snapshot.version} />
 
-      <ActionFeedback state={state} className="mt-2" />
+      {newerSnapshotNotice}
+
+      {hideActionFeedback || isPending || snapshotIsOutdated ? null : (
+        <ActionFeedback state={state} className="mt-2" />
+      )}
     </form>
   );
 }

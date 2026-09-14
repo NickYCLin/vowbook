@@ -187,19 +187,13 @@ describe("timeline forms", () => {
         />
       </>,
     );
+    // 長標題只留在可及性名稱裡；畫面上只顯示短動詞。
     const trigger = screen.getByRole("button", { name: `編輯 ${title}` });
-    expect(trigger).toHaveClass(
-      "max-w-full",
-      "min-w-0",
-      "break-words",
-      "[overflow-wrap:anywhere]",
-    );
-    expect(within(trigger).getByText(`編輯 ${title}`)).toHaveClass(
-      "min-w-0",
-      "whitespace-normal",
-      "break-words",
-      "[overflow-wrap:anywhere]",
-    );
+    expect(trigger).toHaveTextContent(/^編輯$/u);
+    expect(trigger).toHaveClass("min-h-11", "max-w-full", "min-w-0");
+    expect(
+      screen.getByRole("button", { name: `刪除 ${title}` }),
+    ).toHaveTextContent(/^刪除$/u);
     fireEvent.click(trigger);
     const label = within(
       screen.getByRole("dialog", { name: "編輯婚禮流程" }),
@@ -213,19 +207,6 @@ describe("timeline forms", () => {
     expect(label.closest("label")?.querySelector('input[type="checkbox"]')).toHaveClass(
       "shrink-0",
     );
-    const deleteLabel = screen.getByText(`刪除 ${title}`);
-    expect(deleteLabel).toHaveClass(
-      "min-w-0",
-      "whitespace-normal",
-      "break-words",
-      "[overflow-wrap:anywhere]",
-    );
-    expect(deleteLabel.closest("button")).toHaveClass(
-      "max-w-full",
-      "min-w-0",
-      "break-words",
-      "[overflow-wrap:anywhere]",
-    );
   });
 
   it("labels the editable template as detailed and never exposes source identifiers", () => {
@@ -235,6 +216,11 @@ describe("timeline forms", () => {
     expect(
       screen.getByRole("button", { name: "建立詳細午宴流程範本" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "這次有西式證婚，範本要加入證婚流程",
+      }),
+    ).not.toBeChecked();
     expect(container).not.toHaveTextContent("匯入");
   });
 
@@ -398,8 +384,12 @@ describe("timeline forms", () => {
     rerender(
       <EditWeddingTimelineItemForm
         {...initialProps}
+        phase="儀式"
+        title="證婚開始"
+        location="戶外證婚區"
         details="協作者 v2"
         mediaCue="協作者 v2 音樂"
+        notes="協作者備註"
         assignedStaff={staff.slice(1)}
         expectedVersion={4}
       />,
@@ -417,5 +407,177 @@ describe("timeline forms", () => {
     const formData = new FormData(dialog.querySelector("form")!);
     expect(formData.get("expectedVersion")).toBe("3");
     expect(formData.getAll("staffIds")).toEqual(["staff_1", "staff_2"]);
+    expect(
+      within(dialog).getByText(
+        "這筆流程已有較新的資料，目前表單仍保留原本的草稿、指派與版本。",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "載入最新資料" }),
+    );
+
+    expect(within(dialog).getByLabelText("階段")).toHaveValue("儀式");
+    expect(within(dialog).getByLabelText("流程項目")).toHaveValue("證婚開始");
+    expect(within(dialog).getByLabelText(/地點/)).toHaveValue("戶外證婚區");
+    expect(within(dialog).getByLabelText(/流程細節/)).toHaveValue(
+      "協作者 v2",
+    );
+    expect(within(dialog).getByLabelText("音樂／影片（選填）")).toHaveValue(
+      "協作者 v2 音樂",
+    );
+    expect(within(dialog).getByLabelText(/備註/)).toHaveValue(
+      "協作者備註",
+    );
+    expect(dialog.querySelector('input[name="expectedVersion"]')).toHaveValue("4");
+    expect(
+      within(dialog).getByLabelText("招待・小安", { selector: "input" }),
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByLabelText("主持・小美", { selector: "input" }),
+    ).toBeChecked();
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    expect(
+      within(dialog).queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+  });
+
+  it("advances its own successful timeline snapshot before the next submit", async () => {
+    actions.updateWeddingTimelineItemAction
+      .mockResolvedValueOnce({
+        status: "success",
+        message: "已更新流程項目。",
+      })
+      .mockResolvedValueOnce({
+        status: "success",
+        message: "已更新流程項目。",
+      });
+    const initialProps = {
+      workspaceId: "workspace_internal",
+      itemId: "item_internal",
+      startTime: "11:30",
+      endTime: "12:00",
+      phase: "迎賓",
+      title: "賓客入場",
+      location: null,
+      details: "v1",
+      mediaCue: "v1 音樂",
+      notes: null,
+      assignedStaff: staff.slice(0, 1),
+      staff,
+      expectedVersion: 3,
+    };
+    const { rerender } = render(
+      <EditWeddingTimelineItemForm {...initialProps} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "編輯 賓客入場" }));
+    const dialog = screen.getByRole("dialog", { name: "編輯婚禮流程" });
+    fireEvent.change(within(dialog).getByLabelText("流程項目"), {
+      target: { value: "  新人進場  " },
+    });
+    fireEvent.change(within(dialog).getByLabelText("音樂／影片（選填）"), {
+      target: { value: "  進場音樂  " },
+    });
+    fireEvent.click(
+      within(dialog).getByLabelText("主持・小美", { selector: "input" }),
+    );
+    fireEvent.submit(dialog.querySelector("form")!);
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "已更新流程項目。",
+    );
+    expect(dialog.querySelector('input[name="expectedVersion"]')).toHaveValue("4");
+    expect(within(dialog).getByLabelText("流程項目")).toHaveValue("新人進場");
+    expect(within(dialog).getByLabelText("音樂／影片（選填）")).toHaveValue(
+      "進場音樂",
+    );
+
+    rerender(
+      <EditWeddingTimelineItemForm
+        {...initialProps}
+        title="新人進場"
+        mediaCue="進場音樂"
+        assignedStaff={staff}
+        expectedVersion={4}
+      />,
+    );
+    expect(
+      within(dialog).queryByRole("button", { name: "載入最新資料" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "編輯 新人進場" }));
+    fireEvent.change(within(dialog).getByLabelText(/備註/), {
+      target: { value: "再次更新" },
+    });
+    fireEvent.submit(dialog.querySelector("form")!);
+    await waitFor(() =>
+      expect(actions.updateWeddingTimelineItemAction).toHaveBeenCalledTimes(2),
+    );
+    const secondSubmission =
+      actions.updateWeddingTimelineItemAction.mock.calls[1]?.[3];
+    expect(secondSubmission).toBeInstanceOf(FormData);
+    expect((secondSubmission as FormData).get("expectedVersion")).toBe("4");
+    expect((secondSubmission as FormData).getAll("staffIds")).toEqual([
+      "staff_1",
+      "staff_2",
+    ]);
+    await waitFor(() =>
+      expect(dialog.querySelector('input[name="expectedVersion"]')).toHaveValue("5"),
+    );
+  });
+
+  it("freezes the destructive timeline snapshot until the dialog is closed and reopened", () => {
+    const { rerender } = render(
+      <DeleteWeddingTimelineItemForm
+        workspaceId="workspace_internal"
+        itemId="item_internal"
+        title="原始流程"
+        expectedVersion={3}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "刪除 原始流程" }));
+    const dialog = screen.getByRole("dialog", { name: "原始流程" });
+
+    rerender(
+      <DeleteWeddingTimelineItemForm
+        workspaceId="workspace_internal"
+        itemId="item_internal"
+        title="協作者更新的流程"
+        expectedVersion={4}
+      />,
+    );
+
+    expect(dialog.querySelector('input[name="expectedVersion"]')).toHaveValue(
+      "3",
+    );
+    expect(dialog).toHaveTextContent("原始流程");
+    expect(
+      within(dialog).getByText(
+        "這個流程項目已有較新的資料，請關閉後重新確認刪除。",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "確認刪除：原始流程" }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "關閉刪除流程項目" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "刪除 協作者更新的流程" }),
+    );
+
+    const reopenedDialog = screen.getByRole("dialog", {
+      name: "協作者更新的流程",
+    });
+    expect(
+      reopenedDialog.querySelector('input[name="expectedVersion"]'),
+    ).toHaveValue("4");
+    expect(within(reopenedDialog).queryByRole("alert")).toBeNull();
+    expect(
+      within(reopenedDialog).getByRole("button", {
+        name: "確認刪除：協作者更新的流程",
+      }),
+    ).toBeEnabled();
   });
 });

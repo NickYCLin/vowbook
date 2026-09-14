@@ -120,6 +120,9 @@ export function WorkspaceOwnerControls({
 
   const currentName = deleteSnapshot.name;
   const confirmationMatches = normalizedName(confirmationName) === currentName;
+  const deleteSnapshotIsOutdated =
+    deleteSnapshot.expectedUpdatedAt !== workspace.updatedAt.toISOString() ||
+    deleteSnapshot.name !== normalizedName(workspace.name);
 
   function openEditDialog(): void {
     const dialog = editDialogRef.current;
@@ -318,12 +321,17 @@ export function WorkspaceOwnerControls({
           <input
             type="hidden"
             name="expectedUpdatedAt"
-            value={workspace.updatedAt.toISOString()}
+            value={deleteSnapshot.expectedUpdatedAt}
           />
+          {deleteSnapshotIsOutdated ? (
+            <p className="border-l-2 border-caution bg-caution-soft px-4 py-3 text-sm font-semibold leading-6 text-caution">
+              工作區已有較新的資料。請先關閉視窗，再重新確認最新內容。
+            </p>
+          ) : null}
           <div className="border-l-2 border-danger bg-danger-soft px-4 py-4 text-red-950">
             <p className="font-semibold">此動作永久且無法復原。</p>
             <p className="mt-2 text-sm leading-6">
-              賓客、桌次、任務、婚禮花費、工作人員、婚禮流程、分享與協作資料都會永久刪除。
+              賓客與禮金簿、報到紀錄、桌次、任務、婚禮花費、廠商、工作人員、婚禮流程、保留的舊版儀式與逐場出席資料，以及分享與協作資料都會永久刪除。
             </p>
           </div>
           <div>
@@ -361,7 +369,11 @@ export function WorkspaceOwnerControls({
                   ? "正在永久刪除…"
                   : `確認永久刪除 ${currentName}`
               }
-              disabled={deletePending || !confirmationMatches}
+              disabled={
+                deletePending ||
+                deleteSnapshotIsOutdated ||
+                !confirmationMatches
+              }
               className="min-h-11 rounded-full bg-red-800 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deletePending ? "正在永久刪除…" : "確認永久刪除"}

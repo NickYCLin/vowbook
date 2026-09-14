@@ -66,7 +66,10 @@ export function WeddingTimelineList({
       focusTargetId = adjacentId
         ? timelineEditTriggerId(adjacentId)
         : timelineHeadingId;
-    } else if (previousIds.length === 0 && currentIds.length === 9) {
+    } else if (
+      previousIds.length === 0 &&
+      (currentIds.length === 8 || currentIds.length === 9)
+    ) {
       setNotice("已建立詳細午宴流程範本，所有項目都可以繼續編輯。");
       focusTargetId = timelineEditTriggerId(currentIds[0]);
     }
@@ -100,7 +103,7 @@ export function WeddingTimelineList({
         ) : null}
         <p className="mx-auto mt-2 max-w-md text-caption leading-6 text-ink-soft">
           {canEdit
-            ? "可自行新增第一項，或建立詳細午宴流程範本；建立後可自由編輯。"
+            ? "可自行新增第一項，或建立詳細午宴流程範本；套用時可明確選擇是否加入西式證婚流程。"
             : "可以編輯此工作區的成員尚未建立流程。"}
         </p>
         {canEdit && (
@@ -175,7 +178,7 @@ export function WeddingTimelineList({
         </div>
         <ul className="min-w-0 divide-y divide-line">
           {items.map((item) => (
-            <li key={item.id} className="min-w-0 px-5 py-4">
+            <li key={item.id} id={`timeline-desktop-${item.id}`} className="min-w-0 scroll-mt-24 px-5 py-4">
               <div className="grid min-w-0 grid-cols-[7rem_minmax(0,0.7fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
                 <time className="font-semibold text-clay-strong tabular-nums">
                   {timeLabel(item)}
@@ -222,7 +225,7 @@ export function WeddingTimelineList({
         <h2 className="sr-only">婚禮總流程手機清單</h2>
         <ul className="min-w-0 space-y-3">
           {items.map((item) => (
-            <Card as="li" key={item.id} className="list-none">
+            <Card as="li" key={item.id} id={`timeline-mobile-${item.id}`} className="scroll-mt-24 list-none">
               <div className="min-w-0 px-5 py-4">
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <time className="font-semibold text-clay-strong tabular-nums">

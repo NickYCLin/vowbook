@@ -1,12 +1,12 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import type {
-  MembershipRole,
+import {
   Prisma,
-  PrismaClient,
-  WeddingWorkspace,
-  WorkspaceInvitationStatus,
+  type MembershipRole,
+  type PrismaClient,
+  type WeddingWorkspace,
+  type WorkspaceInvitationStatus,
 } from "@prisma/client";
 import {
   INVITABLE_WORKSPACE_ROLES,
@@ -81,11 +81,25 @@ type InvitationRow = {
   active: boolean;
 };
 
-type WorkspaceMembersClient = {
+type WorkspaceMembersTransactionClient = {
   membership: {
+    findUnique(args: unknown): Promise<{
+      role: string;
+      workspace: Pick<WeddingWorkspace, "id" | "name">;
+    } | null>;
     findMany(args: unknown): Promise<MemberRow[]>;
   };
-  $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
+  $queryRaw<T = unknown>(
+    query: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<T>;
+};
+
+type WorkspaceMembersClient = {
+  $transaction<T>(
+    operation: (transaction: WorkspaceMembersTransactionClient) => Promise<T>,
+    options: { isolationLevel: string },
+  ): Promise<T>;
 };
 
 export class WorkspaceMembersDataError extends Error {
@@ -240,128 +254,126 @@ export async function getWorkspaceMembersData(
 ): Promise<WorkspaceMembersData> {
   const currentUser = await requireCurrentUser();
 
-  let access;
   try {
-    access = await requireWorkspaceAccess<
-      Pick<WeddingWorkspace, "id" | "name">
-    >(workspaceId, currentUser.id, "read");
-  } catch (error) {
-    if (error instanceof WorkspaceAccessDeniedError) {
-      throw error;
-    }
-    throw new WorkspaceMembersDataError();
-  }
+    return await client.$transaction(
+      async (transaction) => {
+        const access = await requireWorkspaceAccess<
+          Pick<WeddingWorkspace, "id" | "name">
+        >(workspaceId, currentUser.id, "read", transaction);
 
-  try {
-    if (access.role === "OWNER") {
-      const [memberRows, invitationRows] = await Promise.all([
-        client.membership.findMany({
+        if (access.role === "OWNER") {
+          const [memberRows, invitationRows] = await Promise.all([
+            transaction.membership.findMany({
+              where: { workspaceId },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                role: true,
+                updatedAt: true,
+                user: { select: { name: true, email: true } },
+              },
+            }),
+            transaction.$queryRaw<InvitationRow[]>`
+              SELECT
+                "id",
+                "email",
+                "role",
+                "status",
+                "version",
+                "created_at" AS "createdAt",
+                "expires_at" AS "expiresAt",
+                ("expires_at" > CURRENT_TIMESTAMP) AS "active"
+              FROM "workspace_invitations"
+              WHERE "workspace_id" = ${workspaceId}
+                AND "superseded_by_invitation_id" IS NULL
+                AND "status" IN (
+                  'PENDING'::"WorkspaceInvitationStatus",
+                  'REVOKED'::"WorkspaceInvitationStatus",
+                  'EXPIRED'::"WorkspaceInvitationStatus"
+                )
+              ORDER BY "created_at" ASC, "id" ASC
+            `,
+          ]);
+
+          const pendingInvitations: PendingWorkspaceInvitationItem[] = [];
+          const renewableInvitations: RenewableWorkspaceInvitationItem[] = [];
+          for (const invitation of invitationRows) {
+            const item = invitationItem(invitation);
+            if (invitation.status === "PENDING" && invitation.active) {
+              pendingInvitations.push(item);
+            } else {
+              renewableInvitations.push({
+                ...item,
+                reason:
+                  invitation.status === "REVOKED" ? "REVOKED" : "EXPIRED",
+              });
+            }
+          }
+
+          return {
+            role: access.role,
+            workspace: {
+              id: access.workspace.id,
+              name: access.workspace.name,
+            },
+            members: memberRows.map((member) => {
+              if (
+                !isWorkspaceRole(member.role) ||
+                typeof member.id !== "string" ||
+                !member.id ||
+                !(member.updatedAt instanceof Date) ||
+                !Number.isFinite(member.updatedAt.getTime())
+              ) {
+                throw new WorkspaceMembersDataError();
+              }
+              return {
+                role: member.role,
+                displayName: displayName(member.user.name),
+                email: member.user.email ?? "",
+                management: {
+                  membershipId: member.id,
+                  updatedAt: member.updatedAt.toISOString(),
+                },
+              };
+            }),
+            pendingInvitations,
+            renewableInvitations,
+          };
+        }
+
+        const memberRows = await transaction.membership.findMany({
           where: { workspaceId },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
-            id: true,
             role: true,
-            updatedAt: true,
-            user: { select: { name: true, email: true } },
+            user: { select: { name: true } },
           },
-        }),
-        client.$queryRaw<InvitationRow[]>`
-          SELECT
-            "id",
-            "email",
-            "role",
-            "status",
-            "version",
-            "created_at" AS "createdAt",
-            "expires_at" AS "expiresAt",
-            ("expires_at" > CURRENT_TIMESTAMP) AS "active"
-          FROM "workspace_invitations"
-          WHERE "workspace_id" = ${workspaceId}
-            AND "superseded_by_invitation_id" IS NULL
-            AND "status" IN (
-              'PENDING'::"WorkspaceInvitationStatus",
-              'REVOKED'::"WorkspaceInvitationStatus",
-              'EXPIRED'::"WorkspaceInvitationStatus"
-            )
-          ORDER BY "created_at" ASC, "id" ASC
-        `,
-      ]);
+        });
 
-      const pendingInvitations: PendingWorkspaceInvitationItem[] = [];
-      const renewableInvitations: RenewableWorkspaceInvitationItem[] = [];
-      for (const invitation of invitationRows) {
-        const item = invitationItem(invitation);
-        if (
-          invitation.status === "PENDING" && invitation.active
-        ) {
-          pendingInvitations.push(item);
-        } else {
-          renewableInvitations.push({
-            ...item,
-            reason:
-              invitation.status === "REVOKED" ? "REVOKED" : "EXPIRED",
-          });
-        }
-      }
-
-      return {
-        role: access.role,
-        workspace: {
-          id: access.workspace.id,
-          name: access.workspace.name,
-        },
-        members: memberRows.map((member) => {
-          if (
-            !isWorkspaceRole(member.role) ||
-            typeof member.id !== "string" ||
-            !member.id ||
-            !(member.updatedAt instanceof Date) ||
-            !Number.isFinite(member.updatedAt.getTime())
-          ) {
-            throw new WorkspaceMembersDataError();
-          }
-          return {
-            role: member.role,
-            displayName: displayName(member.user.name),
-            email: member.user.email ?? "",
-            management: {
-              membershipId: member.id,
-              updatedAt: member.updatedAt.toISOString(),
-            },
-          };
-        }),
-        pendingInvitations,
-        renewableInvitations,
-      };
-    }
-
-    const memberRows = await client.membership.findMany({
-      where: { workspaceId },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      select: {
-        role: true,
-        user: { select: { name: true } },
-      },
-    });
-
-    return {
-      role: access.role,
-      workspace: {
-        id: access.workspace.id,
-        name: access.workspace.name,
-      },
-      members: memberRows.map((member) => {
-        if (!isWorkspaceRole(member.role)) {
-          throw new WorkspaceMembersDataError();
-        }
         return {
-          role: member.role,
-          displayName: displayName(member.user.name),
+          role: access.role,
+          workspace: {
+            id: access.workspace.id,
+            name: access.workspace.name,
+          },
+          members: memberRows.map((member) => {
+            if (!isWorkspaceRole(member.role)) {
+              throw new WorkspaceMembersDataError();
+            }
+            return {
+              role: member.role,
+              displayName: displayName(member.user.name),
+            };
+          }),
         };
-      }),
-    };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   } catch (error) {
-    if (error instanceof WorkspaceMembersDataError) {
+    if (
+      error instanceof WorkspaceAccessDeniedError ||
+      error instanceof WorkspaceMembersDataError
+    ) {
       throw error;
     }
     throw new WorkspaceMembersDataError();

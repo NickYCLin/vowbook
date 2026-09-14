@@ -225,6 +225,33 @@ function isChromePdfViewerFrameUrl(value: string): boolean {
   }
 }
 
+async function inspectCurrentChromePdfViewer(
+  page: Page,
+): Promise<PdfViewerDiagnostic> {
+  const viewerFrames = page
+    .frames()
+    .filter((frame) => isChromePdfViewerFrameUrl(frame.url()))
+    .reverse();
+  for (const frame of viewerFrames) {
+    try {
+      return await inspectChromePdfViewer(frame);
+    } catch {
+      // Chrome 會在 PDF viewer 初始化時替換 extension frame；下一輪 poll
+      // 必須重新取得仍存活的 frame，不能沿用已被關閉的 handle。
+    }
+  }
+  return {
+    documentReady: false,
+    errorText: null,
+    loadProgress: null,
+    pageCount: null,
+    pageCountSources: [],
+    pluginCandidates: [],
+    pluginReady: false,
+    viewerCount: 0,
+  };
+}
+
 test.skip(!enabled, "需要明確啟用隔離附件 E2E fixture。");
 
 test("登入使用者可在真實花費頁上傳、下載並刪除私有附件", async ({
@@ -351,7 +378,7 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   await expect(expenseTrigger).toHaveAccessibleName(
     "開啟花費明細與附件：E2E 場地費用",
   );
-  await expect(expenseTrigger).toHaveText("明細與附件 · 0");
+  await expect(expenseTrigger).toHaveText("明細與附件");
   await expect(expenseTrigger).toHaveAccessibleDescription("尚無附件");
   await expect(
     expenseRow.locator('[data-budget-attachment-affordance="true"]'),
@@ -359,7 +386,7 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
 
   const toolbar = page.locator('[data-budget-toolbar="true"]');
   const statusFilters = page.getByRole("group", {
-    name: "依下訂與付款狀態篩選",
+    name: "依準備、下訂與付款狀態篩選",
   });
   await expectNoHorizontalOverflow(page.locator("html"), "document");
   await expectNoHorizontalOverflow(toolbar, "Budget toolbar");
@@ -626,7 +653,7 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   ).toBeVisible();
   await expect(expenseDialog.getByText("尚未上傳附件。")).toBeVisible();
   await expect(expenseDialog.getByText("0 / 20", { exact: true })).toBeVisible();
-  await expect(expenseTrigger).toHaveText("明細與附件 · 0");
+  await expect(expenseTrigger).toHaveText("明細與附件");
   await expect(expenseTrigger).toHaveAccessibleName(
     "開啟花費明細與附件：E2E 場地費用",
   );
@@ -695,24 +722,16 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
     ).toBeVisible();
     await expect(pdfPopup).toHaveTitle(/附件預覽.*VowBook/u);
     await expectVowBookFavicon(pdfPopup);
+    const pdfPreviewRegion = pdfPopup.getByRole("region", {
+      name: "附件內容",
+    });
     await expect(
-      pdfPopup.getByTitle(`${pdfFilename} 的安全預覽`),
+      pdfPreviewRegion.locator(
+        `iframe[title="${pdfFilename} 的安全預覽"]`,
+      ),
     ).toBeVisible();
     await expect
-      .poll(
-        () =>
-          pdfPopup
-            .frames()
-            .some((frame) => isChromePdfViewerFrameUrl(frame.url())),
-        { timeout: 15_000 },
-      )
-      .toBe(true);
-    const viewerFrame = pdfPopup
-      .frames()
-      .find((frame) => isChromePdfViewerFrameUrl(frame.url()));
-    expect(viewerFrame).toBeDefined();
-    await expect
-      .poll(() => inspectChromePdfViewer(viewerFrame!), {
+      .poll(() => inspectCurrentChromePdfViewer(pdfPopup), {
         message:
           "Chrome PDF viewer must load its plugin, parse the document, and expose the exact two-page fixture state.",
         timeout: 15_000,

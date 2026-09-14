@@ -98,14 +98,22 @@ function staleError(message: string): WorkspaceInvitationMutationState {
 }
 
 function revalidateMembersPage(workspaceId: string): boolean {
-  try {
-    revalidatePath(`/workspaces/${workspaceId}/members`);
-    revalidatePath("/dashboard");
-    return true;
-  } catch {
-    console.error("協作頁面重新驗證失敗。");
-    return false;
+  let succeeded = true;
+  for (const path of [
+    `/workspaces/${workspaceId}/members`,
+    "/dashboard",
+    `/workspaces/${workspaceId}/overview`,
+  ]) {
+    try {
+      revalidatePath(path);
+    } catch {
+      succeeded = false;
+    }
   }
+  if (!succeeded) {
+    console.error("協作頁面重新驗證失敗。");
+  }
+  return succeeded;
 }
 
 export async function createWorkspaceInvitationAction(
@@ -395,7 +403,7 @@ export async function updateWorkspaceMemberRoleAction(
     status: "success",
     message: revalidateMembersPage(workspaceId)
       ? message
-      : `${message}畫面未自動更新，請重新整理。`,
+      : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`,
     membershipId: identity.targetMembershipId,
     role,
     updatedAt: result.updatedAt.toISOString(),
@@ -439,7 +447,7 @@ export async function removeWorkspaceMemberAction(
     status: "success",
     message: revalidateMembersPage(workspaceId)
       ? message
-      : `${message}畫面未自動更新，請重新整理。`,
+      : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`,
     membershipId: identity.targetMembershipId,
   };
 }

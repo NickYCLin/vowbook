@@ -88,15 +88,15 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
 
   await page.goto(`./workspaces/${fixture.workspaceId}/budget`);
 
-  const workspaceLayout = page.locator(
-    '[data-budget-workspace-layout="taxonomy-expenses"]',
-  );
   const taxonomyPanel = page.getByRole("navigation", {
     name: "花費分類導覽",
   });
   const expensesPanel = page.getByRole("region", {
     name: "花費工作區",
   });
+  const workspaceLayout = expensesPanel.locator(
+    'xpath=ancestor::*[@data-budget-workspace-layout="taxonomy-expenses"][1]',
+  );
   await expect(workspaceLayout).toHaveAttribute("data-desktop-layout", "split");
   await expect(workspaceLayout).toHaveAttribute("data-mobile-layout", "stacked");
   await expect(expensesPanel).toBeVisible();
@@ -142,7 +142,9 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
       "aria-current",
       "location",
     );
-    const photographyTarget = page.locator(`[id="${photographyTargetId}"]`);
+    const photographyTarget = expensesPanel.locator(
+      `[id="${photographyTargetId}"]`,
+    );
     await expect(photographyTarget).toBeVisible();
     await expect(photographyTarget.locator("article")).toBeFocused();
     const selectionContext = expensesPanel.locator(
@@ -191,7 +193,7 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
     ).toHaveCount(0);
   }
 
-  const ledger = page.locator('ul[data-budget-view="group"]');
+  const ledger = expensesPanel.locator('ul[data-budget-view="group"]');
   const stageRow = ledger
     .locator('[data-budget-taxonomy-kind="stage"]')
     .filter({ has: page.locator("h3", { hasText: /^籌備第1-2月$/u }) });
@@ -296,7 +298,7 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
   await expect(
     smallShoesRow.locator(`[data-budget-related-purpose="true"]`),
   ).toHaveCount(0);
-  // 正確父節點已表達來源路徑，列上不重複；完整資料保留在明細對話框。
+  // Notion 匯入痕跡完全不對使用者顯示。
   await expect(
     smallShoesRow.locator(`[data-budget-notion-source-path="true"]`),
   ).toHaveCount(0);
@@ -325,8 +327,8 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
     exact: true,
   });
   await expect(smallShoesDialog).toBeVisible();
-  await expect(smallShoesDialog.getByText("Notion 原始路徑")).toBeVisible();
-  await expect(smallShoesDialog).toContainText(
+  await expect(smallShoesDialog.getByText("原始分類路徑")).toHaveCount(0);
+  await expect(smallShoesDialog).not.toContainText(
     "婚紗拍攝 › 其他 › 合成姓名的小白鞋",
   );
   await smallShoesDialog
@@ -336,7 +338,7 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
     .click();
   await expect(smallShoesDialog).not.toBeVisible();
   await sourceGroupRow.screenshot({
-    path: testInfo.outputPath("notion-other-source-group.png"),
+    path: testInfo.outputPath("original-other-source-group.png"),
   });
   await smallShoesRow.screenshot({
     path: testInfo.outputPath("small-shoes-row.png"),
@@ -350,7 +352,9 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
   }
   await searchbox.fill(fixture.budgetSmallShoesExpenseName);
   await expect(smallShoesRow).toBeVisible();
-  await expect(page.locator(`[aria-live="polite"]`)).toContainText(
+  await expect(
+    page.locator('[data-budget-toolbar="true"] [aria-live="polite"]'),
+  ).toContainText(
     "符合 1 / 6 筆花費",
   );
   await searchbox.fill("");

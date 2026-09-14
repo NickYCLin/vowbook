@@ -139,7 +139,7 @@ describe("WorkspaceOwnerControls", () => {
     expect(screen.getByText("此動作永久且無法復原。")).toBeInTheDocument();
     expect(
       screen.getByText(
-        /賓客、桌次、任務、婚禮花費、工作人員、婚禮流程、分享與協作資料/u,
+        "賓客與禮金簿、報到紀錄、桌次、任務、婚禮花費、廠商、工作人員、婚禮流程、保留的舊版儀式與逐場出席資料，以及分享與協作資料都會永久刪除。",
       ),
     ).toBeInTheDocument();
 
@@ -215,5 +215,40 @@ describe("WorkspaceOwnerControls", () => {
       "目前無法刪除婚宴工作區，請稍後再試。",
     );
     expect(dialog).toHaveAttribute("open");
+  });
+
+  it("keeps the destructive token frozen and disables deletion after live props advance", () => {
+    const { container, rerender } = render(
+      <WorkspaceOwnerControls workspace={workspace} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "永久刪除 我們的 婚宴" }),
+    );
+    const confirmation = screen.getByLabelText(
+      "輸入「我們的 婚宴」以確認永久刪除",
+    );
+    fireEvent.change(confirmation, { target: { value: "我們的 婚宴" } });
+
+    rerender(
+      <WorkspaceOwnerControls
+        workspace={{
+          ...workspace,
+          weddingDate: new Date("2029-03-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-07-29T02:03:04.567Z"),
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/工作區已有較新的資料/u)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "確認永久刪除 我們的 婚宴",
+      }),
+    ).toBeDisabled();
+    expect(
+      container.querySelector(
+        'input[name="expectedUpdatedAt"][value="2026-07-29T01:02:03.456Z"]',
+      ),
+    ).toBeInTheDocument();
   });
 });

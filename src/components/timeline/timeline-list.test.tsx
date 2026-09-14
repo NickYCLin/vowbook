@@ -146,7 +146,7 @@ describe("WeddingTimelineList", () => {
     expect(
       within(empty).getByRole("button", { name: "建立詳細午宴流程範本" }),
     ).toBeInTheDocument();
-    expect(empty).toHaveTextContent("建立後可自由編輯");
+    expect(empty).toHaveTextContent("套用時可明確選擇是否加入西式證婚流程");
     expect(empty).not.toHaveTextContent("匯入");
   });
 

@@ -1,8 +1,6 @@
-#!/usr/bin/env node
-
 import { createHash } from "node:crypto";
 import { constants as fsConstants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
+import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
@@ -898,16 +896,31 @@ export async function readVerifiedExternalFileBytes(
   resolvedRepositoryRoot,
   resolvedFilePath,
 ) {
+  const pathStats = await lstat(resolvedFilePath);
+  if (pathStats.isSymbolicLink()) {
+    throw new LineinRsvpImportError("匯入來源必須是一般檔案。");
+  }
   const handle = await open(
     resolvedFilePath,
     fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
   );
   try {
     const stats = await handle.stat();
-    if (!stats.isFile()) {
+    if (
+      !stats.isFile() ||
+      pathStats.dev !== stats.dev ||
+      pathStats.ino !== stats.ino
+    ) {
       throw new LineinRsvpImportError("匯入來源必須是一般檔案。");
     }
-    const openedPath = await realpath(`/proc/self/fd/${handle.fd}`);
+    // Linux can resolve the already-open descriptor and close the final
+    // realpath/open race. Windows has no /proc descriptor path, so keep using
+    // the caller's canonical realpath while O_NOFOLLOW and the same handle
+    // still protect the final component and the bytes being read.
+    const openedPath =
+      process.platform === "linux"
+        ? await realpath(`/proc/self/fd/${handle.fd}`)
+        : resolvedFilePath;
     if (pathIsInside(resolvedRepositoryRoot, openedPath)) {
       throw new LineinRsvpImportError(
         "匯入檔與匿名 manifest 必須位於 repository 外。",

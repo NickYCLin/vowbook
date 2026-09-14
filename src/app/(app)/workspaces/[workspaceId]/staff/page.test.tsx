@@ -29,7 +29,7 @@ describe("StaffPage", () => {
       }),
     );
     expect(
-      screen.getByRole("heading", { name: "合成婚宴・婚禮工作人員" }),
+      screen.getByRole("heading", { level: 1, name: "婚禮工作人員" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/唯讀成員/)).toBeInTheDocument();
     expect(screen.getByText("工作人員清單 唯讀")).toBeInTheDocument();

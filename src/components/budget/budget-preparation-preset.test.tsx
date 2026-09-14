@@ -129,6 +129,7 @@ describe("BudgetPreparationPreset", () => {
         coveredSuggestionKeys={
           new Set(["PREPARATION_PROPOSAL_FAMILY_MEAL"])
         }
+        showProcessionCeremony
       />,
     );
 
@@ -149,7 +150,7 @@ describe("BudgetPreparationPreset", () => {
       "overflow-y-auto",
     );
     expect(dialog).toHaveAccessibleDescription(
-      "依 Drive 籌備階段列出常見項目；迎娶流程為選用，不會包含在一般項目的全選範圍。只會加入勾選內容，加入後可再編輯。",
+      "依 Drive 籌備階段列出常見項目；勾選後可分別標示需要安排、已有自備或不打算準備。已明確選擇有迎娶儀式，因此一併提供迎娶項目。",
     );
     expect(
       screen.getByRole("heading", { name: "補齊常見婚禮項目" }),
@@ -172,6 +173,11 @@ describe("BudgetPreparationPreset", () => {
     expect(
       screen.getByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
     ).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByText(
+        "沒有中式迎娶流程時不需要加入；西式證婚不等於迎娶，不會自動帶入這些項目。展開後再挑選實際會用到的項目。",
+      ),
+    ).toBeVisible();
     expect(container).not.toHaveTextContent("文定");
     expect(container).not.toHaveTextContent("提親");
     expect(container).toHaveTextContent("婚戒（求婚戒與對戒）");
@@ -200,6 +206,9 @@ describe("BudgetPreparationPreset", () => {
     expect(
       screen.getByRole("checkbox", { name: /婚戒/u }),
     ).toBeChecked();
+    expect(
+      screen.getByRole("combobox", { name: "婚戒（求婚戒與對戒）的準備方式" }),
+    ).toHaveValue("NEEDS_ACTION");
     expect(screen.queryByRole("checkbox", { name: /陪娶禮/u })).toBeNull();
 
     fireEvent.click(
@@ -226,16 +235,17 @@ describe("BudgetPreparationPreset", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("submits only selected preparation suggestion keys and reports success", async () => {
+  it("submits only selected keys with independent preparation decisions and reports success", async () => {
     actions.addBudgetPreparationSuggestionsAction.mockResolvedValueOnce({
       status: "success",
-      message: "已新增 2 筆常見婚禮項目。",
+      message: "已記錄 2 筆常見婚禮項目。",
     });
     const onSuccess = vi.fn();
     render(
       <BudgetPreparationPreset
         workspaceId="workspace_internal"
         existingSuggestionKeys={new Set()}
+        showProcessionCeremony
         onSuccess={onSuccess}
       />,
     );
@@ -245,11 +255,21 @@ describe("BudgetPreparationPreset", () => {
     });
     fireEvent.click(trigger);
     fireEvent.click(screen.getByRole("checkbox", { name: /婚戒/u }));
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "婚戒（求婚戒與對戒）的準備方式",
+      }),
+      { target: { value: "ALREADY_OWNED" } },
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
     );
     fireEvent.click(
       screen.getByRole("checkbox", { name: /陪娶禮/u }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "陪娶禮的準備方式" }),
+      { target: { value: "NOT_PLANNED" } },
     );
     fireEvent.click(
       screen.getByRole("button", { name: "加入 2 個常見項目" }),
@@ -267,13 +287,23 @@ describe("BudgetPreparationPreset", () => {
       "PREPARATION_PROPOSAL_WEDDING_RINGS",
       "PREPARATION_PROCESSION_GROOM_ESCORT_GIFT",
     ]);
+    expect(
+      formData.get(
+        "preparationStatus:PREPARATION_PROPOSAL_WEDDING_RINGS",
+      ),
+    ).toBe("ALREADY_OWNED");
+    expect(
+      formData.get(
+        "preparationStatus:PREPARATION_PROCESSION_GROOM_ESCORT_GIFT",
+      ),
+    ).toBe("NOT_PLANNED");
     expect(formData.get("workspaceId")).toBeNull();
     expect(formData.get("parentId")).toBeNull();
 
     await waitFor(() => {
       expect(document.querySelector("dialog")).not.toHaveAttribute("open");
     });
-    expect(onSuccess).toHaveBeenCalledWith("已新增 2 筆常見婚禮項目。");
+    expect(onSuccess).toHaveBeenCalledWith("已記錄 2 筆常見婚禮項目。");
     expect(trigger).toHaveFocus();
   });
 
@@ -281,7 +311,7 @@ describe("BudgetPreparationPreset", () => {
     actions.addBudgetPreparationSuggestionsAction.mockResolvedValueOnce({
       status: "error",
       code: "UNAVAILABLE",
-      message: "目前無法新增常見婚禮項目，請稍後再試。",
+      message: "目前無法記錄常見婚禮項目，請稍後再試。",
     });
     render(
       <BudgetPreparationPreset
@@ -294,12 +324,18 @@ describe("BudgetPreparationPreset", () => {
       screen.getByRole("button", { name: "補齊常見婚禮項目" }),
     );
     fireEvent.click(screen.getByRole("checkbox", { name: /婚戒/u }));
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "婚戒（求婚戒與對戒）的準備方式",
+      }),
+      { target: { value: "ALREADY_OWNED" } },
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "加入 1 個常見項目" }),
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "目前無法新增常見婚禮項目，請稍後再試。",
+      "目前無法記錄常見婚禮項目，請稍後再試。",
     );
     expect(
       screen.getByRole("dialog", { name: "補齊常見婚禮項目" }),
@@ -307,6 +343,26 @@ describe("BudgetPreparationPreset", () => {
     await waitFor(() => {
       expect(screen.getByRole("checkbox", { name: /婚戒/u })).toBeChecked();
     });
+  });
+
+  it("does not expose procession suggestions without a configured procession ceremony", () => {
+    render(
+      <BudgetPreparationPreset
+        workspaceId="workspace_internal"
+        existingSuggestionKeys={new Set()}
+        showProcessionCeremony={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "補齊常見婚禮項目" }));
+    expect(
+      screen.getByRole("dialog", { name: "補齊常見婚禮項目" }),
+    ).toHaveAccessibleDescription(
+      "依 Drive 籌備階段列出常見項目；勾選後可分別標示需要安排、已有自備或不打算準備。此清單目前只包含一般婚禮項目。",
+    );
+    expect(
+      screen.queryByRole("button", { name: "有迎娶流程？加入迎娶項目" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("陪娶禮")).not.toBeInTheDocument();
   });
 
   it("does not render after every suggestion is already added or covered", () => {

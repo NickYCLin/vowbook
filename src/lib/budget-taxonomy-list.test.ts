@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireCurrentUser, requireWorkspaceAccess, findMany } = vi.hoisted(
+const { requireCurrentUser, requireWorkspaceAccess, findMany, transaction } = vi.hoisted(
   () => ({
     requireCurrentUser: vi.fn(),
     requireWorkspaceAccess: vi.fn(),
     findMany: vi.fn(),
+    transaction: vi.fn(),
   }),
 );
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
 vi.mock("@/lib/workspace-access", () => ({ requireWorkspaceAccess }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { budgetItem: { findMany } },
+  prisma: { $transaction: transaction },
 }));
 import {
   BUDGET_INTERNAL_UNCLASSIFIED_ITEM_KEY,
@@ -59,6 +60,7 @@ function record({
     paid: false,
     paidAt: null,
     bookingStatus: "PLANNING",
+    preparationStatus: "NEEDS_ACTION",
     depositAmount: null,
     balanceAmount: null,
     additionalAmount: null,
@@ -97,10 +99,20 @@ function fixedTaxonomyRecords() {
 describe("budget taxonomy view model", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transaction.mockImplementation(async (operation) =>
+      operation({ budgetItem: { findMany } }),
+    );
     requireCurrentUser.mockResolvedValue({ id: "session_user" });
     requireWorkspaceAccess.mockResolvedValue({
       role: "VIEWER",
-      workspace: { id: "workspace_1", name: "合成婚宴" },
+      workspace: {
+        id: "workspace_1",
+        name: "合成婚宴",
+        timezone: "Asia/Taipei",
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: false,
+        ceremonyPreferencesVersion: 0,
+      },
     });
   });
 
@@ -167,7 +179,7 @@ describe("budget taxonomy view model", () => {
     );
   });
 
-  it("validates all fixed nodes while keeping only six Drive stages and twenty Drive items public", async () => {
+  it("validates all fixed nodes while keeping only six Drive stages and twenty-one Drive items public", async () => {
     findMany.mockResolvedValue([
       ...fixedTaxonomyRecords(),
       {
@@ -204,10 +216,10 @@ describe("budget taxonomy view model", () => {
         (total, stage) => total + stage.items.length,
         0,
       ),
-    ).toBe(20);
+    ).toBe(21);
     expect(
       data.items.filter((item) => item.systemTaxonomyKey !== null),
-    ).toHaveLength(28);
+    ).toHaveLength(29);
     expect(
       data.items.find((item) => item.id === "custom_photo_package"),
     ).toMatchObject({

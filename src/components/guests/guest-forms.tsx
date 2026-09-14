@@ -1,5 +1,7 @@
 "use client";
 
+import { FAMILY_RELATIONSHIP_GROUPS, FAMILY_RELATIONSHIP_VALUES } from "@/domain/family-relationship";
+
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import type { GuestManagedField } from "@prisma/client";
 import {
@@ -15,16 +17,23 @@ import {
   GUEST_SENIORITY_LABELS,
   GUEST_SIDES,
   guestIdentityLabel,
+  normalizeGuestInput,
+  normalizeGuestVersion,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
   type GuestSeniorityValue,
   type GuestSideValue,
 } from "@/domain/guest";
+import { normalizeGuestDetailsInput } from "@/domain/guest-details";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogFooter, useModalDialog } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/class-names";
-import type { GuestDetailsDto } from "@/lib/guest-list";
+import type {
+  GuestCheckInEntryDto,
+  GuestDetailsDto,
+  WeddingGiftEntryDto,
+} from "@/lib/guest-list";
 
 const initialState: GuestMutationState = { status: "idle" };
 
@@ -36,6 +45,7 @@ const SIDE_FIELD_LABELS = {
 
 type GuestFieldsProps = {
   idPrefix: string;
+  restoreRevision?: number;
   managedFields?: readonly GuestManagedField[];
   initialValues?: {
     name: string;
@@ -49,23 +59,92 @@ type GuestFieldsProps = {
   };
 };
 
+type GuestFieldValues = {
+  name: string;
+  category: GuestCategoryValue;
+  seniority: GuestSeniorityValue;
+  side: GuestSideValue;
+  attendanceStatus: GuestAttendanceStatusValue;
+  partySize: string;
+  notes: string;
+  relationshipLabel: string;
+  contactPhone: string;
+  contactEmail: string;
+  childSeatCount: string;
+  vegetarianCount: string;
+  invitationDelivery: "" | NonNullable<GuestDetailsDto["invitationDelivery"]>;
+  invitationReply: string;
+  attendanceReply: string;
+  mailingAddress: string;
+  guestMessage: string;
+};
+
+function guestFieldValues(
+  initialValues: GuestFieldsProps["initialValues"],
+): GuestFieldValues {
+  const details = initialValues?.details;
+  return {
+    name: initialValues?.name ?? "",
+    category: initialValues?.category ?? "GUEST",
+    seniority:
+      initialValues?.seniority ??
+      (initialValues?.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
+    side: initialValues?.side ?? "SHARED",
+    attendanceStatus: initialValues?.attendanceStatus ?? "UNDECIDED",
+    partySize: String(initialValues?.partySize ?? 1),
+    notes: initialValues?.notes ?? "",
+    relationshipLabel: details?.relationshipLabel ?? "",
+    contactPhone: details?.contactPhone ?? "",
+    contactEmail: details?.contactEmail ?? "",
+    childSeatCount:
+      details?.childSeatCount === null || details?.childSeatCount === undefined
+        ? ""
+        : String(details.childSeatCount),
+    vegetarianCount:
+      details?.vegetarianCount === null || details?.vegetarianCount === undefined
+        ? ""
+        : String(details.vegetarianCount),
+    invitationDelivery: details?.invitationDelivery ?? "",
+    invitationReply: details?.invitationReply ?? "",
+    attendanceReply: details?.attendanceReply ?? "",
+    mailingAddress: details?.mailingAddress ?? "",
+    guestMessage: details?.guestMessage ?? "",
+  };
+}
+
 function GuestFields({
   idPrefix,
   initialValues,
   managedFields = [],
+  restoreRevision = 0,
 }: GuestFieldsProps) {
-  const [category, setCategory] = useState<GuestCategoryValue>(
-    initialValues?.category ?? "GUEST",
+  const [values, setValues] = useState<GuestFieldValues>(() =>
+    guestFieldValues(initialValues),
   );
-  const [side, setSide] = useState<GuestSideValue>(
-    initialValues?.side ?? "SHARED",
-  );
-  const [seniority, setSeniority] = useState<GuestSeniorityValue>(
-    initialValues?.seniority ??
-      (initialValues?.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
-  );
+  const { category, side, seniority } = values;
   const sideOptions = category === "GUEST" ? GUEST_SIDES : GUEST_SIDES.slice(0, 2);
+  const parsedPartySize = Number(values.partySize);
+  const requirementMaximum =
+    category === "COUPLE"
+      ? 1
+      : Number.isInteger(parsedPartySize) &&
+          parsedPartySize >= 1 &&
+          parsedPartySize <= 20
+        ? parsedPartySize
+        : 20;
   const hasImportedFields = managedFields.length > 0;
+  const updateValue = <FieldName extends keyof GuestFieldValues>(
+    field: FieldName,
+    value: GuestFieldValues[FieldName],
+  ) => setValues((current) => ({ ...current, [field]: value }));
+
+  useEffect(() => {
+    if (restoreRevision === 0) return;
+    const frame = requestAnimationFrame(() => {
+      setValues((current) => ({ ...current }));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [restoreRevision]);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -83,7 +162,8 @@ function GuestFields({
             required
             minLength={1}
             autoComplete="off"
-            defaultValue={initialValues?.name}
+            value={values.name}
+            onChange={(event) => updateValue("name", event.target.value)}
           />
         </Field>
       </div>
@@ -101,13 +181,18 @@ function GuestFields({
             value={category}
             onChange={(event) => {
               const nextCategory = event.target.value as GuestCategoryValue;
-              setCategory(nextCategory);
-              if (nextCategory !== "GUEST" && side === "SHARED") {
-                setSide("PARTNER_A");
-              }
-              if (nextCategory === "COUPLE" && seniority === "UNSPECIFIED") {
-                setSeniority("PEER");
-              }
+              setValues((current) => ({
+                ...current,
+                category: nextCategory,
+                side:
+                  nextCategory !== "GUEST" && current.side === "SHARED"
+                    ? "PARTNER_A"
+                    : current.side,
+                seniority:
+                  nextCategory === "COUPLE" && current.seniority === "UNSPECIFIED"
+                    ? "PEER"
+                    : current.seniority,
+              }));
             }}
           >
             {GUEST_CATEGORIES.map((value) => (
@@ -127,7 +212,9 @@ function GuestFields({
               name="side"
               required
               value={side}
-              onChange={(event) => setSide(event.target.value as GuestSideValue)}
+              onChange={(event) =>
+                updateValue("side", event.target.value as GuestSideValue)
+              }
             >
               {sideOptions.map((optionSide) => (
                 <option key={optionSide} value={optionSide}>
@@ -150,7 +237,10 @@ function GuestFields({
               required
               value={seniority}
               onChange={(event) =>
-                setSeniority(event.target.value as GuestSeniorityValue)
+                updateValue(
+                  "seniority",
+                  event.target.value as GuestSeniorityValue,
+                )
               }
             >
               {GUEST_SENIORITIES.map((seniority) => (
@@ -168,7 +258,13 @@ function GuestFields({
               id={`${idPrefix}-attendance`}
               name="attendanceStatus"
               required
-              defaultValue={initialValues?.attendanceStatus ?? "UNDECIDED"}
+              value={values.attendanceStatus}
+              onChange={(event) =>
+                updateValue(
+                  "attendanceStatus",
+                  event.target.value as GuestAttendanceStatusValue,
+                )
+              }
             >
               <option value="UNDECIDED">尚未確認</option>
               <option value="ATTENDING">出席</option>
@@ -198,7 +294,8 @@ function GuestFields({
               max={20}
               step={1}
               inputMode="numeric"
-              defaultValue={initialValues?.partySize ?? 1}
+              value={values.partySize}
+              onChange={(event) => updateValue("partySize", event.target.value)}
               className="sm:max-w-40"
             />
           </Field>
@@ -218,7 +315,8 @@ function GuestFields({
           id={`${idPrefix}-notes`}
           name="notes"
           rows={3}
-          defaultValue={initialValues?.notes ?? ""}
+          value={values.notes}
+          onChange={(event) => updateValue("notes", event.target.value)}
         />
       </Field>
 
@@ -233,6 +331,32 @@ function GuestFields({
         </div>
 
         <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-2">
+          {category === "FAMILY" ? (
+            <Field
+              htmlFor={`${idPrefix}-family-relationship`}
+              label="家人關係稱謂"
+              optional
+              hint="以家人所屬的新郎／新娘為稱呼基準。選擇後會填入下方「關係補充」，也可自行改成二舅、大姨丈等慣用稱呼；輩份請另外確認。"
+              className="sm:col-span-2"
+            >
+              <Select
+                id={`${idPrefix}-family-relationship`}
+                value={FAMILY_RELATIONSHIP_VALUES.includes(values.relationshipLabel) ? values.relationshipLabel : ""}
+                onChange={(event) => {
+                  if (event.target.value) updateValue("relationshipLabel", event.target.value);
+                }}
+              >
+                <option value="">選擇常用稱謂，或直接填寫關係補充</option>
+                {FAMILY_RELATIONSHIP_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map(([value, aliases]) => (
+                      <option key={value} value={value}>{value}{aliases ? `（${aliases}）` : ""}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
           <Field
             htmlFor={`${idPrefix}-relationship-label`}
             label="關係補充"
@@ -241,9 +365,13 @@ function GuestFields({
             <Input
               id={`${idPrefix}-relationship-label`}
               name="relationshipLabel"
+              maxLength={100}
               type="text"
               autoComplete="off"
-              defaultValue={initialValues?.details?.relationshipLabel ?? ""}
+              value={values.relationshipLabel}
+              onChange={(event) =>
+                updateValue("relationshipLabel", event.target.value)
+              }
             />
           </Field>
 
@@ -253,7 +381,8 @@ function GuestFields({
               name="contactPhone"
               type="tel"
               autoComplete="tel"
-              defaultValue={initialValues?.details?.contactPhone ?? ""}
+              value={values.contactPhone}
+              onChange={(event) => updateValue("contactPhone", event.target.value)}
             />
           </Field>
 
@@ -263,30 +392,9 @@ function GuestFields({
               name="contactEmail"
               type="email"
               autoComplete="email"
-              defaultValue={initialValues?.details?.contactEmail ?? ""}
+              value={values.contactEmail}
+              onChange={(event) => updateValue("contactEmail", event.target.value)}
             />
-          </Field>
-
-          <Field
-            htmlFor={`${idPrefix}-ceremony-attendance`}
-            label="證婚儀式"
-            optional
-          >
-            <Select
-              id={`${idPrefix}-ceremony-attendance`}
-              name="ceremonyAttendance"
-              defaultValue={
-                initialValues?.details?.ceremonyAttendance === true
-                  ? "ATTENDING"
-                  : initialValues?.details?.ceremonyAttendance === false
-                    ? "DECLINED"
-                    : ""
-              }
-            >
-              <option value="">尚未填寫</option>
-              <option value="ATTENDING">出席</option>
-              <option value="DECLINED">不出席</option>
-            </Select>
           </Field>
 
           <Field htmlFor={`${idPrefix}-child-seat-count`} label="兒童座椅" optional>
@@ -295,10 +403,11 @@ function GuestFields({
               name="childSeatCount"
               type="number"
               min={0}
-              max={20}
+              max={requirementMaximum}
               step={1}
               inputMode="numeric"
-              defaultValue={initialValues?.details?.childSeatCount ?? ""}
+              value={values.childSeatCount}
+              onChange={(event) => updateValue("childSeatCount", event.target.value)}
             />
           </Field>
 
@@ -308,10 +417,13 @@ function GuestFields({
               name="vegetarianCount"
               type="number"
               min={0}
-              max={20}
+              max={requirementMaximum}
               step={1}
               inputMode="numeric"
-              defaultValue={initialValues?.details?.vegetarianCount ?? ""}
+              value={values.vegetarianCount}
+              onChange={(event) =>
+                updateValue("vegetarianCount", event.target.value)
+              }
             />
           </Field>
 
@@ -319,7 +431,13 @@ function GuestFields({
             <Select
               id={`${idPrefix}-invitation-delivery`}
               name="invitationDelivery"
-              defaultValue={initialValues?.details?.invitationDelivery ?? ""}
+              value={values.invitationDelivery}
+              onChange={(event) =>
+                updateValue(
+                  "invitationDelivery",
+                  event.target.value as GuestFieldValues["invitationDelivery"],
+                )
+              }
             >
               <option value="">尚未填寫</option>
               <option value="UNKNOWN">尚未確認</option>
@@ -339,7 +457,8 @@ function GuestFields({
               name="invitationReply"
               type="text"
               autoComplete="off"
-              defaultValue={initialValues?.details?.invitationReply ?? ""}
+              value={values.invitationReply}
+              onChange={(event) => updateValue("invitationReply", event.target.value)}
             />
           </Field>
         </div>
@@ -354,7 +473,8 @@ function GuestFields({
               id={`${idPrefix}-attendance-reply`}
               name="attendanceReply"
               rows={2}
-              defaultValue={initialValues?.details?.attendanceReply ?? ""}
+              value={values.attendanceReply}
+              onChange={(event) => updateValue("attendanceReply", event.target.value)}
             />
           </Field>
 
@@ -363,7 +483,8 @@ function GuestFields({
               id={`${idPrefix}-mailing-address`}
               name="mailingAddress"
               rows={2}
-              defaultValue={initialValues?.details?.mailingAddress ?? ""}
+              value={values.mailingAddress}
+              onChange={(event) => updateValue("mailingAddress", event.target.value)}
             />
           </Field>
 
@@ -372,7 +493,8 @@ function GuestFields({
               id={`${idPrefix}-guest-message`}
               name="guestMessage"
               rows={3}
-              defaultValue={initialValues?.details?.guestMessage ?? ""}
+              value={values.guestMessage}
+              onChange={(event) => updateValue("guestMessage", event.target.value)}
             />
           </Field>
         </div>
@@ -431,11 +553,16 @@ export function CreateGuestForm({
   onSuccess?: () => void;
 }) {
   const createAction = createGuestAction.bind(null, workspaceId);
+  const [fieldGeneration, setFieldGeneration] = useState(0);
+  const [restoreRevision, setRestoreRevision] = useState(0);
   const [state, formAction, isPending] = useActionState(
     async (previousState: GuestMutationState, formData: FormData) => {
       const nextState = await createAction(previousState, formData);
       if (nextState.status === "success") {
+        setFieldGeneration((current) => current + 1);
         onSuccess?.();
+      } else {
+        setRestoreRevision((current) => current + 1);
       }
       return nextState;
     },
@@ -443,9 +570,17 @@ export function CreateGuestForm({
   );
 
   return (
-    <form action={formAction} aria-label="新增名單成員表單" className="min-w-0">
+    <form
+      action={formAction}
+      aria-label="新增名單成員表單"
+      className="min-w-0"
+    >
       <div className="min-w-0 space-y-5 px-5 py-6 sm:px-6">
-        <GuestFields idPrefix="new-guest" />
+        <GuestFields
+          key={fieldGeneration}
+          idPrefix="new-guest"
+          restoreRevision={restoreRevision}
+        />
         <ActionFeedback state={state} />
       </div>
       <DialogFooter>
@@ -457,9 +592,14 @@ export function CreateGuestForm({
   );
 }
 
-export function CreateGuestDialog({ workspaceId }: { workspaceId: string }) {
+export function CreateGuestDialog({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) {
   const idPrefix = useId();
   const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
+  const [formGeneration, setFormGeneration] = useState(0);
 
   return (
     <>
@@ -476,7 +616,14 @@ export function CreateGuestDialog({ workspaceId }: { workspaceId: string }) {
         onRestoreFocus={restoreFocus}
         size="lg"
       >
-        <CreateGuestForm workspaceId={workspaceId} onSuccess={close} />
+        <CreateGuestForm
+          key={formGeneration}
+          workspaceId={workspaceId}
+          onSuccess={() => {
+            close();
+            setFormGeneration((current) => current + 1);
+          }}
+        />
       </Dialog>
     </>
   );
@@ -504,6 +651,9 @@ function createEditGuestSnapshot(
   const normalizedManagedFields = Array.from(new Set(props.managedFields)).sort();
   return {
     ...props,
+    seniority:
+      props.seniority ??
+      (props.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
     managedFields: normalizedManagedFields,
     managedFieldsSignature: managedFieldsSignature(normalizedManagedFields),
     details: props.details ?? null,
@@ -531,6 +681,74 @@ function isSameEditGuestSnapshot(
   );
 }
 
+function isEditGuestSnapshotOutdated(
+  current: EditGuestSnapshot,
+  latest: EditGuestSnapshot,
+) {
+  if (
+    current.workspaceId !== latest.workspaceId ||
+    current.guestId !== latest.guestId
+  ) {
+    return true;
+  }
+  if (latest.expectedVersion !== current.expectedVersion) {
+    // 自己剛成功寫入時，本地 v+1 snapshot 會暫時領先舊 RSC props；只有
+    // 伺服器版本更高才代表有另一份需要人工確認的新資料。
+    return latest.expectedVersion > current.expectedVersion;
+  }
+  return !isSameEditGuestSnapshot(current, latest);
+}
+
+function successfulEditGuestSnapshot(
+  current: EditGuestSnapshot,
+  formData: FormData,
+): EditGuestSnapshot {
+  const input = normalizeGuestInput({
+    name: formData.get("name"),
+    category: formData.get("category"),
+    seniority: formData.get("seniority"),
+    side: formData.get("side"),
+    attendanceStatus: formData.get("attendanceStatus"),
+    partySize: formData.get("partySize"),
+    notes: formData.get("notes"),
+  });
+  const normalizedDetails = normalizeGuestDetailsInput({
+    relationshipLabel: formData.get("relationshipLabel"),
+    contactPhone: formData.get("contactPhone"),
+    contactEmail: formData.get("contactEmail"),
+    childSeatCount: formData.get("childSeatCount"),
+    vegetarianCount: formData.get("vegetarianCount"),
+    invitationDelivery: formData.get("invitationDelivery"),
+    mailingAddress: formData.get("mailingAddress"),
+    guestMessage: formData.get("guestMessage"),
+    attendanceReply: formData.get("attendanceReply"),
+    invitationReply: formData.get("invitationReply"),
+  });
+  // 單一舊欄位已從表單移除；server 會保留它目前的 effective value。
+  const details: GuestDetailsDto = {
+    ...normalizedDetails,
+    ceremonyAttendance: current.details?.ceremonyAttendance ?? null,
+  };
+
+  return createEditGuestSnapshot({
+    workspaceId: current.workspaceId,
+    guestId: current.guestId,
+    expectedVersion:
+      normalizeGuestVersion(formData.get("expectedVersion")) + 1,
+    name: input.name,
+    category: input.category,
+    seniority: input.seniority ?? current.seniority,
+    side: input.side,
+    attendanceStatus: input.attendanceStatus,
+    partySize: input.partySize,
+    notes: input.notes,
+    details: Object.values(details).some((value) => value !== null)
+      ? details
+      : null,
+    managedFields: current.managedFields,
+  });
+}
+
 function EditGuestActionForm({
   snapshot,
   onClose,
@@ -538,7 +756,7 @@ function EditGuestActionForm({
 }: {
   snapshot: EditGuestSnapshot;
   onClose: () => void;
-  onSuccess: (message: string) => void;
+  onSuccess: (message: string, formData: FormData) => void;
 }) {
   const updateAction = updateGuestAction.bind(
     null,
@@ -549,7 +767,7 @@ function EditGuestActionForm({
     async (previousState: GuestMutationState, formData: FormData) => {
       const nextState = await updateAction(previousState, formData);
       if (nextState.status === "success") {
-        onSuccess(nextState.message ?? "已更新賓客。");
+        onSuccess(nextState.message ?? "已更新賓客。", formData);
       }
       return nextState;
     },
@@ -607,7 +825,10 @@ export function EditGuestForm(
   const latestSnapshot = createEditGuestSnapshot(props);
   const [snapshot, setSnapshot] = useState(() => latestSnapshot);
   const [formGeneration, setFormGeneration] = useState(0);
-  const snapshotIsOutdated = !isSameEditGuestSnapshot(snapshot, latestSnapshot);
+  const snapshotIsOutdated = isEditGuestSnapshotOutdated(
+    snapshot,
+    latestSnapshot,
+  );
 
   function loadLatestSnapshot() {
     setSnapshot(latestSnapshot);
@@ -654,7 +875,13 @@ export function EditGuestForm(
           key={formGeneration}
           snapshot={snapshot}
           onClose={close}
-          onSuccess={(message) => {
+          onSuccess={(message, formData) => {
+            const committedSnapshot = successfulEditGuestSnapshot(
+              snapshot,
+              formData,
+            );
+            setSnapshot(committedSnapshot);
+            setFormGeneration((current) => current + 1);
             closeWithoutRestoringFocus();
             props.onSuccess?.(message);
           }}
@@ -670,27 +897,80 @@ export function DeleteGuestForm({
   expectedVersion,
   name,
   hasManagedImportSource,
+  weddingGift = null,
+  checkIn = null,
+  onSuccess,
 }: {
   workspaceId: string;
   guestId: string;
   expectedVersion: number;
   name: string;
   hasManagedImportSource: boolean;
+  weddingGift?: Pick<WeddingGiftEntryDto, "id" | "version"> | null;
+  checkIn?: Pick<GuestCheckInEntryDto, "id" | "version" | "headcount"> | null;
+  onSuccess?: (message: string) => void;
 }) {
   const idPrefix = useId();
-  const { dialogRef, triggerRef, open, close, restoreFocus } = useModalDialog();
+  const {
+    dialogRef,
+    triggerRef,
+    open,
+    close,
+    closeWithoutRestoringFocus,
+    restoreFocus,
+  } = useModalDialog();
+  const [snapshot, setSnapshot] = useState<{
+    expectedVersion: number;
+    name: string;
+    hasManagedImportSource: boolean;
+    weddingGift: Pick<WeddingGiftEntryDto, "id" | "version"> | null;
+    checkIn: Pick<GuestCheckInEntryDto, "id" | "version" | "headcount"> | null;
+  } | null>(null);
   const deleteAction = deleteGuestAction.bind(null, workspaceId, guestId);
   const [state, formAction, isPending] = useActionState(
-    deleteAction,
+    async (previousState: GuestMutationState, formData: FormData) => {
+      const nextState = await deleteAction(previousState, formData);
+      if (nextState.status === "success") {
+        closeWithoutRestoringFocus();
+        onSuccess?.(nextState.message ?? "已刪除賓客。");
+      }
+      return nextState;
+    },
     initialState,
   );
+  const currentSnapshot = {
+    expectedVersion,
+    name,
+    hasManagedImportSource,
+    weddingGift,
+    checkIn,
+  };
+  const activeSnapshot = snapshot ?? currentSnapshot;
+  const isOutdated =
+    snapshot !== null &&
+    (snapshot.expectedVersion !== expectedVersion ||
+      snapshot.name !== name ||
+      snapshot.hasManagedImportSource !== hasManagedImportSource ||
+      snapshot.weddingGift?.id !== weddingGift?.id ||
+      snapshot.weddingGift?.version !== weddingGift?.version ||
+      snapshot.checkIn?.id !== checkIn?.id ||
+      snapshot.checkIn?.version !== checkIn?.version);
+
+  function openWithCurrentSnapshot() {
+    setSnapshot({
+      ...currentSnapshot,
+      weddingGift: weddingGift ? { ...weddingGift } : null,
+      checkIn: checkIn ? { ...checkIn } : null,
+    });
+    open();
+  }
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        onClick={open}
+        onClick={openWithCurrentSnapshot}
         aria-label={`刪除 ${name}`}
         className="inline-flex min-h-11 max-w-full items-center rounded-control px-2.5 text-caption font-semibold text-danger transition hover:bg-danger-soft"
       >
@@ -701,21 +981,49 @@ export function DeleteGuestForm({
         dialogRef={dialogRef}
         titleId={`${idPrefix}-dialog-title`}
         eyebrow="刪除賓客"
-        title={name}
+        title={activeSnapshot.name}
         closeLabel="關閉刪除賓客"
         isPending={isPending}
         size="sm"
         onClose={close}
-        onRestoreFocus={restoreFocus}
+        onRestoreFocus={() => {
+          restoreFocus();
+          setSnapshot(null);
+        }}
       >
         <form action={formAction} className="min-w-0">
           <div className="min-w-0 space-y-3 px-5 py-6 sm:px-6">
             <input
               type="hidden"
               name="expectedVersion"
-              value={expectedVersion}
+              value={activeSnapshot.expectedVersion}
             />
-            {hasManagedImportSource ? (
+            <input
+              type="hidden"
+              name="expectedWeddingGiftId"
+              value={activeSnapshot.weddingGift?.id ?? ""}
+            />
+            <input
+              type="hidden"
+              name="expectedWeddingGiftVersion"
+              value={activeSnapshot.weddingGift?.version ?? ""}
+            />
+            <input
+              type="hidden"
+              name="expectedGuestCheckInId"
+              value={activeSnapshot.checkIn?.id ?? ""}
+            />
+            <input
+              type="hidden"
+              name="expectedGuestCheckInVersion"
+              value={activeSnapshot.checkIn?.version ?? ""}
+            />
+            {isOutdated ? (
+              <p className="rounded-control border border-caution/30 bg-caution-soft px-4 py-3 text-caption font-semibold leading-6 text-caution">
+                這筆賓客、禮金或報到紀錄已有較新的資料。請先關閉視窗，再重新確認最新內容。
+              </p>
+            ) : null}
+            {activeSnapshot.hasManagedImportSource ? (
               <>
                 <p className="text-sm font-semibold text-danger">
                   這筆資料仍連結外部匯入來源。
@@ -734,6 +1042,17 @@ export function DeleteGuestForm({
                 </p>
               </>
             )}
+            {activeSnapshot.weddingGift ? (
+              <p className="text-caption font-semibold leading-6 text-danger">
+                此禮金紀錄也會永久移除。
+              </p>
+            ) : null}
+            {activeSnapshot.checkIn ? (
+              <p className="text-caption font-semibold leading-6 text-danger">
+                已登記的報到紀錄（實到 {activeSnapshot.checkIn.headcount}{" "}
+                位）也會永久移除。
+              </p>
+            ) : null}
             <ActionFeedback state={state} />
           </div>
           <DialogFooter>
@@ -744,7 +1063,8 @@ export function DeleteGuestForm({
               isPending={isPending}
               pendingLabel="正在刪除…"
               variant="danger-solid"
-              aria-label={`確認刪除 ${name}`}
+              aria-label={`確認刪除 ${activeSnapshot.name}`}
+              disabled={isOutdated}
             >
               確認刪除
             </SubmitButton>

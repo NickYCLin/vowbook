@@ -30,7 +30,7 @@ describe("TimelinePage", () => {
       }),
     );
     expect(
-      screen.getByRole("heading", { name: "合成婚宴・婚禮總流程" }),
+      screen.getByRole("heading", { level: 1, name: "婚禮總流程" }),
     ).toBeInTheDocument();
     expect(screen.getByText("總流程清單 可編輯")).toBeInTheDocument();
   });

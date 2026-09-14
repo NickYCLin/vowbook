@@ -7,23 +7,33 @@ import {
 } from "@/domain/budget-item";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 
-const { requireCurrentUser, requireWorkspaceAccess, findMany } = vi.hoisted(
+const { requireCurrentUser, requireWorkspaceAccess, findMany, transaction } = vi.hoisted(
   () => ({
     requireCurrentUser: vi.fn(),
     requireWorkspaceAccess: vi.fn(),
     findMany: vi.fn(),
+    transaction: vi.fn(),
   }),
 );
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
 vi.mock("@/lib/workspace-access", () => ({ requireWorkspaceAccess }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { budgetItem: { findMany } },
+  prisma: {
+    $transaction: transaction,
+    budgetItem: { findMany },
+  },
 }));
+
+const transactionClient = {
+  membership: { findUnique: vi.fn() },
+  budgetItem: { findMany },
+};
 
 import {
   BudgetItemDataError,
   getBudgetPageData,
+  summarizeBudgetCeremonyStageCleanups,
   sumTwdAmounts,
 } from "./budget-list";
 
@@ -32,7 +42,6 @@ const select = {
   parentId: true,
   source: true,
   sourceOrder: true,
-  sourceHierarchyPath: true,
   name: true,
   kind: true,
   category: true,
@@ -46,6 +55,7 @@ const select = {
   paid: true,
   paidAt: true,
   bookingStatus: true,
+  preparationStatus: true,
   depositAmount: true,
   balanceAmount: true,
   additionalAmount: true,
@@ -57,6 +67,7 @@ const select = {
   version: true,
   createdAt: true,
   attachments: {
+    where: { workspaceId: "workspace_1" },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
@@ -88,7 +99,6 @@ function fixedTaxonomyRecords() {
     parentId: node.parentKey === null ? null : "fixed_" + node.parentKey,
     source: "MANUAL",
     sourceOrder: node.sourceOrder,
-    sourceHierarchyPath: [],
     name: node.label,
     kind: "GROUP",
     category: null,
@@ -101,6 +111,7 @@ function fixedTaxonomyRecords() {
     paid: false,
     paidAt: null,
     bookingStatus: "PLANNING",
+    preparationStatus: "NEEDS_ACTION",
     depositAmount: null,
     balanceAmount: null,
     additionalAmount: null,
@@ -132,7 +143,6 @@ function taxonomyExpense({
     parentId: "fixed_" + primaryKey,
     source: "MANUAL",
     sourceOrder: null,
-    sourceHierarchyPath: [],
     name: id,
     kind: "EXPENSE",
     category: BUDGET_TAXONOMY_ITEM_DEFAULT_CATEGORIES[primaryKey],
@@ -145,6 +155,7 @@ function taxonomyExpense({
     paid: false,
     paidAt: null,
     bookingStatus: "PLANNING",
+    preparationStatus: "NEEDS_ACTION",
     depositAmount: null,
     balanceAmount: null,
     additionalAmount: null,
@@ -177,17 +188,36 @@ describe("getBudgetPageData", () => {
     requireCurrentUser.mockResolvedValue({ id: "session_user" });
     requireWorkspaceAccess.mockResolvedValue({
       role: "VIEWER",
-      workspace: { id: "workspace_1", name: "我們的婚宴" },
+      workspace: {
+        id: "workspace_1",
+        name: "我們的婚宴",
+        timezone: "Asia/Taipei",
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: false,
+        ceremonyPreferencesVersion: 0,
+      },
     });
     findMany.mockResolvedValue([]);
+    transaction.mockImplementation(async (operation) =>
+      operation(transactionClient),
+    );
   });
 
   it("authorizes before one tenant-scoped deterministic query", async () => {
-    await expect(getBudgetPageData("workspace_1")).resolves.toEqual({
+    await expect(
+      getBudgetPageData("workspace_1", {
+        now: new Date("2028-02-28T16:00:00.000Z"),
+      }),
+    ).resolves.toEqual({
       workspaceName: "我們的婚宴",
+      workspaceToday: "2028-02-29",
       canEdit: false,
       canResetBudget: false,
       resetSnapshot: null,
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+      ceremonyStageCleanups: [],
       items: [],
       summary: {
         itemCount: 0,
@@ -196,8 +226,11 @@ describe("getBudgetPageData", () => {
         actualTotal: "0",
         balanceDueTotal: "0",
         balanceDueCount: 0,
+        overdueBalanceDueCount: 0,
         balanceDueMissingAmountCount: 0,
-        nearestBalanceDueDate: null,
+        nearestUpcomingBalanceDueDate: null,
+        selfProvidedCount: 0,
+        notPlannedCount: 0,
       },
     });
 
@@ -206,18 +239,44 @@ describe("getBudgetPageData", () => {
       "workspace_1",
       "session_user",
       "read",
+      transactionClient,
     );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
+    });
     expect(findMany).toHaveBeenCalledWith({
       where: { workspaceId: "workspace_1" },
       orderBy: deterministicOrder,
       select,
     });
     expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
       requireWorkspaceAccess.mock.invocationCallOrder[0],
     );
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       findMany.mock.invocationCallOrder[0],
     );
+  });
+
+  it("exposes only the workspace-owned Chinese ceremony opt-ins", async () => {
+    requireWorkspaceAccess.mockResolvedValueOnce({
+      role: "VIEWER",
+      workspace: {
+        id: "workspace_1",
+        name: "我們的婚宴",
+        timezone: "Asia/Taipei",
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: true,
+        ceremonyPreferencesVersion: 3,
+      },
+    });
+    await expect(getBudgetPageData("workspace_1")).resolves.toMatchObject({
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: true,
+      ceremonyPreferencesVersion: 3,
+    });
   });
 
   it.each([
@@ -228,7 +287,11 @@ describe("getBudgetPageData", () => {
   ])("maps %s to canEdit=%s and canResetBudget=%s", async (role, canEdit, canResetBudget) => {
     requireWorkspaceAccess.mockResolvedValueOnce({
       role,
-      workspace: { id: "workspace_1", name: "我們的婚宴" },
+      workspace: {
+        id: "workspace_1",
+        name: "我們的婚宴",
+        timezone: "Asia/Taipei",
+      },
     });
 
     await expect(getBudgetPageData("workspace_1")).resolves.toMatchObject({
@@ -240,7 +303,11 @@ describe("getBudgetPageData", () => {
   it("returns an OWNER-only reset snapshot for ordinary row versions, sources, and attachment IDs", async () => {
     requireWorkspaceAccess.mockResolvedValueOnce({
       role: "OWNER",
-      workspace: { id: "workspace_1", name: "我們的婚宴" },
+      workspace: {
+        id: "workspace_1",
+        name: "我們的婚宴",
+        timezone: "Asia/Taipei",
+      },
     });
     const manual = {
       ...taxonomyExpense({
@@ -380,6 +447,7 @@ describe("getBudgetPageData", () => {
         paid: false,
         paidAt: null,
         bookingStatus: "PLANNING",
+        preparationStatus: "NEEDS_ACTION",
         depositAmount: null,
         balanceAmount: null,
         additionalAmount: null,
@@ -416,6 +484,7 @@ describe("getBudgetPageData", () => {
         paid: true,
         paidAt: new Date("2027-03-01T08:09:10.000Z"),
         bookingStatus: "PAID",
+        preparationStatus: "NEEDS_ACTION",
         depositAmount: null,
         balanceAmount: null,
         additionalAmount: null,
@@ -443,7 +512,6 @@ describe("getBudgetPageData", () => {
         directChildSetHash: directChildSetHash([]),
         descendantCount: 0,
         source: "MANUAL",
-        sourceHierarchyPath: [],
         name: "婚宴場地",
         kind: "EXPENSE",
         category: "ATTIRE_STYLING",
@@ -463,6 +531,7 @@ describe("getBudgetPageData", () => {
         paid: false,
         paidAt: null,
         bookingStatus: "PLANNING",
+        preparationStatus: "NEEDS_ACTION",
         depositAmount: null,
         balanceAmount: null,
         additionalAmount: null,
@@ -493,7 +562,6 @@ describe("getBudgetPageData", () => {
         directChildSetHash: directChildSetHash([]),
         descendantCount: 0,
         source: "MANUAL",
-        sourceHierarchyPath: [],
         name: "婚禮攝影",
         kind: "EXPENSE",
         category: "PHOTOGRAPHY_VIDEO",
@@ -513,6 +581,7 @@ describe("getBudgetPageData", () => {
         paid: true,
         paidAt: "2027-03-01T08:09:10.000Z",
         bookingStatus: "PAID",
+        preparationStatus: "NEEDS_ACTION",
         depositAmount: null,
         balanceAmount: null,
         additionalAmount: null,
@@ -531,13 +600,96 @@ describe("getBudgetPageData", () => {
       actualTotal: "88000",
       balanceDueTotal: "0",
       balanceDueCount: 0,
+      overdueBalanceDueCount: 0,
       balanceDueMissingAmountCount: 0,
-      nearestBalanceDueDate: null,
+      nearestUpcomingBalanceDueDate: null,
+      selfProvidedCount: 0,
+      notPlannedCount: 0,
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
     expect(JSON.stringify(data)).not.toContain("PDF-1.7");
     expect(select).not.toHaveProperty("attachments.select.data");
     expect(findMany).toHaveBeenCalledOnce();
+  });
+
+  it("keeps owned and not-planned preparation records but excludes their retained money from every budget rollup", async () => {
+    const group = taxonomyGroup(null);
+    const active = {
+      ...taxonomyExpense({
+        id: "active_expense",
+        primaryKey: "ITEM_ATTIRE_RENTAL",
+        relatedTaxonomyItemKey: null,
+        plannedAmount: 100,
+        actualAmount: 40,
+      }),
+      parentId: group.id,
+      preparationStatus: "NEEDS_ACTION",
+    };
+    const owned = {
+      ...taxonomyExpense({
+        id: "owned_suit",
+        primaryKey: "ITEM_ATTIRE_RENTAL",
+        relatedTaxonomyItemKey: null,
+        plannedAmount: 200,
+        actualAmount: 200,
+      }),
+      parentId: group.id,
+      preparationStatus: "ALREADY_OWNED",
+      bookingStatus: "PAID",
+      paid: true,
+      paidAt: new Date("2027-01-03T00:00:00.000Z"),
+      depositAmount: 50,
+      balanceAmount: 150,
+    };
+    const skipped = {
+      ...taxonomyExpense({
+        id: "skipped_shoes",
+        primaryKey: "ITEM_ATTIRE_RENTAL",
+        relatedTaxonomyItemKey: null,
+        plannedAmount: 300,
+        actualAmount: 80,
+      }),
+      parentId: group.id,
+      preparationStatus: "NOT_PLANNED",
+      bookingStatus: "BOOKED_BALANCE_DUE",
+      depositAmount: 80,
+      balanceAmount: 220,
+    };
+    findMany.mockResolvedValueOnce([
+      ...fixedTaxonomyRecords(),
+      group,
+      active,
+      owned,
+      skipped,
+    ]);
+
+    const data = await getBudgetPageData("workspace_1");
+
+    expect(data.items.find((item) => item.id === group.id)).toMatchObject({
+      rolledUpPlannedAmount: "100",
+      rolledUpActualAmount: "40",
+      rolledUpDepositAmount: "0",
+      rolledUpBalanceAmount: "0",
+    });
+    expect(data.items.find((item) => item.id === "owned_suit")).toMatchObject({
+      preparationStatus: "ALREADY_OWNED",
+      plannedAmount: 200,
+      rolledUpPlannedAmount: "0",
+      rolledUpActualAmount: "0",
+    });
+    expect(data.summary).toEqual({
+      itemCount: 1,
+      paidCount: 0,
+      plannedTotal: "100",
+      actualTotal: "40",
+      balanceDueTotal: "0",
+      balanceDueCount: 0,
+      overdueBalanceDueCount: 0,
+      balanceDueMissingAmountCount: 0,
+      nearestUpcomingBalanceDueDate: null,
+      selfProvidedCount: 1,
+      notPlannedCount: 1,
+    });
   });
 
   it("preserves explicit zero payment records through group rollups", async () => {
@@ -582,11 +734,6 @@ describe("getBudgetPageData", () => {
           actualAmount: 80,
         }),
         source: "NOTION",
-        sourceHierarchyPath: [
-          "婚紗拍攝",
-          "其他",
-          "合成姓名的小白鞋",
-        ],
       },
       taxonomyExpense({
         id: "photo_package",
@@ -616,11 +763,6 @@ describe("getBudgetPageData", () => {
       parentId: "fixed_ITEM_ATTIRE_RENTAL",
       category: "ATTIRE_STYLING",
       relatedTaxonomyItemKey: "ITEM_PRE_WEDDING_PHOTOGRAPHY",
-      sourceHierarchyPath: [
-        "婚紗拍攝",
-        "其他",
-        "合成姓名的小白鞋",
-      ],
       rolledUpPlannedAmount: "100",
       rolledUpActualAmount: "80",
       rolledUpDepositAmount: "0",
@@ -652,24 +794,6 @@ describe("getBudgetPageData", () => {
       plannedTotal: "300",
       actualTotal: "230",
     });
-  });
-
-  it("rejects a source hierarchy path on a manual row", async () => {
-    findMany.mockResolvedValue([
-      ...fixedTaxonomyRecords(),
-      {
-        ...taxonomyExpense({
-          id: "manual_with_source_path",
-          primaryKey: "ITEM_WEDDING_SHOES",
-          relatedTaxonomyItemKey: null,
-        }),
-        sourceHierarchyPath: ["不可信來源路徑"],
-      },
-    ]);
-
-    await expect(getBudgetPageData("workspace_1")).rejects.toEqual(
-      new BudgetItemDataError(),
-    );
   });
 
   it.each([
@@ -760,6 +884,7 @@ describe("getBudgetPageData", () => {
       paid: false,
       paidAt: null,
       bookingStatus: "PLANNING",
+      preparationStatus: "NEEDS_ACTION",
       depositAmount: null,
       balanceAmount: null,
       additionalAmount: null,
@@ -826,6 +951,7 @@ describe("getBudgetPageData", () => {
       paid: false,
       paidAt: null,
       bookingStatus: "PLANNING",
+      preparationStatus: "NEEDS_ACTION",
       depositAmount: null,
       balanceAmount: null,
       additionalAmount: null,
@@ -853,7 +979,7 @@ describe("getBudgetPageData", () => {
     });
   });
 
-  it("summarizes only direct balance-due rows with exact amounts, missing values, and the nearest date", async () => {
+  it("separates overdue balances from the nearest balance that is not yet due", async () => {
     const record = (
       id: string,
       parentId: string | null,
@@ -875,6 +1001,7 @@ describe("getBudgetPageData", () => {
       paid: bookingStatus === "PAID",
       paidAt: null,
       bookingStatus,
+      preparationStatus: "NEEDS_ACTION",
       depositAmount: null,
       balanceAmount,
       additionalAmount: null,
@@ -932,26 +1059,64 @@ describe("getBudgetPageData", () => {
       ),
     ]);
 
-    const data = await getBudgetPageData("workspace_1");
+    const data = await getBudgetPageData("workspace_1", {
+      now: new Date("2028-05-01T00:00:00.000Z"),
+    });
 
     expect(data.summary).toEqual(
       expect.objectContaining({
         balanceDueTotal: "35666",
         balanceDueCount: 4,
+        overdueBalanceDueCount: 1,
         balanceDueMissingAmountCount: 1,
-        nearestBalanceDueDate: "2028-04-30",
+        nearestUpcomingBalanceDueDate: "2028-05-02",
       }),
     );
     expect(findMany).toHaveBeenCalledOnce();
   });
 
-  it("preserves outsider denial without touching BudgetItem data", async () => {
+  it("uses the workspace timezone boundary when deciding whether a due date is overdue", async () => {
+    findMany.mockResolvedValue([
+      ...fixedTaxonomyRecords(),
+      {
+        ...taxonomyExpense({
+          id: "taipei_boundary",
+          primaryKey: "ITEM_WEDDING_VENUE",
+          relatedTaxonomyItemKey: null,
+        }),
+        bookingStatus: "BOOKED_BALANCE_DUE",
+        balanceAmount: 12_000,
+        dueDate: new Date("2028-04-30T00:00:00.000Z"),
+      },
+    ]);
+
+    const beforeMidnight = await getBudgetPageData("workspace_1", {
+      now: new Date("2028-04-30T15:59:59.999Z"),
+    });
+    const afterMidnight = await getBudgetPageData("workspace_1", {
+      now: new Date("2028-04-30T16:00:00.000Z"),
+    });
+
+    expect(beforeMidnight.workspaceToday).toBe("2028-04-30");
+    expect(beforeMidnight.summary).toMatchObject({
+      overdueBalanceDueCount: 0,
+      nearestUpcomingBalanceDueDate: "2028-04-30",
+    });
+    expect(afterMidnight.workspaceToday).toBe("2028-05-01");
+    expect(afterMidnight.summary).toMatchObject({
+      overdueBalanceDueCount: 1,
+      nearestUpcomingBalanceDueDate: null,
+    });
+  });
+
+  it("denies a membership revoked at the transaction boundary before reading amounts", async () => {
     requireWorkspaceAccess.mockRejectedValue(new WorkspaceAccessDeniedError());
 
     await expect(
       getBudgetPageData("workspace_secret"),
     ).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
     expect(findMany).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
   });
 
   it("does not swallow the current-user redirect", async () => {
@@ -961,6 +1126,7 @@ describe("getBudgetPageData", () => {
     await expect(getBudgetPageData("workspace_1")).rejects.toBe(redirectError);
     expect(requireWorkspaceAccess).not.toHaveBeenCalled();
     expect(findMany).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("sanitizes membership and query failures", async () => {
@@ -971,10 +1137,15 @@ describe("getBudgetPageData", () => {
       new BudgetItemDataError("目前無法載入婚禮花費，請稍後再試。"),
     );
     expect(findMany).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
 
     requireWorkspaceAccess.mockResolvedValue({
       role: "OWNER",
-      workspace: { id: "workspace_1", name: "我們的婚宴" },
+      workspace: {
+        id: "workspace_1",
+        name: "我們的婚宴",
+        timezone: "Asia/Taipei",
+      },
     });
     findMany.mockRejectedValueOnce(new Error("postgres://secret"));
     await expect(getBudgetPageData("workspace_1")).rejects.toEqual(
@@ -993,5 +1164,98 @@ describe("getBudgetPageData", () => {
     expect(sumTwdAmounts(maximumPostgresIntegers())).toBe(
       "9007201398030335",
     );
+  });
+});
+
+describe("summarizeBudgetCeremonyStageCleanups", () => {
+  const rows = [
+    {
+      id: "stage_procession",
+      parentId: null,
+      version: 0,
+      source: "MANUAL" as const,
+      systemTaxonomyKey: "STAGE_WEDDING_PROCESSION",
+      attachments: [],
+    },
+    {
+      id: "item_procession_groom",
+      parentId: "stage_procession",
+      version: 0,
+      source: "MANUAL" as const,
+      systemTaxonomyKey: "ITEM_PROCESSION_GROOM",
+      attachments: [],
+    },
+    {
+      id: "expense_door_gift",
+      parentId: "item_procession_groom",
+      version: 2,
+      source: "MANUAL" as const,
+      systemTaxonomyKey: null,
+      attachments: [{ id: "attachment_1" }, { id: "attachment_2" }],
+    },
+    {
+      id: "stage_engagement",
+      parentId: null,
+      version: 0,
+      source: "MANUAL" as const,
+      systemTaxonomyKey: "STAGE_ENGAGEMENT_CEREMONY",
+      attachments: [],
+    },
+    {
+      id: "unrelated_expense",
+      parentId: null,
+      version: 0,
+      source: "MANUAL" as const,
+      systemTaxonomyKey: null,
+      attachments: [],
+    },
+  ];
+
+  it("reports only switched-off stages that still hold user rows", () => {
+    expect(
+      summarizeBudgetCeremonyStageCleanups(rows, {
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: false,
+      }),
+    ).toEqual([
+      {
+        stageKey: "STAGE_WEDDING_PROCESSION",
+        label: "迎娶儀式用品、工作人員紅包",
+        removableItemCount: 1,
+        attachmentCount: 2,
+        snapshotToken: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      },
+    ]);
+  });
+
+  it("reports nothing while the ceremony is switched on", () => {
+    expect(
+      summarizeBudgetCeremonyStageCleanups(rows, {
+        hasEngagementCeremony: true,
+        hasProcessionCeremony: true,
+      }),
+    ).toEqual([]);
+  });
+
+  it("changes the snapshot token when any row in the stage subtree changes", () => {
+    const [before] = summarizeBudgetCeremonyStageCleanups(rows, {
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+    });
+    const [after] = summarizeBudgetCeremonyStageCleanups(
+      rows.map((row) =>
+        row.id === "expense_door_gift" ? { ...row, version: 3 } : row,
+      ),
+      { hasEngagementCeremony: false, hasProcessionCeremony: false },
+    );
+    expect(after?.snapshotToken).not.toBe(before?.snapshotToken);
+
+    const [unchanged] = summarizeBudgetCeremonyStageCleanups(
+      rows.map((row) =>
+        row.id === "unrelated_expense" ? { ...row, version: 9 } : row,
+      ),
+      { hasEngagementCeremony: false, hasProcessionCeremony: false },
+    );
+    expect(unchanged?.snapshotToken).toBe(before?.snapshotToken);
   });
 });

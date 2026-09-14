@@ -115,8 +115,8 @@ describe("EditGuestPartySizeForm", () => {
       .toBeInTheDocument();
   });
 
-  it("keeps a draft until the server writes a new version", () => {
-    const { rerender } = render(
+  it("keeps the full dirty submission snapshot until the user loads newer data", () => {
+    const { container, rerender } = render(
       <EditGuestPartySizeForm workspaceId="workspace_internal" guest={guest} />,
     );
 
@@ -132,14 +132,59 @@ describe("EditGuestPartySizeForm", () => {
       />,
     );
     expect(screen.getByLabelText("林小美的邀請人數（含本人）")).toHaveValue(5);
+    expect(screen.queryByRole("button", { name: "載入最新資料" })).toBeNull();
 
     rerender(
       <EditGuestPartySizeForm
         workspaceId="workspace_internal"
-        guest={{ ...guest, partySize: 6, version: 4 }}
+        guest={{
+          ...guest,
+          name: "林小美（新版）",
+          category: "FAMILY",
+          seniority: "ELDER",
+          partySize: 6,
+          version: 4,
+          side: "SHARED",
+          attendanceStatus: "ATTENDING",
+          notes: "新版備註",
+        }}
       />,
     );
-    expect(screen.getByLabelText("林小美的邀請人數（含本人）")).toHaveValue(6);
+
+    expect(screen.getByLabelText("林小美的邀請人數（含本人）")).toHaveValue(5);
+    expect(container.querySelector('[name="name"]')).toHaveValue("林小美");
+    expect(container.querySelector('[name="category"]')).toHaveValue("GUEST");
+    expect(container.querySelector('[name="seniority"]')).toHaveValue("PEER");
+    expect(container.querySelector('[name="side"]')).toHaveValue("PARTNER_A");
+    expect(container.querySelector('[name="attendanceStatus"]')).toHaveValue(
+      "UNDECIDED",
+    );
+    expect(container.querySelector('[name="notes"]')).toHaveValue("素食一位");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("3");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "這筆賓客已有較新的資料，目前仍保留原本的人數草稿與版本。",
+    );
+    expect(
+      screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "載入最新資料" }));
+
+    expect(
+      screen.getByLabelText("林小美（新版）的邀請人數（含本人）"),
+    ).toHaveValue(6);
+    expect(container.querySelector('[name="name"]')).toHaveValue(
+      "林小美（新版）",
+    );
+    expect(container.querySelector('[name="category"]')).toHaveValue("FAMILY");
+    expect(container.querySelector('[name="seniority"]')).toHaveValue("ELDER");
+    expect(container.querySelector('[name="side"]')).toHaveValue("SHARED");
+    expect(container.querySelector('[name="attendanceStatus"]')).toHaveValue(
+      "ATTENDING",
+    );
+    expect(container.querySelector('[name="notes"]')).toHaveValue("新版備註");
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("4");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("surfaces a stale-write refusal as an alert", async () => {
@@ -163,6 +208,64 @@ describe("EditGuestPartySizeForm", () => {
         "賓客資料已被更新或不存在，請重新整理後再試。",
       ),
     );
+  });
+
+  it("hides the previous success while a repeated update is still pending", async () => {
+    let finishRepeatedUpdate:
+      | ((state: { status: "success"; message: string }) => void)
+      | undefined;
+    actions.updateGuestAction
+      .mockResolvedValueOnce({ status: "success", message: "已更新賓客。" })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRepeatedUpdate = resolve;
+          }),
+      );
+    const { container } = render(
+      <EditGuestPartySizeForm workspaceId="workspace_internal" guest={guest} />,
+    );
+
+    fireEvent.change(screen.getByLabelText("林小美的邀請人數（含本人）"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("已更新賓客。"),
+    );
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("4");
+    expect(
+      screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+    ).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("林小美的邀請人數（含本人）"), {
+      target: { value: "5" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+      ).toHaveTextContent("更新中…"),
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    const repeatedSubmission = actions.updateGuestAction.mock.calls[1]?.[3];
+    expect(repeatedSubmission).toBeInstanceOf(FormData);
+    expect((repeatedSubmission as FormData).get("expectedVersion")).toBe("4");
+    expect((repeatedSubmission as FormData).get("partySize")).toBe("5");
+
+    finishRepeatedUpdate?.({ status: "success", message: "已更新賓客。" });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("已更新賓客。"),
+    );
+    expect(container.querySelector('[name="expectedVersion"]')).toHaveValue("5");
+    expect(
+      screen.getByRole("button", { name: "更新林小美的邀請人數" }),
+    ).toBeDisabled();
   });
 
 });

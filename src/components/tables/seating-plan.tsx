@@ -40,11 +40,13 @@ const SIDE_BADGE_TONES = {
 
 type SeatingGuest = {
   id: string;
+  version: number;
   name: string;
   partySize: number;
   side: GuestSideValue;
   notes: string | null;
   childSeatCount: number | null;
+  vegetarianCount?: number | null;
 };
 
 type SeatingTableItem = {
@@ -286,6 +288,9 @@ export function SeatingPlan({
                 <p className="min-w-0 text-caption font-medium break-words text-ink">
                   {guest.name}
                 </p>
+                {(guest.vegetarianCount ?? 0) > 0 ? (
+                  <Badge tone="sage">素食 {guest.vegetarianCount} 位</Badge>
+                ) : null}
                 {guest.category !== "GUEST" ? (
                   <p className="mt-1 text-caption font-semibold text-clay-strong">
                     {guestIdentityLabel(guest.category, guest.side)}
@@ -307,6 +312,7 @@ export function SeatingPlan({
                     guestId={guest.id}
                     guestName={guest.name}
                     guestPartySize={guest.partySize}
+                    guestVersion={guest.version}
                     tables={tableOptions}
                     onAssignIntent={handleAssignIntent}
                     onIntentRejected={handleIntentRejected}
@@ -473,6 +479,7 @@ export function SeatingPlan({
                   const isOverCapacity = assignedPartySize > table.capacity;
                   const side = seatingTableSide(table.guests);
                   const childSeats = childSeatRequirement(table);
+                  const vegetarianCount = table.guests.reduce((sum, guest) => sum + (guest.vegetarianCount ?? 0), 0);
 
                   return (
                     <li key={table.id} className="min-w-0">
@@ -494,6 +501,7 @@ export function SeatingPlan({
                               </span>
                             </h3>
                             <div className="flex min-w-0 flex-wrap justify-end gap-1.5">
+                              {vegetarianCount > 0 ? <Badge tone="sage">素食 {vegetarianCount} 位</Badge> : null}
                               {childSeats.total > 0 ? (
                                 <Badge tone="caution">
                                   <BadgeDot />
@@ -559,6 +567,7 @@ export function SeatingPlan({
                   const isOverCapacity = assignedPartySize > table.capacity;
                   const side = seatingTableSide(table.guests);
                   const childSeats = childSeatRequirement(table);
+                  const vegetarianCount = table.guests.reduce((sum, guest) => sum + (guest.vegetarianCount ?? 0), 0);
 
                   return (
                     <Card key={table.id}>
@@ -614,6 +623,9 @@ export function SeatingPlan({
                           </p>
                         )}
 
+                        {vegetarianCount > 0 ? (
+                          <p className="mt-3"><Badge tone="sage">素食共 {vegetarianCount} 位</Badge></p>
+                        ) : null}
                         {childSeats.total > 0 ? (
                           <section
                             aria-label={`${seatingTableLabel(table)}兒童椅需求`}
@@ -643,17 +655,20 @@ export function SeatingPlan({
                           ) : (
                             <ul
                               data-assigned-guest-grid
-                              className="mt-3 grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] items-start gap-3"
+                              className="mt-3 grid min-w-0 auto-rows-fr grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] items-stretch gap-3"
                             >
                               {table.guests.map((guest) => (
                                 <li
                                   key={guest.id}
                                   data-assigned-guest-card
-                                  className="flex min-w-0 flex-col rounded-control border border-line bg-surface-sunken/55 px-3.5 py-3"
+                                  className="flex h-full min-w-0 flex-col rounded-control border border-line bg-surface-sunken/55 px-3.5 py-3"
                                 >
                                   <p className="text-caption font-semibold break-words text-ink">
                                     {guest.name}・{guest.partySize} 位
                                   </p>
+                                  {(guest.vegetarianCount ?? 0) > 0 ? (
+                                    <div className="mt-1.5"><Badge tone="sage">素食 {guest.vegetarianCount} 位</Badge></div>
+                                  ) : null}
                                   {guest.childSeatCount !== null &&
                                   guest.childSeatCount > 0 ? (
                                     <div className="mt-1.5">
@@ -674,6 +689,8 @@ export function SeatingPlan({
                                         workspaceId={workspaceId}
                                         guestId={guest.id}
                                         guestName={guest.name}
+                                        guestVersion={guest.version}
+                                        seatingTableId={table.id}
                                         onUnassignIntent={handleUnassignIntent}
                                         onIntentRejected={handleIntentRejected}
                                       />

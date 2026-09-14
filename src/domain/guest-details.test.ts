@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasGuestDetails,
   normalizeGuestDetailsInput,
+  validateGuestRequirementsWithinPartySize,
 } from "./guest-details";
 
 describe("guest contact and RSVP details", () => {
@@ -89,5 +90,32 @@ describe("guest contact and RSVP details", () => {
         ...overrides,
       }),
     ).toThrow(message);
+  });
+
+  it.each([
+    [
+      { childSeatCount: 4, vegetarianCount: 1 },
+      "兒童座椅不能超過邀請人數。",
+    ],
+    [
+      { childSeatCount: 1, vegetarianCount: 4 },
+      "素食人數不能超過邀請人數。",
+    ],
+  ])(
+    "rejects a requirement count above the guest party size",
+    (requirements, message) => {
+      expect(() =>
+        validateGuestRequirementsWithinPartySize(requirements, 3),
+      ).toThrow(message);
+    },
+  );
+
+  it("allows each requirement to independently equal the party size", () => {
+    expect(() =>
+      validateGuestRequirementsWithinPartySize(
+        { childSeatCount: 3, vegetarianCount: 3 },
+        3,
+      ),
+    ).not.toThrow();
   });
 });

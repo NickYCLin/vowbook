@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   changeBudgetItemBookingStatusAction,
+  changeBudgetItemPreparationStatusAction,
   createBudgetItemAction,
   createChildBudgetItemAction,
   deleteBudgetItemAction,
@@ -21,11 +22,13 @@ import {
 import {
   BUDGET_BOOKING_STATUS_LABELS,
   BUDGET_PRIMARY_CONTACT_LABELS,
+  BUDGET_PREPARATION_STATUS_LABELS,
   BUDGET_TAXONOMY_ITEM_DEFAULT_CATEGORIES,
   BUDGET_TAXONOMY_STAGES,
   type BudgetBookingStatus,
   type BudgetCostCategory,
   type BudgetPrimaryContact,
+  type BudgetPreparationStatus,
   type BudgetTaxonomyItemKey,
 } from "@/domain/budget-item";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
@@ -97,6 +100,13 @@ type BookingStatusSnapshot = {
 };
 
 type BookingStatusDraft = BookingStatusSnapshot & { dirty: boolean };
+
+type PreparationStatusSnapshot = {
+  preparationStatus: BudgetPreparationStatus;
+  expectedVersion: number;
+};
+
+type PreparationStatusDraft = PreparationStatusSnapshot & { dirty: boolean };
 
 function toBudgetFieldValues({
   name,
@@ -1080,6 +1090,130 @@ export function ChangeBudgetItemBookingStatusForm({
         className="min-h-11 max-w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-clay-strong transition hover:bg-clay-soft disabled:cursor-wait disabled:opacity-70"
       >
         {isPending ? "更新中…" : "更新狀態"}
+      </button>
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
+export function ChangeBudgetItemPreparationStatusForm({
+  workspaceId,
+  itemId,
+  preparationStatus,
+  itemName,
+  expectedVersion,
+  onPendingChange,
+}: {
+  workspaceId: string;
+  itemId: string;
+  preparationStatus: BudgetPreparationStatus;
+  itemName: string;
+  expectedVersion: number;
+  onPendingChange?: (pending: boolean) => void;
+}) {
+  const idPrefix = useId();
+  const statusAction = changeBudgetItemPreparationStatusAction.bind(
+    null,
+    workspaceId,
+    itemId,
+  );
+  const serverSnapshot: PreparationStatusSnapshot = {
+    preparationStatus,
+    expectedVersion,
+  };
+  const [draft, setDraft] = useState<PreparationStatusDraft>(() => ({
+    ...serverSnapshot,
+    dirty: false,
+  }));
+  const [lastServerSnapshot, setLastServerSnapshot] =
+    useState<PreparationStatusSnapshot>(serverSnapshot);
+  const [pendingOutcome, setPendingOutcome] = useState<BudgetEditOutcome>(null);
+  const [state, formAction, isPending] = useActionState(
+    async (previousState: BudgetItemMutationState, formData: FormData) => {
+      const nextState = await statusAction(previousState, formData);
+      if (nextState.status === "success") {
+        setPendingOutcome("success");
+      } else if (nextState.code === "STALE") {
+        setPendingOutcome("stale");
+      }
+      return nextState;
+    },
+    initialState,
+  );
+
+  useEffect(() => {
+    onPendingChange?.(isPending);
+  }, [isPending, onPendingChange]);
+
+  const canApplyPendingOutcome =
+    pendingOutcome !== null && expectedVersion !== draft.expectedVersion;
+  if (canApplyPendingOutcome) {
+    setPendingOutcome(null);
+    setLastServerSnapshot(serverSnapshot);
+    setDraft(
+      pendingOutcome === "success"
+        ? { ...serverSnapshot, dirty: false }
+        : { ...draft, expectedVersion },
+    );
+  } else if (
+    lastServerSnapshot.preparationStatus !== preparationStatus ||
+    lastServerSnapshot.expectedVersion !== expectedVersion
+  ) {
+    setLastServerSnapshot(serverSnapshot);
+    if (!draft.dirty) {
+      setDraft({ ...serverSnapshot, dirty: false });
+    }
+  }
+
+  return (
+    <form
+      action={formAction}
+      aria-label={`更新準備方式 ${itemName}`}
+      className="min-w-0 space-y-3"
+      noValidate
+    >
+      <input
+        type="hidden"
+        name="expectedVersion"
+        value={draft.expectedVersion}
+      />
+      <label
+        htmlFor={`${idPrefix}-preparation-status`}
+        className="block text-sm font-semibold text-ink"
+      >
+        準備方式：{itemName}
+      </label>
+      <select
+        id={`${idPrefix}-preparation-status`}
+        name="preparationStatus"
+        value={draft.preparationStatus}
+        onChange={(event) =>
+          setDraft((current) => ({
+            ...current,
+            preparationStatus: event.target.value as BudgetPreparationStatus,
+            dirty: true,
+          }))
+        }
+        className={`${fieldClassName} mt-0 sm:max-w-sm`}
+      >
+        {Object.entries(BUDGET_PREPARATION_STATUS_LABELS).map(
+          ([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ),
+        )}
+      </select>
+      <p className="text-xs leading-5 text-ink-faint">
+        已有／自備與不打算準備都不計入預算；原有金額會保留，改回需要安排即可恢復統計。
+      </p>
+      <button
+        type="submit"
+        disabled={isPending}
+        aria-label={`更新準備方式：${itemName}`}
+        className="min-h-11 max-w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-clay-strong transition hover:bg-clay-soft disabled:cursor-wait disabled:opacity-70"
+      >
+        {isPending ? "更新中…" : "更新準備方式"}
       </button>
       <ActionFeedback state={state} />
     </form>

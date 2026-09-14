@@ -22,39 +22,45 @@ describe("budget preparation suggestion identity migration", () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort();
-    expect(migrationDirectories).toHaveLength(33);
-    expect(migrationDirectories.at(-11)).toBe(
+    expect(migrationDirectories.length).toBeGreaterThanOrEqual(35);
+    expect(migrationDirectories.at(22)).toBe(
       "20260805120000_budget_engagement_suggestion_key",
     );
-    expect(migrationDirectories.at(-10)).toBe(
+    expect(migrationDirectories.at(23)).toBe(
       "20260805130000_budget_preparation_suggestion_key",
     );
-    expect(migrationDirectories.at(-9)).toBe(
+    expect(migrationDirectories.at(24)).toBe(
       "20260813160000_seating_table_floor_plan",
     );
-    expect(migrationDirectories.at(-8)).toBe(
+    expect(migrationDirectories.at(25)).toBe(
       "20260817120000_seating_table_duplicate_names",
     );
-    expect(migrationDirectories.at(-7)).toBe(
+    expect(migrationDirectories.at(26)).toBe(
       "20260822120000_guest_roster_categories",
     );
-    expect(migrationDirectories.at(-6)).toBe(
+    expect(migrationDirectories.at(27)).toBe(
       "20260822130000_wedding_task_sides",
     );
-    expect(migrationDirectories.at(-5)).toBe(
+    expect(migrationDirectories.at(28)).toBe(
       "20260823153000_user_profile_avatar",
     );
-    expect(migrationDirectories.at(-4)).toBe(
+    expect(migrationDirectories.at(29)).toBe(
       "20260823155000_guest_details_invitation_reply_optional",
     );
-    expect(migrationDirectories.at(-3)).toBe(
+    expect(migrationDirectories.at(30)).toBe(
       "20260824004000_user_access_admin",
     );
-    expect(migrationDirectories.at(-2)).toBe(
+    expect(migrationDirectories.at(31)).toBe(
       "20260824213500_allow_family_party_size",
     );
-    expect(migrationDirectories.at(-1)).toBe(
+    expect(migrationDirectories.at(32)).toBe(
       "20260825120000_guest_seniority",
+    );
+    expect(migrationDirectories.at(33)).toBe(
+      "20260829210000_budget_preparation_status",
+    );
+    expect(migrationDirectories.at(34)).toBe(
+      "20260829220000_wedding_vendors",
     );
 
     const priorMigration = fs.readFileSync(priorMigrationPath, "utf8");

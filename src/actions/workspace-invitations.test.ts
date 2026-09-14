@@ -174,6 +174,13 @@ describe("workspace invitation actions", () => {
       email: "partner@example.com",
       role: "PARTNER",
     });
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/members",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
   });
 
   it("treats already-pending and same-operation replay as successful no-op", async () => {
@@ -318,7 +325,18 @@ describe("workspace invitation actions", () => {
       status: "success",
       message: "已撤銷邀請；畫面未自動更新，請重新整理。",
     });
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      1,
+      "/workspaces/workspace_1/members",
+    );
+    expect(revalidatePath).toHaveBeenNthCalledWith(2, "/dashboard");
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      3,
+      "/workspaces/workspace_1/overview",
+    );
     expect(log).toHaveBeenCalledWith("協作頁面重新驗證失敗。");
+    expect(log.mock.calls.every((call) => call.length === 1)).toBe(true);
+    log.mockRestore();
   });
 });
 

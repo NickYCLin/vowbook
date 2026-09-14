@@ -92,6 +92,8 @@ export function FilterChips<T extends string>({
       aria-label={label}
       className={cn(
         "flex min-w-0 flex-wrap items-center gap-1 rounded-control border border-line bg-surface-sunken p-1",
+        // 手機不換行改橫向捲動，像 iOS 的分段控制；露出半顆籤就是還有更多的提示。
+        "max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden",
         className,
       )}
     >

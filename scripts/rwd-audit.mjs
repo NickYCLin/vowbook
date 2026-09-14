@@ -212,8 +212,16 @@ async function main() {
     {
       key: "dialog-open",
       // 真實的 modal 在 top layer、以視窗為基準定位，這裡用 fixed 模擬同樣的幾何。
+      // 手機的底部面板幾何（貼底、滿版）由 globals.css 的 dialog 規則負責，這裡只補 display。
       css:
         "dialog{display:block!important;position:fixed!important;inset:0!important;margin:auto!important;max-height:none!important;}",
+    },
+    {
+      key: "more-open",
+      // 手機底部功能列的「更多」面板：樣本是靜態 HTML 沒有 React，點不開，
+      // 改用 CSS 強制展開後量一次，確認七個磚都在視窗內且觸控目標夠大。
+      css: "@media (width < 48rem){[data-workspace-more-panel]{display:grid!important}}",
+      mobileOnly: true,
     },
   ];
 
@@ -230,6 +238,15 @@ async function main() {
       });
       await page.goto(fileUrl, { waitUntil: "load" });
       if (mode.css) await page.addStyleTag({ content: mode.css });
+      if (mode.mobileOnly) {
+        // 桌機沒有「更多」面板；沒有工作區導覽的頁面（首頁、登入、我的婚宴）也沒有。
+        const hasPanel =
+          (await page.locator("[data-workspace-more-panel]").count()) > 0;
+        if (width >= 768 || !hasPanel) {
+          await page.close();
+          continue;
+        }
+      }
       // 帳號外觀選單使用 <details>；固定定位的收合內容在 Chromium 量測時
       // 可能留下非零幾何。主動展開它，既避免假陽性，也讓每個斷點實際驗證選單。
       const themeSummary = page.locator(
@@ -369,7 +386,11 @@ async function main() {
       }, mode.key === "dialog-open");
 
       const label =
-        mode.key === "closed" ? surface.name : `${surface.name}（對話框展開）`;
+        mode.key === "closed"
+          ? surface.name
+          : mode.key === "more-open"
+            ? `${surface.name}（更多面板展開）`
+            : `${surface.name}（對話框展開）`;
       if (
         report.documentOverflow > 0 ||
         report.offenders.length > 0 ||
@@ -395,7 +416,7 @@ async function main() {
 
   if (failures.length === 0) {
     console.log(
-      `RWD 稽核通過：${surfaces.length} 個畫面 × ${widths.length} 種寬度 × 對話框收合／展開，無水平溢出、無過小觸控目標。`,
+      `RWD 稽核通過：${surfaces.length} 個畫面 × ${widths.length} 種寬度 × 對話框收合／展開／手機更多面板，無水平溢出、無過小觸控目標。`,
     );
     return;
   }

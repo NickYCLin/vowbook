@@ -29,13 +29,16 @@ vi.mock("@/components/guests/guest-forms", () => ({
   DeleteGuestForm: ({
     name,
     hasManagedImportSource,
+    weddingGift,
   }: {
     name: string;
     hasManagedImportSource: boolean;
+    weddingGift: { id: string; version: number } | null;
   }) => (
     <button>
       刪除 {name}{" "}
-      {hasManagedImportSource ? "匯入" : "一般"}
+      {hasManagedImportSource ? "匯入" : "一般"}{" "}
+      {weddingGift ? "有禮金" : "無禮金"}
     </button>
   ),
 }));
@@ -58,6 +61,8 @@ const guest = {
   importRecords: [],
   createdAt: new Date("2026-07-22T00:00:00.000Z"),
   updatedAt: new Date("2026-07-22T00:00:00.000Z"),
+  weddingGift: null,
+  checkIn: null,
 };
 
 describe("GuestList", () => {
@@ -114,6 +119,27 @@ describe("GuestList", () => {
     expect(screen.getByText("顯示 4 / 4 筆")).toBeInTheDocument();
   });
 
+  it("separates families by partner and orders seniority within each side", () => {
+    render(<GuestList workspaceId="workspace_1" canEdit={false} guests={[
+      { ...guest, id:"younger", name:"新郎弟弟", category:"FAMILY", seniority:"PEER" },
+      { ...guest, id:"bride-father", name:"新娘爸爸", category:"FAMILY", side:"PARTNER_B" },
+      { ...guest, id:"father", name:"新郎爸爸", category:"FAMILY" },
+      { ...guest, id:"shared", name:"共同家人", category:"FAMILY", side:"SHARED" },
+      { ...guest, id:"couple", name:"新人本人", category:"COUPLE" },
+      guest,
+    ]}/>);
+    const groom = within(screen.getByRole("region", {name:"新郎家人"}));
+    const bride = within(screen.getByRole("region", {name:"新娘家人"}));
+    expect(groom.getAllByRole("listitem").map(item => within(item).getByRole("heading").textContent)).toEqual(["新郎爸爸", "新郎弟弟"]);
+    expect(bride.getByRole("heading", {name:"新娘爸爸"})).toBeInTheDocument();
+    expect(groom.queryByRole("heading", {name:"新娘爸爸"})).not.toBeInTheDocument();
+    expect(within(screen.getByRole("region",{name:"雙方共同家人"})).getByRole("heading", {name:"共同家人"})).toBeInTheDocument();
+    expect(groom.queryByRole("heading", {name:"新人本人"})).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox",{name:"關係篩選"}),{target:{value:"PARTNER_B"}});
+    expect(screen.queryByRole("heading",{name:"新郎爸爸"})).not.toBeInTheDocument();
+    expect(screen.getByRole("heading",{name:"新娘爸爸"})).toBeInTheDocument();
+  });
+
   it("renders guest details without edit controls for VIEWER", () => {
     render(
       <GuestList
@@ -152,7 +178,34 @@ describe("GuestList", () => {
       screen.getByRole("button", { name: "編輯 王小明" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "刪除 王小明 一般" }),
+      screen.getByRole("button", { name: "刪除 王小明 一般 無禮金" }),
+    ).toBeInTheDocument();
+  });
+
+  it("passes the gift cascade state to the guest deletion confirmation", () => {
+    render(
+      <GuestList
+        workspaceId="workspace_1"
+        guests={[
+          {
+            ...guest,
+            weddingGift: {
+              id: "gift_1",
+              amount: 3600,
+              notes: null,
+              createdAt: new Date("2026-08-30T02:00:00.000Z"),
+              returnGiftSentAt: null,
+              returnGiftNote: null,
+              version: 2,
+            },
+          },
+        ]}
+        canEdit
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "刪除 王小明 一般 有禮金" }),
     ).toBeInTheDocument();
   });
 
@@ -279,14 +332,16 @@ describe("GuestList", () => {
     fireEvent.change(screen.getByLabelText("關係篩選"), {
       target: { value: "PARTNER_B" },
     });
-    fireEvent.change(screen.getByLabelText("座位狀態篩選"), {
-      target: { value: "UNASSIGNED" },
-    });
-
     expect(screen.getByRole("heading", { name: "合成乙" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "合成甲" })).not.toBeInTheDocument();
     expect(screen.queryByText(/拍拍印/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/合成表單/u)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("座位狀態篩選"), {
+      target: { value: "UNASSIGNED" },
+    });
+    expect(screen.queryByRole("heading", { name: "合成乙" })).not.toBeInTheDocument();
+    expect(screen.getByText("找不到符合條件的名單成員。")).toBeInTheDocument();
   });
 
   it("distinguishes no filter results from an empty source collection", () => {
@@ -513,8 +568,14 @@ describe("GuestList", () => {
           {
             ...guest,
             id: "unknown-invitation",
-            name: "尚未設定賓客",
+            name: "尚未填寫賓客",
             details: details(null),
+          },
+          {
+            ...guest,
+            id: "unconfirmed-invitation",
+            name: "尚未確認賓客",
+            details: details("UNKNOWN"),
           },
         ]}
         canEdit
@@ -528,7 +589,9 @@ describe("GuestList", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      within(invitations).getByText("不需寄送 1 組 · 尚未設定 1 組"),
+      within(invitations).getByText(
+        "不需寄送 1 組 · 尚未確認 1 組 · 尚未填寫 1 組",
+      ),
     ).toBeInTheDocument();
 
     const paperSummary = within(invitations).getByRole(
@@ -636,6 +699,32 @@ describe("GuestList", () => {
     );
 
     expect(screen.getByText("桌次：尚未安排")).toBeInTheDocument();
+  });
+
+  it("marks declined guests as not needing seats and excludes them from unassigned seating", () => {
+    render(
+      <GuestList
+        workspaceId="workspace_1"
+        guests={[
+          {
+            ...guest,
+            attendanceStatus: "DECLINED",
+            seatingTable: null,
+          },
+        ]}
+        canEdit={false}
+      />,
+    );
+
+    expect(screen.getByText("座位：不需安排")).toBeInTheDocument();
+    expect(screen.queryByText("桌次：尚未安排")).not.toBeInTheDocument();
+    expect(screen.getByText("0/0")).toBeInTheDocument();
+    expect(screen.getByText("未安排 0 筆")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("座位狀態篩選"), {
+      target: { value: "UNASSIGNED" },
+    });
+    expect(screen.getByText("找不到符合條件的名單成員。")).toBeInTheDocument();
   });
 
   it("hides contact and reply details from VIEWER guest cards", () => {
@@ -799,7 +888,7 @@ describe("GuestList", () => {
     );
     expect(editButton).toHaveAttribute("data-contact-phone", "0900-000-000");
     expect(
-      screen.getByRole("button", { name: "刪除 王小明 匯入" }),
+      screen.getByRole("button", { name: "刪除 王小明 匯入 無禮金" }),
     ).toBeInTheDocument();
     expect(container).not.toHaveTextContent("externalId");
   });

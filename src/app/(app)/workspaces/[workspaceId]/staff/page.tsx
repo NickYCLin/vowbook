@@ -1,3 +1,4 @@
+import { StaffTabs } from "@/components/staff/staff-tabs";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CreateWeddingStaffForm } from "@/components/staff/staff-forms";
@@ -44,6 +45,7 @@ export default async function StaffPage({
           ) : null
         }
       />
+      <StaffTabs workspaceId={workspaceId} active="staff" />
       <WeddingStaffList workspaceId={workspaceId} staff={data.staff} canEdit={canEdit} />
     </main>
   );

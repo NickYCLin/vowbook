@@ -71,6 +71,13 @@ describe("SeatingFloorPlan", () => {
     });
   });
 
+  it("marks vegetarian counts on the floor plan and accessible table label", () => {
+    render(<SeatingFloorPlan workspaceId="workspace_internal" canEdit={false} selectedTableId={null}
+      tables={[{ ...tables[0], guests: [{ ...tables[0].guests[0], vegetarianCount: 2 }] }]} />);
+    expect(screen.getByRole("article", { name: /素食 2 位/ })).toBeInTheDocument();
+    expect(screen.getByText("素 2")).toBeInTheDocument();
+  });
+
   it("restores every manually placed table to automatic only after an explicit confirm", async () => {
     render(
       <SeatingFloorPlan

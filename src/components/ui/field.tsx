@@ -1,4 +1,7 @@
-import type {
+import {
+  createContext,
+  useContext,
+  type AriaAttributes,
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
@@ -10,6 +13,39 @@ const control =
   "w-full min-w-0 rounded-control border border-line-strong bg-surface px-3.5 text-ink transition placeholder:text-ink-faint focus:border-clay focus:bg-white disabled:bg-surface-sunken disabled:text-ink-faint";
 
 export const fieldControlClassName = cn(control, "min-h-11");
+
+type FieldControlContextValue = {
+  describedBy?: string;
+  invalid: boolean;
+};
+
+const FieldControlContext = createContext<FieldControlContextValue | null>(null);
+
+function mergeAriaDescribedBy(
+  explicit: string | undefined,
+  fieldDescription: string | undefined,
+) {
+  const ids = [explicit, fieldDescription]
+    .flatMap((value) => value?.trim().split(/\s+/) ?? [])
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+
+  return ids.length > 0 ? ids.join(" ") : undefined;
+}
+
+function useFieldControlAccessibility(
+  explicitDescription: string | undefined,
+  explicitInvalid: AriaAttributes["aria-invalid"],
+) {
+  const field = useContext(FieldControlContext);
+
+  return {
+    "aria-describedby": mergeAriaDescribedBy(
+      explicitDescription,
+      field?.describedBy,
+    ),
+    "aria-invalid": field?.invalid ? true : explicitInvalid,
+  } satisfies Pick<AriaAttributes, "aria-describedby" | "aria-invalid">;
+}
 
 /**
  * 欄位外框：標籤、選填註記、控制項、說明文字與錯誤訊息的統一排版。
@@ -32,6 +68,12 @@ export function Field({
   className?: string;
   children: ReactNode;
 }) {
+  const describedBy = error
+    ? `${htmlFor}-error`
+    : hint
+      ? `${htmlFor}-hint`
+      : undefined;
+
   return (
     <div className={cn("min-w-0", className)}>
       <label
@@ -43,7 +85,11 @@ export function Field({
           <span className="text-caption font-normal text-ink-faint">選填</span>
         )}
       </label>
-      <div className="mt-2 min-w-0">{children}</div>
+      <FieldControlContext.Provider
+        value={{ describedBy, invalid: Boolean(error) }}
+      >
+        <div className="mt-2 min-w-0">{children}</div>
+      </FieldControlContext.Provider>
       {hint && !error && (
         <p id={`${htmlFor}-hint`} className="mt-1.5 text-caption text-ink-faint">
           {hint}
@@ -64,18 +110,39 @@ export function Field({
 
 export function Input({
   className,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...rest} className={cn(fieldControlClassName, className)} />;
+  const accessibility = useFieldControlAccessibility(
+    ariaDescribedBy,
+    ariaInvalid,
+  );
+
+  return (
+    <input
+      {...rest}
+      {...accessibility}
+      className={cn(fieldControlClassName, className)}
+    />
+  );
 }
 
 export function Textarea({
   className,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const accessibility = useFieldControlAccessibility(
+    ariaDescribedBy,
+    ariaInvalid,
+  );
+
   return (
     <textarea
       {...rest}
+      {...accessibility}
       className={cn(control, "min-h-24 py-2.5 leading-7", className)}
     />
   );
@@ -84,10 +151,21 @@ export function Textarea({
 export function Select({
   className,
   children,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const accessibility = useFieldControlAccessibility(
+    ariaDescribedBy,
+    ariaInvalid,
+  );
+
   return (
-    <select {...rest} className={cn(fieldControlClassName, "pr-9", className)}>
+    <select
+      {...rest}
+      {...accessibility}
+      className={cn(fieldControlClassName, "pr-9", className)}
+    >
       {children}
     </select>
   );

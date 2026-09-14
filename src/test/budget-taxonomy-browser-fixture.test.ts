@@ -9,7 +9,7 @@ import {
 } from "../../scripts/budget-taxonomy-fixture.mjs";
 
 describe("budget taxonomy browser fixture", () => {
-  it("seeds all 28 system nodes while public Drive choices stay at six stages and twenty items", () => {
+  it("seeds all 29 system nodes while public Drive choices stay at six stages and twenty-one items", () => {
     expect(BUDGET_TAXONOMY_FIXTURE_NODES).toEqual(
       BUDGET_SYSTEM_NODES.map((node) => [
         node.key,
@@ -18,14 +18,14 @@ describe("budget taxonomy browser fixture", () => {
         node.sourceOrder,
       ]),
     );
-    expect(BUDGET_TAXONOMY_FIXTURE_NODES).toHaveLength(28);
+    expect(BUDGET_TAXONOMY_FIXTURE_NODES).toHaveLength(29);
     expect(BUDGET_TAXONOMY_STAGES).toHaveLength(6);
     expect(
       BUDGET_TAXONOMY_STAGES.reduce(
         (itemCount, stage) => itemCount + stage.items.length,
         0,
       ),
-    ).toBe(20);
+    ).toBe(21);
   });
 
   it("creates every fixed node for one explicit workspace with resolved parents", async () => {
@@ -35,10 +35,10 @@ describe("budget taxonomy browser fixture", () => {
       "workspace_1",
     );
 
-    expect(ids).toHaveLength(28);
+    expect(ids).toHaveLength(29);
     expect(createMany).toHaveBeenCalledOnce();
     const rows = createMany.mock.calls[0][0].data;
-    expect(rows).toHaveLength(28);
+    expect(rows).toHaveLength(29);
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

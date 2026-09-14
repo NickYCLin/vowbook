@@ -22,6 +22,12 @@ type WeddingTaskRecord = {
 };
 
 type WeddingTaskTransaction = {
+  membership: {
+    findUnique(args: unknown): Promise<{
+      role: string;
+      workspace: Pick<WeddingWorkspace, "id" | "name">;
+    } | null>;
+  };
   weddingTask: {
     findMany(args: unknown): Promise<WeddingTaskRecord[]>;
   };
@@ -84,25 +90,13 @@ function taskViewModel(task: WeddingTaskRecord): WeddingTaskListItem {
 
 export async function getWeddingTaskList(workspaceId: string) {
   const currentUser = await requireCurrentUser();
-
-  let access;
+  const taskPrisma = prisma as unknown as WeddingTaskPrismaClient;
   try {
-    access = await requireWorkspaceAccess<
-      Pick<WeddingWorkspace, "id" | "name">
-    >(workspaceId, currentUser.id, "read");
-  } catch (error) {
-    if (error instanceof WorkspaceAccessDeniedError) {
-      throw error;
-    }
-
-    throw new WeddingTaskDataError("目前無法載入婚宴任務，請稍後再試。");
-  }
-
-  let records: WeddingTaskRecord[];
-  try {
-    const taskPrisma = prisma as unknown as WeddingTaskPrismaClient;
-    records = await taskPrisma.$transaction(
+    return await taskPrisma.$transaction(
       async (transaction) => {
+        const access = await requireWorkspaceAccess<
+          Pick<WeddingWorkspace, "id" | "name">
+        >(workspaceId, currentUser.id, "read", transaction);
         const [activeTasks, completedTasks] = await Promise.all([
           transaction.weddingTask.findMany({
             where: {
@@ -119,17 +113,18 @@ export async function getWeddingTaskList(workspaceId: string) {
           }),
         ]);
 
-        return [...activeTasks, ...completedTasks];
+        return {
+          role: access.role,
+          workspace: { id: access.workspace.id, name: access.workspace.name },
+          tasks: [...activeTasks, ...completedTasks].map(taskViewModel),
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkspaceAccessDeniedError) {
+      throw error;
+    }
     throw new WeddingTaskDataError("目前無法載入婚宴任務，請稍後再試。");
   }
-
-  return {
-    role: access.role,
-    workspace: { id: access.workspace.id, name: access.workspace.name },
-    tasks: records.map(taskViewModel),
-  };
 }

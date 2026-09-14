@@ -18,6 +18,7 @@ const actions = vi.hoisted(() => ({
   createChildBudgetItemAction: vi.fn(),
   updateBudgetItemAction: vi.fn(),
   changeBudgetItemBookingStatusAction: vi.fn(),
+  changeBudgetItemPreparationStatusAction: vi.fn(),
   moveBudgetItemAction: vi.fn(),
   deleteBudgetItemAction: vi.fn(),
 }));
@@ -54,8 +55,11 @@ const summary: BudgetSummary = {
   actualTotal: "0",
   balanceDueTotal: "0",
   balanceDueCount: 0,
+  overdueBalanceDueCount: 0,
   balanceDueMissingAmountCount: 0,
-  nearestBalanceDueDate: null,
+  nearestUpcomingBalanceDueDate: null,
+  selfProvidedCount: 0,
+  notPlannedCount: 0,
 };
 
 const group: BudgetItemListItem = {
@@ -69,7 +73,6 @@ const group: BudgetItemListItem = {
   directChildSetHash: "1".repeat(64),
   descendantCount: 1,
   source: "MANUAL",
-  sourceHierarchyPath: [],
   name: "婚紗方案",
   kind: "GROUP",
   category: null,
@@ -108,7 +111,6 @@ const expense: BudgetItemListItem = {
   directChildSetHash: "0".repeat(64),
   descendantCount: 0,
   source: "MANUAL",
-  sourceHierarchyPath: [],
   name: "婚紗攝影",
   kind: "EXPENSE",
   category: "PHOTOGRAPHY_VIDEO",
@@ -592,7 +594,7 @@ describe("budget taxonomy UI", () => {
     expect(screen.queryByText(/尚未準備好分類/u)).not.toBeInTheDocument();
   });
 
-  it("hides internal wrappers and lets a legacy leaf choose one of the 20 Drive items", async () => {
+  it("hides internal wrappers and lets a legacy leaf choose one of the 21 Drive items", async () => {
     actions.updateBudgetItemAction.mockResolvedValueOnce({
       status: "success",
       message: "已更新花費項目。",
@@ -656,7 +658,7 @@ describe("budget taxonomy UI", () => {
     });
     expect(taxonomy).toHaveValue("");
     expect(within(taxonomy).getAllByRole("group")).toHaveLength(6);
-    expect(within(taxonomy).getAllByRole("option")).toHaveLength(20);
+    expect(within(taxonomy).getAllByRole("option")).toHaveLength(21);
     expect(taxonomy).not.toHaveTextContent("系統保留");
     expect(taxonomy).not.toHaveTextContent("未分類既有項目");
 
@@ -896,7 +898,7 @@ describe("budget taxonomy UI", () => {
     await waitFor(() => expect(closeButton).not.toBeDisabled());
   });
 
-  it("shows edit-dialog hierarchy context and the six-stage, 20-item Drive taxonomy select", () => {
+  it("shows edit-dialog hierarchy context and the six-stage, 21-item Drive taxonomy select", () => {
     render(
       <BudgetList
         workspaceId="workspace_1"
@@ -934,7 +936,7 @@ describe("budget taxonomy UI", () => {
     });
     expect(category).toHaveValue("ITEM_WEDDING_VENUE");
     expect(within(category).getAllByRole("group")).toHaveLength(6);
-    expect(within(category).getAllByRole("option")).toHaveLength(20);
+    expect(within(category).getAllByRole("option")).toHaveLength(21);
     expect(category).toHaveTextContent("婚紗照拍攝");
     expect(category).not.toHaveTextContent("其他");
     expect(category).not.toHaveTextContent("待分類");

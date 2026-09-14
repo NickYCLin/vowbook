@@ -33,11 +33,12 @@ export function Stat({
       <p className="text-caption font-medium text-ink-soft">{label}</p>
       <p
         className={cn(
-          "mt-1 flex items-baseline gap-1 font-serif text-2xl font-semibold tabular-nums",
+          "mt-1 flex flex-wrap items-baseline gap-x-1 font-serif text-xl font-semibold tabular-nums sm:text-2xl",
           tones[tone],
         )}
       >
-        <span className="min-w-0 truncate">{value}</span>
+        {/* 金額寧可換行也不截斷：「NT$ 6,44…」在手機兩欄裡會讓人看錯數字。 */}
+        <span className="min-w-0 break-words [overflow-wrap:anywhere]">{value}</span>
         {unit && (
           <span className="text-caption font-sans font-medium text-ink-faint">
             {unit}
@@ -79,13 +80,14 @@ export function ProgressBar({
 }: {
   value: number;
   max?: number;
-  tone?: "brand" | "positive" | "caution" | "danger";
+  tone?: "neutral" | "brand" | "positive" | "caution" | "danger";
   label: string;
   className?: string;
 }) {
   const safeMax = max > 0 ? max : 1;
   const ratio = Math.min(Math.max(value / safeMax, 0), 1);
   const tones = {
+    neutral: "bg-line-strong",
     brand: "bg-clay",
     positive: "bg-positive",
     caution: "bg-caution",

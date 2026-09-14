@@ -8,6 +8,8 @@
  * 每個樣本都刻意塞入超長姓名、Email 與不換行的長字串，
  * 因為手機版真正會爆版的是內容而不是骨架。
  */
+import { WeddingCakeBoard } from "@/components/guests/wedding-cake-board";
+import { HandoffBoard } from "@/components/handoffs/handoff-board";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import HomePage from "@/app/page";
@@ -16,7 +18,9 @@ import { SystemUserList } from "@/components/admin/system-user-list";
 import { BudgetList } from "@/components/budget/budget-list";
 import SignInPage from "@/app/signin/page";
 import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-form";
+import { GuestCheckInBoard } from "@/components/check-in/guest-check-in-board";
 import { GuestList } from "@/components/guests/guest-list";
+import { WeddingGiftBook } from "@/components/guests/wedding-gift-book";
 import { SeatingChart } from "@/components/tables/seating-chart";
 import { SeatingPlan } from "@/components/tables/seating-plan";
 import { UnassignGuestForm } from "@/components/tables/table-forms";
@@ -26,6 +30,7 @@ import { ThemeMenu } from "@/components/theme/theme-menu";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WorkspaceMembersPanel } from "@/components/workspaces/workspace-members";
 import { WorkspaceSummary } from "@/components/workspaces/workspace-summary";
+import { WeddingOverview } from "@/components/workspaces/wedding-overview";
 import {
   WorkspacePageHeader,
   type WorkspaceSection,
@@ -46,7 +51,7 @@ function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-paper">
-      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md print:hidden">
+      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur-md print:hidden">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
           <span className="font-serif text-lg font-semibold text-ink">
             誓約簿 VowBook
@@ -97,6 +102,52 @@ function WorkspacePage({
   );
 }
 
+const checkInGuestFixture = (
+  index: number,
+  overrides: Partial<
+    Parameters<typeof GuestCheckInBoard>[0]["guests"][number]
+  > = {},
+): Parameters<typeof GuestCheckInBoard>[0]["guests"][number] => ({
+  id: `check_in_guest_${index}`,
+  name: index === 0 ? LONG_NAME : `報到賓客 ${index}`,
+  category: index === 1 ? "FAMILY" : "GUEST",
+  side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[index % 3],
+  attendanceStatus: (["ATTENDING", "ATTENDING", "DECLINED", "UNDECIDED"] as const)[
+    index % 4
+  ],
+  partySize: (index % 8) + 1,
+  notes: null,
+  seatingTable:
+    index % 3 === 2
+      ? null
+      : {
+          number: index + 1,
+          name: index === 0 ? LONG_NAME : `宴客桌 ${index + 1}`,
+        },
+  checkIn:
+    index % 2 === 0
+      ? {
+          id: `check_in_${index}`,
+          headcount: (index % 8) + 1,
+          notes: index === 0 ? `${LONG_NAME}\n${LONG_URL_ISH}` : null,
+          version: 3,
+        }
+      : null,
+  ...overrides,
+});
+
+const checkInTableFixture = (
+  index: number,
+): Parameters<typeof GuestCheckInBoard>[0]["tables"][number] => ({
+  id: `check_in_table_${index}`,
+  number: index + 1,
+  name: index === 0 ? LONG_NAME : `宴客桌 ${index + 1}`,
+  capacity: 10,
+  expectedHeadcount: (index % 8) + 2,
+  arrivedHeadcount: index % 3,
+  pendingGroups: index % 2,
+});
+
 const guestFixture = (
   index: number,
   overrides: Partial<Parameters<typeof GuestList>[0]["guests"][number]> = {},
@@ -113,6 +164,23 @@ const guestFixture = (
   seatingTable:
     index % 2 === 0
       ? { number: index + 1, name: `宴客桌 ${index + 1}` }
+      : null,
+  weddingGift:
+    index % 3 === 0
+      ? {
+          id: `gift_${index}`,
+          amount: index === 0 ? 2_147_483_647 : 36_000 + index,
+          notes: index === 0 ? `${LONG_NAME}\n${LONG_URL_ISH}` : null,
+          createdAt: new Date(2026, 7, 30, 10, index),
+          returnGiftSentAt: index % 6 === 0 ? new Date(2026, 8, 5) : null,
+          returnGiftNote: index % 6 === 0 ? "寄了 2 盒喜餅" : null,
+          version: 2,
+        }
+      : null,
+  // 每四筆有一筆已報到，讓報到欄位與刪除警告在 RWD 量測時也吃得到真值。
+  checkIn:
+    index % 4 === 0
+      ? { id: `check_in_${index}`, headcount: (index % 8) + 1, version: 1 }
       : null,
   // 聯絡與回覆資料可來自匯入或人工補充；畫面統一用一般賓客欄位呈現。
   details:
@@ -178,7 +246,6 @@ const budgetItem = (
   directChildSetHash: `hash_${overrides.id}`,
   descendantCount: 0,
   source: "MANUAL",
-  sourceHierarchyPath: [],
   category: "VENUE_CATERING",
   relatedTaxonomyItemKey: null,
   directParentName: null,
@@ -193,6 +260,7 @@ const budgetItem = (
   paid: false,
   paidAt: null,
   bookingStatus: "BOOKED_BALANCE_DUE",
+  preparationStatus: "NEEDS_ACTION",
   depositAmount: 30_000,
   balanceAmount: 113_500,
   additionalAmount: null,
@@ -225,11 +293,12 @@ const budgetItems = [
     hasChildren: true,
     breadcrumb: ["籌備第 1-2 月"],
     directParentName: "籌備第 1-2 月",
-    directChildCount: 2,
-    descendantCount: 2,
+    directChildCount: 3,
+    descendantCount: 3,
     directChildren: [
       { id: "leaf_1", name: "婚紗攝影方案", hasChildren: false },
       { id: "leaf_2", name: "小白鞋", hasChildren: false },
+      { id: "leaf_3", name: "不另外準備西裝", hasChildren: false },
     ],
   }),
   budgetItem({
@@ -259,10 +328,10 @@ const budgetItems = [
     breadcrumb: ["籌備第 1-2 月", "婚紗照拍攝"],
     directParentName: "婚紗照拍攝",
     source: "NOTION",
-    sourceHierarchyPath: ["其他"],
     paid: true,
     paidAt: "2026-07-01",
     bookingStatus: "PAID",
+    preparationStatus: "ALREADY_OWNED",
     plannedAmount: 2_680,
     rolledUpPlannedAmount: "2680",
     actualAmount: 2_680,
@@ -270,20 +339,41 @@ const budgetItems = [
     rolledUpDepositAmount: "0",
     rolledUpBalanceAmount: "0",
   }),
+  budgetItem({
+    id: "leaf_3",
+    parentId: "item_1",
+    depth: 2,
+    name: "不另外準備西裝",
+    kind: "EXPENSE",
+    breadcrumb: ["籌備第 1-2 月", "婚紗照拍攝"],
+    directParentName: "婚紗照拍攝",
+    preparationStatus: "NOT_PLANNED",
+    plannedAmount: 38_000,
+    actualAmount: null,
+    rolledUpPlannedAmount: "0",
+    rolledUpActualAmount: "0",
+    rolledUpDepositAmount: "0",
+    rolledUpBalanceAmount: "0",
+  }),
 ];
 
 const budgetSummary = {
-  itemCount: 2,
-  paidCount: 1,
-  plannedTotal: "1290680",
-  actualTotal: "1346180",
+  itemCount: 1,
+  paidCount: 0,
+  plannedTotal: "1288000",
+  actualTotal: "1343500",
   balanceDueTotal: "113500",
   balanceDueCount: 1,
+  overdueBalanceDueCount: 0,
   balanceDueMissingAmountCount: 0,
-  nearestBalanceDueDate: "2026-09-30",
+  nearestUpcomingBalanceDueDate: "2026-09-30",
+  selfProvidedCount: 1,
+  notPlannedCount: 1,
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
+  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
+
   {
     name: "system-admin-users",
     element: (
@@ -391,17 +481,211 @@ const surfaces: { name: string; element: ReactNode }[] = [
     ),
   },
   {
+    name: "overview",
+    element: (
+      <WorkspacePage
+        sectionTitle="婚宴總覽"
+        description="集中查看賓客回覆、入席安排、任務、花費與婚宴執行進度。"
+        activeSection="overview"
+      >
+        <WeddingOverview
+          workspaceId="workspace_rwd"
+          data={{
+            guests: {
+              generalGroupTotal: 288,
+              respondedGroupTotal: 176,
+              attendingGroupTotal: 154,
+              declinedGroupTotal: 22,
+              undecidedGroupTotal: 112,
+              attendingHeadcount: 412,
+              assignedAttendingHeadcount: 368,
+              unassignedAttendingHeadcount: 44,
+              childSeatCount: 18,
+              vegetarianCount: 36,
+              bySide: {
+                PARTNER_A: {
+                  groupTotal: 132,
+                  attendingGroupTotal: 72,
+                  attendingHeadcount: 188,
+                },
+                PARTNER_B: {
+                  groupTotal: 128,
+                  attendingGroupTotal: 68,
+                  attendingHeadcount: 184,
+                },
+                SHARED: {
+                  groupTotal: 28,
+                  attendingGroupTotal: 14,
+                  attendingHeadcount: 40,
+                },
+              },
+              invitations: {
+                PAPER: 96,
+                DIGITAL: 148,
+                NONE: 12,
+                UNKNOWN: 32,
+                UNSET: 18,
+              },
+              gifts: {
+                recordedCount: 238,
+                unrecordedGeneralGroupCount: 50,
+                totalAmount: "2688800",
+              },
+            },
+            seating: {
+              tableTotal: 42,
+              capacityTotal: 440,
+              assignedHeadcount: 368,
+              remainingCapacity: 72,
+            },
+            tasks: {
+              total: 128,
+              todo: 20,
+              inProgress: 11,
+              done: 97,
+              overdue: 3,
+            },
+            budget: {
+              itemCount: 58,
+              planningCount: 17,
+              balanceDueCount: 12,
+              overdueBalanceDueCount: 3,
+              paidCount: 29,
+              plannedTotal: "1880000",
+              actualTotal: "2143500",
+              balanceDueTotal: "680000",
+              selfProvidedCount: 6,
+              notPlannedCount: 4,
+            },
+            operations: {
+              staffTotal: 24,
+              timelineItemTotal: 36,
+              memberTotal: 4,
+            },
+          }}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
     name: "guests",
     element: (
       <WorkspacePage
         sectionTitle="賓客名單"
-        description="整理邀請名單、出席回覆與入席人數。"
+        description="整理邀請名單、宴席需求與座位安排。"
         activeSection="guests"
       >
         <GuestList
           workspaceId="workspace_rwd"
           canEdit
-          guests={Array.from({ length: 8 }, (_, index) => guestFixture(index))}
+          guests={Array.from({ length: 8 }, (_, index) => guestFixture(index,
+            index === 2 ? {category:"FAMILY",side:"PARTNER_B",name:LONG_NAME} :
+            index === 3 ? {category:"FAMILY",side:"SHARED"} : {}
+          ))}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
+    // 大量邀請群組、超長姓名、接近 Int 上限的金額一起出現；展開狀態要在
+    // 320px 手機到桌機都沒有水平溢出或過小觸控目標。
+    name: "gifts",
+    element: (
+      <WorkspacePage
+        sectionTitle="禮金簿"
+        description="依邀請群組登記收到的禮金；禮金不屬於婚宴支出，也不受出席狀態影響。"
+        activeSection="gifts"
+      >
+        <WeddingGiftBook
+          workspaceId="workspace_rwd"
+          canEdit
+          collapsible={false}
+          guests={Array.from({ length: 48 }, (_, index) =>
+            guestFixture(index, {
+              name:
+                index % 11 === 0
+                  ? `${LONG_NAME}第${index + 1}邀請群組`
+                  : `禮金簿大量名單第 ${index + 1} 組`,
+              category: index === 1 ? "FAMILY" : "GUEST",
+              giftExemptWithCake: index % 5 === 2,
+              weddingGift:
+                index % 3 === 0 || index === 1
+                  ? {
+                      id: `gift_ledger_${index}`,
+                      amount:
+                        index === 0 ? 2_147_483_647 : 1_280_000 + index,
+                      notes: index % 11 === 0 ? LONG_URL_ISH : null,
+                      createdAt: new Date(2026, 7, 30, 12, index % 60),
+                      returnGiftSentAt: index % 7 === 0 ? new Date(2026, 8, 5) : null,
+                      returnGiftNote:
+                        index % 7 === 0 ? `${LONG_NAME.slice(0, 40)}喜餅` : null,
+                      version: 4,
+                    }
+                  : null,
+            }),
+          )}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
+    // 報到桌在婚宴當天會同時開著大量名單與統計；長姓名、長桌名與已／未
+    // 報到混排時，320px 手機到桌機都不得水平溢出或縮掉觸控目標。
+    name: "check-in",
+    element: (
+      <WorkspacePage
+        sectionTitle="賓客報到"
+        description="婚宴當天逐組記錄實際到場人數；報到不會改寫賓客的出席回覆，兩邊各自保留。"
+        activeSection="check-in"
+      >
+        <GuestCheckInBoard
+          workspaceId="workspace_rwd"
+          canEdit
+          guests={Array.from({ length: 24 }, (_, index) =>
+            checkInGuestFixture(index),
+          )}
+          tables={Array.from({ length: 9 }, (_, index) =>
+            checkInTableFixture(index),
+          )}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
+    name: "check-in-viewer",
+    element: (
+      <WorkspacePage
+        sectionTitle="賓客報到"
+        description="婚宴當天逐組記錄實際到場人數；報到不會改寫賓客的出席回覆，兩邊各自保留。"
+        activeSection="check-in"
+        readOnlyNotice="你目前是唯讀成員，可以查看報到狀況，但不能報到或調整人數。"
+      >
+        <GuestCheckInBoard
+          workspaceId="workspace_rwd"
+          canEdit={false}
+          guests={Array.from({ length: 6 }, (_, index) =>
+            checkInGuestFixture(index),
+          )}
+          tables={Array.from({ length: 3 }, (_, index) =>
+            checkInTableFixture(index),
+          )}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
+    name: "check-in-empty",
+    element: (
+      <WorkspacePage
+        sectionTitle="賓客報到"
+        description="婚宴當天逐組記錄實際到場人數；報到不會改寫賓客的出席回覆，兩邊各自保留。"
+        activeSection="check-in"
+      >
+        <GuestCheckInBoard
+          workspaceId="workspace_rwd"
+          canEdit
+          guests={[]}
+          tables={[]}
         />
       </WorkspacePage>
     ),
@@ -430,14 +714,17 @@ const surfaces: { name: string; element: ReactNode }[] = [
             guests: [
               {
                 id: `seated_${index}_a`,
+                version: 1,
                 name: LONG_NAME.slice(0, 24),
                 partySize: 6,
                 side: "PARTNER_A" as const,
                 notes: index === 0 ? "素食，需兒童椅\n靠近走道" : null,
                 childSeatCount: index === 0 ? 2 : null,
+                vegetarianCount: index === 0 ? 3 : null,
               },
               {
                 id: `seated_${index}_b`,
+                version: 1,
                 name: "王小明",
                 partySize: 3,
                 // 混坐的桌子在圖上要標成「共同」，稽核要有這個樣本。
@@ -449,6 +736,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                 ? [
                     {
                       id: `seated_${index}_c`,
+                      version: 1,
                       name: "親友賓客甲",
                       partySize: 2,
                       side: "PARTNER_A" as const,
@@ -457,6 +745,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
                     },
                     {
                       id: `seated_${index}_d`,
+                      version: 1,
                       name: "親友賓客乙",
                       partySize: 1,
                       side: "PARTNER_B" as const,
@@ -521,6 +810,8 @@ const surfaces: { name: string; element: ReactNode }[] = [
                     workspaceId="workspace_rwd"
                     guestId={`assigned_guest_${index}`}
                     guestName={name}
+                    guestVersion={0}
+                    seatingTableId="table_1"
                   />
                 </div>
               </li>
@@ -557,6 +848,28 @@ const surfaces: { name: string; element: ReactNode }[] = [
     ),
   },
   {
+    name: "handoffs",
+    element: <WorkspacePage sectionTitle="總召交辦" description="集中記錄總召協助事項。" activeSection="staff">
+      <HandoffBoard workspaceId="workspace_rwd" canEdit data={{
+        role: "OWNER", workspace: { id: "workspace_rwd", name: "測試婚宴" },
+        staff: [{ id: "staff", roleName: "總召", personName: LONG_NAME }],
+        timeline: [{ id: "flow", title: LONG_NAME, startMinute: 720 }],
+        items: [{ id: "handoff", title: LONG_NAME, details: LONG_URL_ISH, phase: "EVENT_DAY", status: "PENDING", dueAt: new Date("2026-09-20T04:00:00Z"), staffId: "staff", timelineItemId: "flow", version: 0 }],
+      }} />
+    </WorkspacePage>,
+  },
+  {
+    name: "handoffs-editor",
+    element: <WorkspacePage sectionTitle="總召交辦" description="集中記錄總召協助事項。" activeSection="staff">
+      <HandoffBoard workspaceId="workspace_rwd" canEdit defaultCreateOpen data={{
+        role: "OWNER", workspace: { id: "workspace_rwd", name: "測試婚宴" },
+        staff: [{ id: "staff", roleName: "總召", personName: LONG_NAME }],
+        timeline: [{ id: "flow", title: LONG_NAME, startMinute: 720 }],
+        items: [{ id: "handoff", title: LONG_NAME, details: LONG_URL_ISH, phase: "EVENT_DAY", status: "PENDING", dueAt: new Date("2026-09-20T04:00:00Z"), staffId: "staff", timelineItemId: "flow", version: 0 }],
+      }} />
+    </WorkspacePage>,
+  },
+  {
     name: "staff",
     element: (
       <WorkspacePage
@@ -573,7 +886,14 @@ const surfaces: { name: string; element: ReactNode }[] = [
             personName: index === 0 ? LONG_NAME.slice(0, 30) : `人員 ${index}`,
             contactPhone: index % 2 === 0 ? "0912-345-678" : null,
             notes: index === 0 ? LONG_URL_ISH : null,
+            // 個人 1 份、廠商團隊多份含素食、部分不需要便當，三種都要量到。
+            mealCount: index === 0 ? 12 : index % 3 === 1 ? 1 : null,
+            vegetarianMealCount: index === 0 ? 4 : index % 3 === 1 ? 0 : null,
+            redEnvelopeAmount: index % 2 === 0 ? 2_147_483_647 : 3600,
+            redEnvelopeSentAt: index % 4 === 0 ? new Date(2026, 8, 1) : null,
             version: 1,
+            timelineAssignmentFingerprint:
+              `vowbook-staff-timeline-v1:${"0".repeat(64)}`,
           }))}
         />
       </WorkspacePage>
@@ -696,10 +1016,15 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
     element: (
       <WorkspacePage
         sectionTitle="賓客名單"
-        description="整理邀請名單、出席回覆與入席人數。"
+        description="整理邀請名單、宴席需求與禮金簿。"
         activeSection="guests"
-        readOnlyNotice="你目前是唯讀成員，可以查看賓客名單，但不能新增或編輯。"
+        readOnlyNotice="你目前是唯讀成員，可以查看名單與禮金簿，但不能新增或編輯。"
       >
+        <WeddingGiftBook
+          workspaceId="workspace_rwd"
+          canEdit={false}
+          guests={Array.from({ length: 4 }, (_, index) => guestFixture(index))}
+        />
         <GuestList
           workspaceId="workspace_rwd"
           canEdit={false}
@@ -713,9 +1038,15 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
     element: (
       <WorkspacePage
         sectionTitle="賓客名單"
-        description="整理邀請名單、出席回覆與入席人數。"
+        description="整理邀請名單、宴席需求與禮金簿。"
         activeSection="guests"
       >
+        <WeddingGiftBook
+          workspaceId="workspace_rwd"
+          canEdit
+          defaultExpanded
+          guests={[]}
+        />
         <GuestList workspaceId="workspace_rwd" canEdit guests={[]} />
       </WorkspacePage>
     ),
@@ -746,6 +1077,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
               guests: [
                 {
                   id: "seated_a",
+                  version: 1,
                   name: LONG_NAME.slice(0, 24),
                   partySize: 6,
                   side: "SHARED" as const,
@@ -837,6 +1169,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                 ? [
                     {
                       id: `plan_seated_${index}`,
+                      version: 1,
                       name: "王小明",
                       partySize: 5,
                       side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[
@@ -844,9 +1177,11 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                       ],
                       notes: null,
                       childSeatCount: index === 0 ? 2 : null,
+                vegetarianCount: index === 0 ? 3 : null,
                     },
                     {
                       id: `plan_seated_${index}_b`,
+                      version: 1,
                       name: "林小美",
                       partySize: 3,
                       side: (["PARTNER_A", "PARTNER_B", "PARTNER_A"] as const)[
@@ -897,6 +1232,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
                       ],
                       notes: null,
                       childSeatCount: index === 0 ? 2 : null,
+                vegetarianCount: index === 0 ? 3 : null,
                     },
                   ]
                 : [],
@@ -941,7 +1277,13 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
               personName: LONG_NAME.slice(0, 30),
               contactPhone: "0912-345-678",
               notes: LONG_URL_ISH,
+              mealCount: 12,
+              vegetarianMealCount: 4,
+              redEnvelopeAmount: 6000,
+              redEnvelopeSentAt: null,
               version: 1,
+              timelineAssignmentFingerprint:
+                `vowbook-staff-timeline-v1:${"0".repeat(64)}`,
             },
           ]}
         />
@@ -1016,8 +1358,11 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
             actualTotal: "0",
             balanceDueTotal: "0",
             balanceDueCount: 0,
+            overdueBalanceDueCount: 0,
             balanceDueMissingAmountCount: 0,
-            nearestBalanceDueDate: null,
+            nearestUpcomingBalanceDueDate: null,
+            selfProvidedCount: 0,
+            notPlannedCount: 0,
           }}
         />
       </WorkspacePage>

@@ -5,17 +5,29 @@ const {
   requireWorkspaceAccess,
   findMany,
   tableFindMany,
+  transaction,
 } = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   requireWorkspaceAccess: vi.fn(),
   findMany: vi.fn(),
   tableFindMany: vi.fn(),
+  transaction: vi.fn(),
 }));
+
+const transactionClient = {
+  membership: { findUnique: vi.fn() },
+  guest: { findMany },
+  seatingTable: { findMany: tableFindMany },
+};
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
 vi.mock("@/lib/workspace-access", () => ({ requireWorkspaceAccess }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { guest: { findMany }, seatingTable: { findMany: tableFindMany } },
+  prisma: {
+    guest: { findMany },
+    seatingTable: { findMany: tableFindMany },
+    $transaction: transaction,
+  },
 }));
 
 import { GuestDataError, listGuestsForWorkspace } from "./guest-list";
@@ -30,9 +42,12 @@ describe("listGuestsForWorkspace", () => {
     });
     findMany.mockResolvedValue([]);
     tableFindMany.mockResolvedValue([]);
+    transaction.mockImplementation(async (operation) =>
+      operation(transactionClient),
+    );
   });
 
-  it("authorizes before querying and gives VIEWER only non-PII provenance markers", async () => {
+  it("authorizes in the same RepeatableRead snapshot before tenant queries and gives VIEWER only non-PII provenance markers", async () => {
     findMany.mockResolvedValue([
       {
         id: "guest_1",
@@ -45,6 +60,16 @@ describe("listGuestsForWorkspace", () => {
         partySize: 2,
         notes: null,
         seatingTable: null,
+        weddingGift: {
+          id: "gift_viewer",
+          amount: 3600,
+          notes: "共同收禮桌",
+          createdAt: new Date("2026-08-30T02:00:00.000Z"),
+          returnGiftSentAt: null,
+          returnGiftNote: null,
+          version: 2,
+        },
+        checkIn: { id: "check_in_viewer", headcount: 2, version: 1 },
         importRecords: [
           {
             id: "viewer_record_formstack",
@@ -77,6 +102,16 @@ describe("listGuestsForWorkspace", () => {
           partySize: 2,
           notes: null,
           seatingTable: null,
+          weddingGift: {
+            id: "gift_viewer",
+            amount: 3600,
+            notes: "共同收禮桌",
+            createdAt: new Date("2026-08-30T02:00:00.000Z"),
+            returnGiftSentAt: null,
+            returnGiftNote: null,
+            version: 2,
+          },
+          checkIn: { id: "check_in_viewer", headcount: 2, version: 1 },
           details: null,
           importRecords: [
             {
@@ -105,12 +140,17 @@ describe("listGuestsForWorkspace", () => {
       "workspace_1",
       "session_user",
       "read",
+      transactionClient,
     );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
+    });
     expect(findMany).toHaveBeenCalledWith({
       where: { workspaceId: "workspace_1" },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
         id: true,
+        giftExemptWithCake: true,
         version: true,
         name: true,
         category: true,
@@ -121,6 +161,19 @@ describe("listGuestsForWorkspace", () => {
         notes: true,
         // id 是拿來對照桌號的：桌號由整份桌次清單的順位推導，不在這一列裡。
         seatingTable: { select: { id: true, name: true } },
+        weddingGift: {
+          select: {
+            id: true,
+            amount: true,
+            notes: true,
+            createdAt: true,
+            returnGiftSentAt: true,
+            returnGiftNote: true,
+            version: true,
+          },
+        },
+        // 刪除賓客會 cascade 報到紀錄，所以刪除前必須先讓操作者看到它。
+        checkIn: { select: { id: true, headcount: true, version: true } },
         importRecords: {
           orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
           select: {
@@ -138,11 +191,34 @@ describe("listGuestsForWorkspace", () => {
     expect(viewerSelect).not.toHaveProperty("contactEmail");
     expect(viewerSelect).not.toHaveProperty("mailingAddress");
     expect(viewerSelect).not.toHaveProperty("guestMessage");
+    const giftSelect = findMany.mock.calls[0][0].select.weddingGift.select;
+    expect(giftSelect).toEqual({
+      id: true,
+      amount: true,
+      notes: true,
+      createdAt: true,
+      returnGiftSentAt: true,
+      returnGiftNote: true,
+      version: true,
+    });
+    expect(giftSelect).not.toHaveProperty("workspaceId");
+    expect(giftSelect).not.toHaveProperty("guestId");
+    const checkInSelect = findMany.mock.calls[0][0].select.checkIn.select;
+    expect(checkInSelect).toEqual({ id: true, headcount: true, version: true });
+    expect(checkInSelect).not.toHaveProperty("workspaceId");
+    expect(checkInSelect).not.toHaveProperty("guestId");
+    expect(checkInSelect).not.toHaveProperty("notes");
     expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
       requireWorkspaceAccess.mock.invocationCallOrder[0],
     );
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       findMany.mock.invocationCallOrder[0],
+    );
+    expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      tableFindMany.mock.invocationCallOrder[0],
     );
   });
 

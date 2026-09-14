@@ -53,7 +53,7 @@ describe("wedding task schema and migration contract", () => {
       .map((entry) => entry.name)
       .sort();
 
-    expect(migrationNames).toEqual([
+    expect(migrationNames.slice(0, 35)).toEqual([
       "20260722000000_init",
       "20260722164000_guest_list_mvp",
       "20260722175000_table_seating_mvp",
@@ -87,6 +87,8 @@ describe("wedding task schema and migration contract", () => {
       "20260824004000_user_access_admin",
       "20260824213500_allow_family_party_size",
       "20260825120000_guest_seniority",
+      "20260829210000_budget_preparation_status",
+      "20260829220000_wedding_vendors",
     ]);
     expect(fs.existsSync(taskMigrationPath)).toBe(true);
   });

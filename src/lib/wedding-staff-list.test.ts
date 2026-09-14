@@ -1,19 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
+import { weddingStaffTimelineAssignmentFingerprint } from "@/domain/wedding-staff-timeline-snapshot";
 
-const { requireCurrentUser, requireWorkspaceAccess, findMany } = vi.hoisted(
+const { requireCurrentUser, requireWorkspaceAccess, findMany, transaction } = vi.hoisted(
   () => ({
     requireCurrentUser: vi.fn(),
     requireWorkspaceAccess: vi.fn(),
     findMany: vi.fn(),
+    transaction: vi.fn(),
   }),
 );
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
 vi.mock("@/lib/workspace-access", () => ({ requireWorkspaceAccess }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { weddingStaffAssignment: { findMany } },
+  prisma: {
+    $transaction: transaction,
+    weddingStaffAssignment: { findMany },
+  },
 }));
+
+const transactionClient = {
+  membership: { findUnique: vi.fn() },
+  weddingStaffAssignment: { findMany },
+};
 
 import {
   getWeddingStaffList,
@@ -29,6 +39,9 @@ describe("getWeddingStaffList", () => {
       workspace: { id: "workspace_1", name: "合成婚宴" },
     });
     findMany.mockResolvedValue([]);
+    transaction.mockImplementation(async (operation) =>
+      operation(transactionClient),
+    );
   });
 
   it("authorizes before a tenant-scoped deterministic read", async () => {
@@ -41,7 +54,11 @@ describe("getWeddingStaffList", () => {
       "workspace_1",
       "session_user",
       "read",
+      transactionClient,
     );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "RepeatableRead",
+    });
     expect(findMany).toHaveBeenCalledWith({
       where: { workspaceId: "workspace_1" },
       orderBy: [
@@ -56,10 +73,21 @@ describe("getWeddingStaffList", () => {
         personName: true,
         contactPhone: true,
         notes: true,
+        mealCount: true,
+        vegetarianMealCount: true,
+        redEnvelopeAmount: true,
+        redEnvelopeSentAt: true,
         version: true,
+        timelineAssignments: {
+          orderBy: [{ timelineItemId: "asc" }],
+          select: { timelineItemId: true },
+        },
       },
     });
     expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
       requireWorkspaceAccess.mock.invocationCallOrder[0],
     );
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
@@ -76,6 +104,10 @@ describe("getWeddingStaffList", () => {
         contactPhone: "0912 345 678",
         notes: "熟悉流程",
         version: 3,
+        timelineAssignments: [
+          { timelineItemId: "timeline_2" },
+          { timelineItemId: "timeline_1" },
+        ],
       },
     ]);
     const data = await getWeddingStaffList("workspace_1");
@@ -87,18 +119,34 @@ describe("getWeddingStaffList", () => {
         contactPhone: "0912 345 678",
         notes: "熟悉流程",
         version: 3,
+        timelineAssignmentFingerprint:
+          weddingStaffTimelineAssignmentFingerprint([
+            "timeline_2",
+            "timeline_1",
+          ]),
       },
     ]);
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
 
-  it("preserves outsider denial and sanitizes database failures", async () => {
+  it("denies a membership revoked at the transaction boundary before staff PII is read", async () => {
     requireWorkspaceAccess.mockRejectedValueOnce(
       new WorkspaceAccessDeniedError(),
     );
     await expect(
       getWeddingStaffList("workspace_secret"),
     ).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
+    expect(findMany).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
+  });
+
+  it("sanitizes membership infrastructure and database failures", async () => {
+    requireWorkspaceAccess.mockRejectedValueOnce(
+      new Error("membership database secret"),
+    );
+    await expect(getWeddingStaffList("workspace_1")).rejects.toEqual(
+      new WeddingStaffDataError("目前無法載入婚禮工作人員，請稍後再試。"),
+    );
     expect(findMany).not.toHaveBeenCalled();
 
     requireWorkspaceAccess.mockResolvedValueOnce({

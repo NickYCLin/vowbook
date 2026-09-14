@@ -8,6 +8,12 @@ import {
   type WorkspaceOverviewStats,
 } from "@/lib/workspace-overview";
 import { WorkspaceOwnerControls } from "./workspace-owner-controls";
+import {
+  workspaceSectionHref,
+  workspaceSections,
+  type WorkspaceSection,
+  type WorkspaceSectionIcon,
+} from "./workspace-sections";
 
 const roleLabels: Record<MembershipRole, string> = {
   OWNER: "擁有者",
@@ -25,7 +31,10 @@ const roleTones: Record<MembershipRole, "brand" | "sage" | "neutral"> = {
 
 type WorkspaceSummaryProps = {
   role: MembershipRole;
-  workspace: WeddingWorkspace;
+  workspace: Pick<
+    WeddingWorkspace,
+    "id" | "name" | "weddingDate" | "timezone" | "updatedAt"
+  >;
   stats?: WorkspaceOverviewStats;
   now?: Date;
 };
@@ -34,13 +43,22 @@ function percent(value: number, total: number): number {
   return total > 0 ? Math.round((value / total) * 100) : 0;
 }
 
-function ModuleLink({ href, children }: { href: string; children: string }) {
+function ModuleLink({
+  href,
+  icon: Icon,
+  children,
+}: {
+  href: string;
+  icon: WorkspaceSectionIcon;
+  children: string;
+}) {
   return (
     <Link
       href={href}
-      className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-3 text-caption font-semibold whitespace-nowrap text-clay-strong transition hover:border-clay hover:bg-clay-soft sm:min-h-9"
+      className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-3 text-caption font-semibold whitespace-nowrap text-clay-strong transition hover:border-clay hover:bg-clay-soft max-sm:min-w-0 max-sm:rounded-control max-sm:px-3.5 sm:min-h-9"
     >
-      {children}
+      <Icon aria-hidden="true" className="size-4.5 shrink-0 text-clay" />
+      <span className="min-w-0 truncate">{children}</span>
     </Link>
   );
 }
@@ -57,20 +75,29 @@ export function WorkspaceSummary({
         timeZone: workspace.timezone,
       }).format(workspace.weddingDate)
     : "日期尚未決定";
-  const countdown = daysUntilWedding(workspace.weddingDate, now);
+  const countdown = daysUntilWedding(
+    workspace.weddingDate,
+    now,
+    workspace.timezone,
+  );
 
-  const modules = [
-    { href: `/workspaces/${workspace.id}/guests`, label: "開啟賓客名單" },
-    { href: `/workspaces/${workspace.id}/tables`, label: "安排桌次" },
-    { href: `/workspaces/${workspace.id}/tasks`, label: "婚宴任務" },
-    { href: `/workspaces/${workspace.id}/budget`, label: "管理婚禮花費" },
-    { href: `/workspaces/${workspace.id}/staff`, label: "婚禮工作人員" },
-    { href: `/workspaces/${workspace.id}/timeline`, label: "婚禮總流程" },
-    {
-      href: `/workspaces/${workspace.id}/members`,
-      label: role === "OWNER" ? "分享與協作" : "查看協作者",
-    },
-  ];
+  const moduleLabels: Partial<Record<WorkspaceSection, string>> = {
+    overview: "查看婚宴總覽",
+    guests: "開啟賓客名單",
+    tables: "安排桌次",
+    tasks: "婚宴任務",
+    budget: "管理婚禮花費",
+    staff: "婚禮工作人員",
+    timeline: "婚禮總流程",
+    members: role === "OWNER" ? "分享與協作" : "查看協作者",
+  };
+  // 報到與禮金是婚宴當天的入口，總覽卡片維持籌備期的八個模組。
+  const modules = workspaceSections.flatMap((section) => {
+    const label = moduleLabels[section.key];
+    return label
+      ? [{ href: workspaceSectionHref(workspace.id, section), label, icon: section.icon }]
+      : [];
+  });
 
   const budgetRatio = percent(stats?.budgetActual ?? 0, stats?.budgetPlanned ?? 0);
 
@@ -138,9 +165,10 @@ export function WorkspaceSummary({
           </div>
         )}
 
-        <div className="mt-5 flex min-w-0 flex-wrap gap-2 border-t border-line pt-5">
+        {/* 手機排成兩欄的入口列，比九顆藥丸籤更好點也更整齊。 */}
+        <div className="mt-5 grid min-w-0 grid-cols-2 gap-2 border-t border-line pt-5 sm:flex sm:flex-wrap">
           {modules.map((module) => (
-            <ModuleLink key={module.href} href={module.href}>
+            <ModuleLink key={module.href} href={module.href} icon={module.icon}>
               {module.label}
             </ModuleLink>
           ))}

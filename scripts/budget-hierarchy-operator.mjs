@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { createHash } from "node:crypto";
 import { constants as fileConstants } from "node:fs";
 import { open, realpath } from "node:fs/promises";
@@ -62,6 +60,7 @@ const FIXED_TAXONOMY_STAGES = [
       ["ITEM_INVITATIONS_POSTAGE", "印喜帖及寄送", "DECOR_GIFTS"],
       ["ITEM_BEAUTY_TREATMENTS", "保養療程", "ATTIRE_STYLING"],
       ["ITEM_WEDDING_FAVORS", "婚禮小物", "DECOR_GIFTS"],
+      ["ITEM_STAFF_RED_ENVELOPES", "工作人員紅包", "PEOPLE_SERVICES"],
     ],
   },
   {

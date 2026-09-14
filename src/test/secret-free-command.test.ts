@@ -16,6 +16,26 @@ const runner = path.join(
   "scripts",
   "secret-free-command.mjs",
 );
+const WINDOWS_FIXTURE_READY_TIMEOUT_MS = 10_000;
+
+function hiddenHoldNames(parentPath: string): Set<string> {
+  return new Set(
+    readdirSync(parentPath).filter((name) =>
+      name.startsWith(".vowbook-dotenv-hidden-"),
+    ),
+  );
+}
+
+function addedHiddenHoldNames(
+  parentPath: string,
+  before: ReadonlySet<string>,
+): string[] {
+  return [...hiddenHoldNames(parentPath)].filter((name) => !before.has(name));
+}
+
+function fixtureReadyTimeout(): number {
+  return process.platform === "win32" ? WINDOWS_FIXTURE_READY_TIMEOUT_MS : 2_000;
+}
 
 function sandbox(): string {
   const root = mkdtempSync(path.join(tmpdir(), "vowbook-secret-free-test-"));
@@ -48,6 +68,8 @@ afterEach(() => {
 describe("secret-free command runner", () => {
   it("hides root environment files from the child then restores every file on success", () => {
     const root = sandbox();
+    const parent = path.dirname(root);
+    const hiddenBefore = hiddenHoldNames(parent);
 
     const result = run(
       root,
@@ -57,15 +79,15 @@ describe("secret-free command runner", () => {
     expect(result.status).toBe(0);
     expect(readdirSync(root)).toContain(".env");
     expect(readdirSync(root)).toContain(".env.local");
-    expect(
-      readdirSync(path.dirname(root)).filter((name) =>
-        name.startsWith(".vowbook-dotenv-hidden-"),
-      ),
-    ).toEqual([]);
+    expect(addedHiddenHoldNames(parent, hiddenBefore)).toEqual([]);
   });
 
-  it("keeps files isolated until a SIGTERM-stopped child has exited, then restores them", async () => {
+  it.skipIf(process.platform === "win32")(
+    "keeps files isolated until a SIGTERM-stopped child has exited, then restores them",
+    async () => {
     const root = sandbox();
+    const parent = path.dirname(root);
+    const hiddenBefore = hiddenHoldNames(parent);
     const child = spawn(
       process.execPath,
       [
@@ -106,14 +128,69 @@ describe("secret-free command runner", () => {
     expect(result).toEqual({ code: 143, signal: null });
     expect(readdirSync(root)).toContain(".env");
     expect(readdirSync(root)).toContain(".env.local");
-    expect(
-      readdirSync(path.dirname(root)).filter((name) =>
-        name.startsWith(".vowbook-dotenv-hidden-"),
-      ),
-    ).toEqual([]);
-  });
+      expect(addedHiddenHoldNames(parent, hiddenBefore)).toEqual([]);
+    },
+  );
 
-  it("keeps root environment files hidden until SIGTERM-ignoring group descendants are gone", async () => {
+  it.skipIf(process.platform !== "win32")(
+    "fails closed when Windows forcibly terminates the wrapper",
+    async () => {
+      const root = sandbox();
+      const parent = path.dirname(root);
+      const hiddenBefore = hiddenHoldNames(parent);
+      const child = spawn(
+        process.execPath,
+        [
+          runner,
+          "--root",
+          root,
+          "--",
+          process.execPath,
+          "-e",
+          'const fs = require("node:fs"); fs.writeFileSync("child-ready", "ready"); setInterval(() => {}, 1000);',
+        ],
+        { stdio: "ignore" },
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        const deadline = setTimeout(
+          () => reject(new Error("secret-free child did not become ready")),
+          fixtureReadyTimeout(),
+        );
+        const poll = () => {
+          if (readdirSync(root).includes("child-ready")) {
+            clearTimeout(deadline);
+            resolve();
+            return;
+          }
+          setTimeout(poll, 10);
+        };
+        poll();
+      });
+
+      child.kill("SIGTERM");
+      const result = await new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }>((resolve) => {
+        child.once("close", (code, signal) => resolve({ code, signal }));
+      });
+
+      expect(result).toEqual({ code: null, signal: "SIGTERM" });
+      expect(readdirSync(root)).not.toContain(".env");
+      expect(readdirSync(root)).not.toContain(".env.local");
+      const addedHolds = addedHiddenHoldNames(parent, hiddenBefore);
+      expect(addedHolds).toHaveLength(1);
+      for (const holdName of addedHolds) {
+        rmSync(path.join(parent, holdName), { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "keeps root environment files hidden until SIGTERM-ignoring group descendants are gone",
+    async () => {
     const root = sandbox();
     const descendantPidPath = path.join(root, "descendant.pid");
     const descendantSource =
@@ -189,9 +266,13 @@ describe("secret-free command runner", () => {
         }
       }
     }
-  }, 8_000);
+    },
+    8_000,
+  );
 
-  it("keeps root environment files hidden until normal-exit group descendants are gone", async () => {
+  it.skipIf(process.platform === "win32")(
+    "keeps root environment files hidden until normal-exit group descendants are gone",
+    async () => {
     const root = sandbox();
     const descendantSource = [
       'const fs = require("node:fs");',
@@ -221,7 +302,7 @@ describe("secret-free command runner", () => {
     await new Promise<void>((resolve, reject) => {
       const deadline = setTimeout(
         () => reject(new Error("normal-exit descendant did not become ready")),
-        2_000,
+        fixtureReadyTimeout(),
       );
       const poll = () => {
         if (readdirSync(root).includes("normal-descendant-ready")) {
@@ -242,12 +323,18 @@ describe("secret-free command runner", () => {
     });
     expect(result).toEqual({ code: 0, signal: null });
     await new Promise<void>((resolve, reject) => {
+      let settled = false;
       const deadline = setTimeout(
-        () => reject(new Error("normal-exit descendant did not record visibility")),
-        2_000,
+        () => {
+          settled = true;
+          reject(new Error("normal-exit descendant did not record visibility"));
+        },
+        fixtureReadyTimeout(),
       );
       const poll = () => {
+        if (settled) return;
         if (readdirSync(root).includes("normal-descendant-visible")) {
+          settled = true;
           clearTimeout(deadline);
           resolve();
           return;
@@ -261,7 +348,9 @@ describe("secret-free command runner", () => {
     );
     expect(readdirSync(root)).toContain(".env");
     expect(readdirSync(root)).toContain(".envrc");
-  });
+    },
+    20_000,
+  );
 
   it.skipIf(process.platform !== "linux")(
     "keeps root environment files hidden for a setsid daemon after its parent exits",
@@ -308,7 +397,9 @@ describe("secret-free command runner", () => {
     4_000,
   );
 
-  it("serializes concurrent commands in one root until the first child has restored files", async () => {
+  it.skipIf(process.platform === "win32")(
+    "serializes concurrent commands in one root until the first child has restored files",
+    async () => {
     const root = sandbox();
     const first = spawn(
       process.execPath,
@@ -382,20 +473,19 @@ describe("secret-free command runner", () => {
       first.kill("SIGKILL");
       second?.kill("SIGKILL");
     }
-  });
+    },
+  );
 
   it("restores root environment files after a child failure", () => {
     const root = sandbox();
+    const parent = path.dirname(root);
+    const hiddenBefore = hiddenHoldNames(parent);
 
     const result = run(root, "process.exit(7);");
 
     expect(result.status).toBe(7);
     expect(readdirSync(root)).toContain(".env");
     expect(readdirSync(root)).toContain(".env.local");
-    expect(
-      readdirSync(path.dirname(root)).filter((name) =>
-        name.startsWith(".vowbook-dotenv-hidden-"),
-      ),
-    ).toEqual([]);
+    expect(addedHiddenHoldNames(parent, hiddenBefore)).toEqual([]);
   });
 });

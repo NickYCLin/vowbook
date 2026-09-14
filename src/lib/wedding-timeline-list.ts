@@ -46,6 +46,12 @@ type TimelineRecord = {
 };
 
 type TimelineTransaction = {
+  membership: {
+    findUnique(args: unknown): Promise<{
+      role: string;
+      workspace: Pick<WeddingWorkspace, "id" | "name">;
+    } | null>;
+  };
   weddingTimelineItem: {
     findMany(args: unknown): Promise<TimelineRecord[]>;
   };
@@ -74,21 +80,24 @@ const staffSelect = {
   personName: true,
 };
 
-const timelineSelect = {
-  id: true,
-  startMinute: true,
-  endMinute: true,
-  phase: true,
-  title: true,
-  location: true,
-  details: true,
-  mediaCue: true,
-  notes: true,
-  version: true,
-  staffAssignments: {
-    select: { staffAssignment: { select: staffSelect } },
-  },
-};
+function timelineSelect(workspaceId: string) {
+  return {
+    id: true,
+    startMinute: true,
+    endMinute: true,
+    phase: true,
+    title: true,
+    location: true,
+    details: true,
+    mediaCue: true,
+    notes: true,
+    version: true,
+    staffAssignments: {
+      where: { workspaceId },
+      select: { staffAssignment: { select: staffSelect } },
+    },
+  };
+}
 
 function compareStaff(
   left: WeddingTimelineStaffOption,
@@ -124,20 +133,14 @@ function itemViewModel(record: TimelineRecord): WeddingTimelineListItem {
 
 export async function getWeddingTimelinePageData(workspaceId: string) {
   const currentUser = await requireCurrentUser();
-  let access;
-  try {
-    access = await requireWorkspaceAccess<
-      Pick<WeddingWorkspace, "id" | "name">
-    >(workspaceId, currentUser.id, "read");
-  } catch (error) {
-    if (error instanceof WorkspaceAccessDeniedError) throw error;
-    throw new WeddingTimelineDataError();
-  }
+  const timelinePrisma = prisma as unknown as TimelinePrismaClient;
 
   try {
-    const timelinePrisma = prisma as unknown as TimelinePrismaClient;
-    const snapshot = await timelinePrisma.$transaction(
+    return await timelinePrisma.$transaction(
       async (transaction) => {
+        const access = await requireWorkspaceAccess<
+          Pick<WeddingWorkspace, "id" | "name">
+        >(workspaceId, currentUser.id, "read", transaction);
         const [items, staff] = await Promise.all([
           transaction.weddingTimelineItem.findMany({
             where: { workspaceId },
@@ -147,7 +150,7 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
               { createdAt: "asc" },
               { id: "asc" },
             ],
-            select: timelineSelect,
+            select: timelineSelect(workspaceId),
           }),
           transaction.weddingStaffAssignment.findMany({
             where: { workspaceId },
@@ -160,18 +163,17 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
             select: staffSelect,
           }),
         ]);
-        return { items, staff };
+        return {
+          role: access.role,
+          workspace: { id: access.workspace.id, name: access.workspace.name },
+          items: items.map(itemViewModel),
+          staff,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
-
-    return {
-      role: access.role,
-      workspace: { id: access.workspace.id, name: access.workspace.name },
-      items: snapshot.items.map(itemViewModel),
-      staff: snapshot.staff,
-    };
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkspaceAccessDeniedError) throw error;
     throw new WeddingTimelineDataError();
   }
 }

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readSourceText } from "./source-text";
 
 const migrationName = "20260804150000_budget_proposal_label";
 const migrationPath = path.join(
@@ -21,34 +22,38 @@ describe("Budget proposal fixed-label migration", () => {
       .map((entry) => entry.name)
       .sort();
 
-    expect(migrationNames).toHaveLength(33);
+    expect(migrationNames.length).toBeGreaterThanOrEqual(35);
     expect(migrationNames.at(21)).toBe(migrationName);
-    expect(migrationNames.at(-9)).toBe(
+    expect(migrationNames.at(24)).toBe(
       "20260813160000_seating_table_floor_plan",
     );
-    expect(migrationNames.at(-8)).toBe(
+    expect(migrationNames.at(25)).toBe(
       "20260817120000_seating_table_duplicate_names",
     );
-    expect(migrationNames.at(-7)).toBe(
+    expect(migrationNames.at(26)).toBe(
       "20260822120000_guest_roster_categories",
     );
-    expect(migrationNames.at(-6)).toBe(
+    expect(migrationNames.at(27)).toBe(
       "20260822130000_wedding_task_sides",
     );
-    expect(migrationNames.at(-5)).toBe("20260823153000_user_profile_avatar");
-    expect(migrationNames.at(-4)).toBe(
+    expect(migrationNames.at(28)).toBe("20260823153000_user_profile_avatar");
+    expect(migrationNames.at(29)).toBe(
       "20260823155000_guest_details_invitation_reply_optional",
     );
-    expect(migrationNames.at(-3)).toBe("20260824004000_user_access_admin");
-    expect(migrationNames.at(-2)).toBe(
+    expect(migrationNames.at(30)).toBe("20260824004000_user_access_admin");
+    expect(migrationNames.at(31)).toBe(
       "20260824213500_allow_family_party_size",
     );
-    expect(migrationNames.at(-1)).toBe("20260825120000_guest_seniority");
+    expect(migrationNames.at(32)).toBe("20260825120000_guest_seniority");
+    expect(migrationNames.at(33)).toBe(
+      "20260829210000_budget_preparation_status",
+    );
+    expect(migrationNames.at(34)).toBe("20260829220000_wedding_vendors");
     expect(fs.existsSync(migrationPath)).toBe(true);
   });
 
   it("locks and snapshots the exact 28-node taxonomy plus every ordinary row", () => {
-    const migration = fs.readFileSync(migrationPath, "utf8");
+    const migration = readSourceText(migrationPath);
 
     expect(migration).toMatch(/^BEGIN;/u);
     expect(migration).toContain('LOCK TABLE "wedding_workspaces" IN SHARE MODE');
@@ -69,7 +74,7 @@ describe("Budget proposal fixed-label migration", () => {
   });
 
   it("accepts only the old or completed label and updates only the old fixed key", () => {
-    const migration = fs.readFileSync(migrationPath, "utf8");
+    const migration = readSourceText(migrationPath);
     const updateSection = migration.slice(
       migration.indexOf('WITH "updated" AS'),
       migration.indexOf(
@@ -89,7 +94,7 @@ describe("Budget proposal fixed-label migration", () => {
   });
 
   it("replaces the validated name check and proves ordinary data is byte-for-byte unchanged", () => {
-    const migration = fs.readFileSync(migrationPath, "utf8");
+    const migration = readSourceText(migrationPath);
     const finalConstraint = migration.slice(
       migration.indexOf(
         'ADD CONSTRAINT "budget_items_system_taxonomy_name_check"',

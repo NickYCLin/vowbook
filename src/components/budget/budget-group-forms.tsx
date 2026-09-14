@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import {
+  clearBudgetCeremonyStageAction,
   createBudgetGroupAction,
   deleteBudgetGroupSubtreeAction,
   dissolveBudgetGroupAction,
@@ -10,8 +11,11 @@ import {
 } from "@/actions/budget-items";
 import {
   BUDGET_TAXONOMY_STAGES,
+  normalizeBudgetGroupDetails,
   type BudgetTaxonomyItemKey,
 } from "@/domain/budget-item";
+import { budgetCeremonyShortLabel } from "@/domain/budget-ceremony-stage";
+import type { BudgetCeremonyStageCleanup } from "@/lib/budget-list";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
 
 const initialState: BudgetItemMutationState = { status: "idle" };
@@ -324,6 +328,7 @@ export function EditBudgetGroupDialog({
   expectedVersion,
   breadcrumb = [name],
   onSuccess,
+  onUpdated,
   onPendingChange,
 }: {
   workspaceId: string;
@@ -331,6 +336,7 @@ export function EditBudgetGroupDialog({
   name: string;
   expectedVersion: number;
   breadcrumb?: string[];
+  onUpdated?: (snapshot: { name: string; version: number }) => void;
 } & GroupDialogCallbacks) {
   const idPrefix = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -353,6 +359,14 @@ export function EditBudgetGroupDialog({
       setShowSuccessFeedback(false);
       const nextState = await updateAction(previousState, formData);
       if (nextState.status === "success") {
+        const updatedGroup = normalizeBudgetGroupDetails({
+          name: formData.get("name"),
+        });
+        const submittedVersion = Number(formData.get("expectedVersion"));
+        onUpdated?.({
+          name: updatedGroup.name,
+          version: submittedVersion + 1,
+        });
         setDraftOverride(null);
         setShowSuccessFeedback(true);
         onSuccess?.(nextState.message ?? "已更新群組。");
@@ -572,6 +586,193 @@ export function DissolveBudgetGroupForm({
         </form>
       </div>
     </details>
+  );
+}
+
+/**
+ * 已宣告沒有這場中式儀式、卻還留著資料的階段。階段本身已從清單隱藏，
+ * 這張卡片是唯一還看得到那些項目的地方，所以必須寫清楚剩幾筆。
+ */
+export function BudgetCeremonyStageCleanupCard({
+  workspaceId,
+  cleanup,
+  onSuccess,
+}: {
+  workspaceId: string;
+  cleanup: BudgetCeremonyStageCleanup;
+} & Pick<GroupDialogCallbacks, "onSuccess">) {
+  const idPrefix = useId();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [confirmationName, setConfirmationName] = useState("");
+  const shortLabel = budgetCeremonyShortLabel(cleanup.stageKey);
+  const normalizedConfirmationName = confirmationName
+    .trim()
+    .replace(/\s+/gu, " ");
+  const normalizedStageLabel = cleanup.label.trim().replace(/\s+/gu, " ");
+  const isConfirmed = normalizedConfirmationName === normalizedStageLabel;
+  const clearAction = clearBudgetCeremonyStageAction.bind(
+    null,
+    workspaceId,
+    cleanup.stageKey,
+  );
+  const [state, formAction, isPending] = useActionState(
+    async (previousState: BudgetItemMutationState, formData: FormData) => {
+      const nextState = await clearAction(previousState, formData);
+      if (nextState.status === "success") {
+        setConfirmationName("");
+        onSuccess?.(nextState.message ?? "已移除這個階段的項目。");
+        dialogRef.current?.close();
+      }
+      return nextState;
+    },
+    initialState,
+  );
+
+  function openDialog() {
+    if (dialogRef.current?.open) return;
+    setConfirmationName("");
+    dialogRef.current?.showModal();
+    titleRef.current?.focus();
+  }
+
+  function closeDialog() {
+    if (!isPending) dialogRef.current?.close();
+  }
+
+  return (
+    <div className="min-w-0 border-l-2 border-caution bg-caution-soft px-4 py-4">
+      <p className="text-sm font-semibold text-caution">
+        你已選擇沒有{shortLabel}，「{cleanup.label}」已從花費清單隱藏。
+      </p>
+      <p className="mt-2 text-caption leading-6 text-ink-soft">
+        這個階段底下還留著 {cleanup.removableItemCount} 筆項目
+        {cleanup.attachmentCount === 0
+          ? ""
+          : `與 ${cleanup.attachmentCount} 個附件`}
+        。它們不列入預算與付款進度；重新開啟{shortLabel}設定就會再看到，也可以直接永久移除。
+      </p>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`永久移除 ${cleanup.label} 底下的項目`}
+        onClick={openDialog}
+        className="mt-3 inline-flex min-h-11 w-fit max-w-full items-center justify-center rounded-full border border-red-700 px-4 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
+      >
+        永久移除這 {cleanup.removableItemCount} 筆
+      </button>
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={`${idPrefix}-title`}
+        aria-describedby={`${idPrefix}-warning`}
+        onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
+        onCancel={(event) => {
+          if (isPending) event.preventDefault();
+        }}
+        onClose={() => restoreConnectedFocus(triggerRef.current)}
+        className={dialogClassName}
+      >
+        <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-4 border-b border-red-200 bg-[#fffdf8] px-5 py-5 sm:px-7">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold tracking-[0.14em] text-red-700">
+              不可復原
+            </p>
+            <h2
+              ref={titleRef}
+              id={`${idPrefix}-title`}
+              tabIndex={-1}
+              className="mt-1 break-words font-serif text-2xl font-semibold text-stone-900 outline-none"
+            >
+              永久移除：{cleanup.label}
+            </h2>
+          </div>
+          <button
+            type="button"
+            aria-label={`關閉永久移除：${cleanup.label}`}
+            disabled={isPending}
+            onClick={closeDialog}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-stone-300 text-2xl leading-none text-stone-600 transition hover:bg-red-50 disabled:cursor-wait disabled:opacity-50"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </header>
+        <form
+          action={formAction}
+          aria-label={`永久移除：${cleanup.label}`}
+          aria-busy={isPending}
+          className="min-w-0 space-y-5 px-5 py-6 sm:px-7"
+          noValidate
+        >
+          <input
+            type="hidden"
+            name="expectedSnapshotToken"
+            value={cleanup.snapshotToken}
+          />
+          <div
+            id={`${idPrefix}-warning`}
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm leading-6 text-red-950"
+          >
+            <p className="font-semibold">
+              {`將永久移除這個階段底下的 ${cleanup.removableItemCount} 筆項目。`}
+            </p>
+            <p className="mt-2">
+              {cleanup.attachmentCount === 0
+                ? "目前沒有附件；費用、付款與廠商資料仍會一併永久刪除。"
+                : `同時會刪除 ${cleanup.attachmentCount} 個附件；費用、付款、廠商與附件資料均無法復原。`}
+            </p>
+            <p className="mt-2">
+              固定的階段與品項分類會保留；日後重新開啟{shortLabel}設定，仍可再從建議項目加入。
+            </p>
+          </div>
+          <fieldset
+            disabled={isPending}
+            className="min-w-0 space-y-5 border-0 p-0"
+          >
+            <legend className="sr-only">永久移除確認</legend>
+            <div>
+              <label
+                htmlFor={`${idPrefix}-confirmation-name`}
+                className="block font-medium text-stone-800"
+              >
+                輸入「{cleanup.label}」確認永久移除
+              </label>
+              <input
+                id={`${idPrefix}-confirmation-name`}
+                name="confirmationName"
+                type="text"
+                required
+                autoComplete="off"
+                value={confirmationName}
+                onChange={(event) => setConfirmationName(event.target.value)}
+                className={fieldClassName}
+              />
+            </div>
+            <ActionFeedback state={state} />
+            <div className="flex min-w-0 flex-col-reverse gap-3 border-t border-dashed border-stone-300 pt-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={closeDialog}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-stone-300 px-5 py-2 font-semibold text-stone-700 transition hover:bg-[#f0e2d5] disabled:cursor-wait disabled:opacity-50 sm:w-auto"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={isPending || !isConfirmed}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-red-800 bg-red-800 px-5 py-2 font-semibold text-white transition hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {isPending
+                  ? "正在永久移除…"
+                  : `永久移除 ${cleanup.removableItemCount} 筆`}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      </dialog>
+    </div>
   );
 }
 

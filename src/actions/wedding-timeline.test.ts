@@ -150,6 +150,15 @@ describe("wedding timeline actions", () => {
     expect(staffFindMany.mock.invocationCallOrder[0]).toBeLessThan(
       timelineCreate.mock.invocationCallOrder[0],
     );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/timeline",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/workspaces/workspace_1/staff",
+    );
   });
 
   it("rejects a forged cross-workspace staff ID without a partial write", async () => {
@@ -282,8 +291,10 @@ describe("wedding timeline actions", () => {
   });
 
   it("creates the de-identified detailed lunch template when empty", async () => {
+    const form = new FormData();
+    form.set("includeWesternCeremony", "on");
     await expect(
-      applyGeneralLunchTimelineTemplateAction("workspace_1", idleState),
+      applyGeneralLunchTimelineTemplateAction("workspace_1", idleState, form),
     ).resolves.toMatchObject({
       status: "success",
       message: expect.stringContaining("詳細午宴流程範本"),
@@ -400,12 +411,88 @@ describe("wedding timeline actions", () => {
     timelineCount.mockResolvedValueOnce(1);
 
     await expect(
-      applyGeneralLunchTimelineTemplateAction("workspace_1", idleState),
+      applyGeneralLunchTimelineTemplateAction(
+        "workspace_1",
+        idleState,
+        new FormData(),
+      ),
     ).resolves.toMatchObject({
       status: "error",
       code: "CONFLICT",
       message: expect.stringContaining("詳細午宴流程範本"),
     });
     expect(timelineCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("omits western certification unless this template submission explicitly opts in", async () => {
+    await expect(
+      applyGeneralLunchTimelineTemplateAction(
+        "workspace_1",
+        idleState,
+        new FormData(),
+      ),
+    ).resolves.toMatchObject({
+      status: "success",
+      message: expect.stringContaining("未加入西式證婚流程"),
+    });
+    const templateData = timelineCreateMany.mock.calls[0]?.[0]?.data;
+    expect(templateData).toHaveLength(8);
+    expect(JSON.stringify(templateData)).not.toMatch(/證婚|儀式空間/u);
+    expect(templateData).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "拍照時間",
+          location: "宴會廳",
+          details: "宴會廳拍攝與休息。",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects a forged western-certification option before opening a transaction", async () => {
+    const form = new FormData();
+    form.set("includeWesternCeremony", "true");
+    await expect(
+      applyGeneralLunchTimelineTemplateAction("workspace_1", idleState, form),
+    ).resolves.toEqual({
+      status: "error",
+      code: "VALIDATION",
+      message: "西式證婚選項無效，請重新確認。",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps committed success and attempts every view when cache revalidation fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    revalidatePath.mockImplementationOnce(() => {
+      throw new Error("sensitive cache internals");
+    });
+
+    await expect(
+      createWeddingTimelineItemAction(
+        "workspace_1",
+        idleState,
+        timelineForm(),
+      ),
+    ).resolves.toEqual({
+      status: "success",
+      message: "已新增流程項目；畫面未自動更新，請重新整理。",
+    });
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      1,
+      "/workspaces/workspace_1/timeline",
+    );
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      2,
+      "/workspaces/workspace_1/overview",
+    );
+    expect(revalidatePath).toHaveBeenNthCalledWith(
+      3,
+      "/workspaces/workspace_1/staff",
+    );
+    expect(revalidatePath).toHaveBeenNthCalledWith(4, "/workspaces/workspace_1/staff/handoffs");
+    expect(log).toHaveBeenCalledWith("婚禮總流程頁面重新驗證失敗。");
+    expect(log.mock.calls.every((call) => call.length === 1)).toBe(true);
+    log.mockRestore();
   });
 });

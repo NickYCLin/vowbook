@@ -49,6 +49,7 @@ export type SeatingFloorPlanTable = {
     partySize: number;
     side: GuestSideValue;
     childSeatCount: number | null;
+    vegetarianCount?: number | null;
   }>;
 };
 
@@ -724,7 +725,8 @@ export function SeatingFloorPlan({
 
       <div
         data-floor-plan-scroll
-        className="mt-4 max-w-full overflow-x-auto pb-2"
+        // 手機把場地板限制在七成畫面高度內雙向捲動，不然一張 1500px 高的場地會佔掉整頁。
+        className="mt-4 max-w-full overflow-x-auto pb-2 max-md:max-h-[70dvh] max-md:overflow-y-auto"
       >
         <div
           ref={boardRef}
@@ -810,13 +812,14 @@ export function SeatingFloorPlan({
               : displayTable;
             const assignedPartySize = occupancy(contentTable);
             const assignedChildSeats = childSeatTotal(contentTable);
+            const vegetarianCount = contentTable.guests.reduce((sum, guest) => sum + (guest.vegetarianCount ?? 0), 0);
             const isSelected = canEdit && selectedTableId === table.id;
             const side = seatingTableSide(contentTable.guests);
             const label = `${seatingTableLabel(contentTable)}，${
               side ? `${GUEST_SIDE_LABELS[side]}，` : ""
             }已安排 ${assignedPartySize} / ${contentTable.capacity} 位${
               assignedChildSeats > 0 ? `，兒童椅 ${assignedChildSeats} 張` : ""
-            }`;
+            }${vegetarianCount > 0 ? `，素食 ${vegetarianCount} 位` : ""}`;
             // 交換時固定桌位不移動，只預覽對方的桌名與入座賓客。
             const rendered = draft;
             const boardPercent =
@@ -849,6 +852,11 @@ export function SeatingFloorPlan({
                   height: `${metrics.markerSizePx}px`,
                 }}
               >
+                {vegetarianCount > 0 ? (
+                  <span aria-hidden="true" className="pointer-events-none absolute -bottom-1 z-20 rounded-full border border-sage bg-surface px-1.5 text-[0.625rem] font-bold leading-4 text-sage">
+                    素 {vegetarianCount}
+                  </span>
+                ) : null}
                 {assignedChildSeats > 0 && !isMaximumDensity ? (
                   <span
                     aria-hidden="true"

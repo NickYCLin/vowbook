@@ -57,11 +57,16 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
       <BudgetList
         workspaceId={workspaceId}
         workspaceName={data.workspaceName}
+        workspaceToday={data.workspaceToday}
         items={data.items}
         summary={data.summary}
         canEdit={data.canEdit}
         canResetBudget={data.canResetBudget}
         resetSnapshot={data.resetSnapshot}
+        hasEngagementCeremony={data.hasEngagementCeremony}
+        hasProcessionCeremony={data.hasProcessionCeremony}
+        ceremonyStageCleanups={data.ceremonyStageCleanups}
+        ceremonyPreferencesVersion={data.ceremonyPreferencesVersion}
       />
     </main>
   );

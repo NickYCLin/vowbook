@@ -38,7 +38,7 @@ describe("TablesPage", () => {
 
     expect(getSeatingPlan).toHaveBeenCalledWith("workspace_1");
     expect(
-      screen.getByRole("heading", { name: "我們的婚宴・桌次安排" }),
+      screen.getByRole("heading", { level: 1, name: "桌次安排" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯桌次")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "婚宴桌圖" })).toHaveAttribute(
@@ -46,7 +46,7 @@ describe("TablesPage", () => {
       "/workspaces/workspace_1/tables/chart",
     );
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(7);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(within(navigation).getByRole("link", { name: "桌次" })).toHaveAttribute(
       "aria-current",
       "page",

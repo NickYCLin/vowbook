@@ -265,7 +265,7 @@ export function ThemeMenu({
         />
       </summary>
 
-      <div className="fixed top-[4.25rem] right-4 left-4 z-50 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-card border border-line bg-surface text-ink shadow-overlay sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-[min(20rem,calc(100vw-2rem))]">
+      <div className="fixed top-[calc(4.25rem+env(safe-area-inset-top))] right-4 left-4 z-50 max-h-[calc(100dvh-5.25rem-env(safe-area-inset-top))] overflow-y-auto rounded-card border border-line bg-surface text-ink shadow-overlay sm:absolute sm:top-full sm:right-0 sm:left-auto sm:mt-2 sm:w-[min(20rem,calc(100vw-2rem))]">
         <section aria-labelledby="avatar-heading" className="px-4 py-4">
           <h2 id="avatar-heading" className="font-serif text-lg font-semibold">
             帳號頭像

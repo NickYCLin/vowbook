@@ -27,7 +27,7 @@ describe("SeatingChart", () => {
           chartTable(0, {
             name: "主桌",
             guests: [
-              { side: "PARTNER_A", childSeatCount: 2 },
+              { side: "PARTNER_A", childSeatCount: 2, vegetarianCount: 2 },
               { side: "PARTNER_B", childSeatCount: 1 },
             ],
           }),
@@ -47,9 +47,10 @@ describe("SeatingChart", () => {
 
     // 混坐的主桌標成共同，單一側的桌子標那一側，空桌不標。
     const mainTable = within(poster).getByRole("article", {
-      name: "1 號桌 主桌，共同親友，兒童椅 3 張",
+      name: "1 號桌 主桌，共同親友，兒童椅 3 張，素食 2 位",
     });
     expect(mainTable).toHaveTextContent("主桌");
+    expect(within(mainTable).getByText("素 2")).toBeInTheDocument();
     expect(mainTable).toHaveClass("justify-items-center", "text-center");
     expect(within(mainTable).getByText("1", { exact: true })).toHaveClass(
       "w-full",

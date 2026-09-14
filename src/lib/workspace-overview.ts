@@ -18,7 +18,10 @@ export type WorkspaceOverviewStats = {
 export type WorkspaceOverview = {
   membershipId: string;
   role: MembershipRole;
-  workspace: WeddingWorkspace;
+  workspace: Pick<
+    WeddingWorkspace,
+    "id" | "name" | "weddingDate" | "timezone" | "updatedAt"
+  >;
   stats: WorkspaceOverviewStats;
 };
 
@@ -43,108 +46,156 @@ const emptyStats: WorkspaceOverviewStats = {
 export async function listWorkspaceOverviewsForUser(
   currentUserId: string,
 ): Promise<WorkspaceOverview[]> {
-  const memberships = await prisma.membership.findMany({
-    where: { userId: currentUserId },
-    include: { workspace: true },
-    orderBy: { createdAt: "asc" },
-  });
+  return prisma.$transaction(
+    async (client) => {
+      const memberships = await client.membership.findMany({
+        where: { userId: currentUserId },
+        select: {
+          id: true,
+          workspaceId: true,
+          role: true,
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+              weddingDate: true,
+              timezone: true,
+              updatedAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
 
-  if (memberships.length === 0) {
-    return [];
-  }
+      if (memberships.length === 0) {
+        return [];
+      }
 
-  const workspaceIds = memberships.map((membership) => membership.workspaceId);
-  const scope = { workspaceId: { in: workspaceIds } };
+      const workspaceIds = memberships.map(
+        (membership) => membership.workspaceId,
+      );
+      const scope = { workspaceId: { in: workspaceIds } };
 
-  const [guests, tables, tasks, budgets] = await Promise.all([
-    prisma.guest.groupBy({
-      by: ["workspaceId", "category", "attendanceStatus"],
-      where: scope,
-      _count: { _all: true },
-      _sum: { partySize: true },
-    }),
-    prisma.seatingTable.groupBy({
-      by: ["workspaceId"],
-      where: scope,
-      _count: { _all: true },
-    }),
-    prisma.weddingTask.groupBy({
-      by: ["workspaceId", "status"],
-      where: scope,
-      _count: { _all: true },
-    }),
-    prisma.budgetItem.groupBy({
-      by: ["workspaceId"],
-      where: { ...scope, kind: "EXPENSE" },
-      _sum: { plannedAmount: true, actualAmount: true },
-    }),
-  ]);
+      const [guests, tables, tasks, budgets] = await Promise.all([
+        client.guest.groupBy({
+          by: ["workspaceId", "category", "attendanceStatus"],
+          where: scope,
+          _count: { _all: true },
+          _sum: { partySize: true },
+        }),
+        client.seatingTable.groupBy({
+          by: ["workspaceId"],
+          where: scope,
+          _count: { _all: true },
+        }),
+        client.weddingTask.groupBy({
+          by: ["workspaceId", "status"],
+          where: scope,
+          _count: { _all: true },
+        }),
+        client.budgetItem.groupBy({
+          by: ["workspaceId"],
+          where: {
+            ...scope,
+            kind: "EXPENSE",
+            preparationStatus: "NEEDS_ACTION",
+          },
+          _sum: { plannedAmount: true, actualAmount: true },
+        }),
+      ]);
 
-  const statsByWorkspace = new Map<string, WorkspaceOverviewStats>(
-    workspaceIds.map((id) => [id, { ...emptyStats }]),
+      const statsByWorkspace = new Map<string, WorkspaceOverviewStats>(
+        workspaceIds.map((id) => [id, { ...emptyStats }]),
+      );
+
+      for (const row of guests) {
+        const stats = statsByWorkspace.get(row.workspaceId);
+        if (!stats) continue;
+
+        const count = row._count._all;
+        if (row.category === "GUEST") {
+          stats.guestTotal += count;
+          if (row.attendanceStatus !== "UNDECIDED") {
+            stats.guestResponded += count;
+          }
+          if (row.attendanceStatus === "ATTENDING") {
+            stats.guestAttending += count;
+          }
+        }
+        if (row.attendanceStatus === "ATTENDING") {
+          stats.attendingHeadcount += row._sum.partySize ?? 0;
+        }
+      }
+
+      for (const row of tables) {
+        const stats = statsByWorkspace.get(row.workspaceId);
+        if (stats) stats.tableTotal = row._count._all;
+      }
+
+      for (const row of tasks) {
+        const stats = statsByWorkspace.get(row.workspaceId);
+        if (!stats) continue;
+
+        stats.taskTotal += row._count._all;
+        if (row.status === "DONE") {
+          stats.taskDone += row._count._all;
+        }
+      }
+
+      for (const row of budgets) {
+        const stats = statsByWorkspace.get(row.workspaceId);
+        if (!stats) continue;
+
+        stats.budgetPlanned = row._sum.plannedAmount ?? 0;
+        stats.budgetActual = row._sum.actualAmount ?? 0;
+      }
+
+      return memberships.map((membership) => ({
+        membershipId: membership.id,
+        role: membership.role,
+        workspace: membership.workspace,
+        stats: statsByWorkspace.get(membership.workspaceId) ?? {
+          ...emptyStats,
+        },
+      }));
+    },
+    { isolationLevel: "RepeatableRead" },
   );
-
-  for (const row of guests) {
-    const stats = statsByWorkspace.get(row.workspaceId);
-    if (!stats) continue;
-
-    const count = row._count._all;
-    if (row.category === "GUEST") {
-      stats.guestTotal += count;
-      if (row.attendanceStatus !== "UNDECIDED") {
-        stats.guestResponded += count;
-      }
-      if (row.attendanceStatus === "ATTENDING") {
-        stats.guestAttending += count;
-      }
-    }
-    if (row.attendanceStatus === "ATTENDING") {
-      stats.attendingHeadcount += row._sum.partySize ?? 0;
-    }
-  }
-
-  for (const row of tables) {
-    const stats = statsByWorkspace.get(row.workspaceId);
-    if (stats) stats.tableTotal = row._count._all;
-  }
-
-  for (const row of tasks) {
-    const stats = statsByWorkspace.get(row.workspaceId);
-    if (!stats) continue;
-
-    stats.taskTotal += row._count._all;
-    if (row.status === "DONE") {
-      stats.taskDone += row._count._all;
-    }
-  }
-
-  for (const row of budgets) {
-    const stats = statsByWorkspace.get(row.workspaceId);
-    if (!stats) continue;
-
-    stats.budgetPlanned = row._sum.plannedAmount ?? 0;
-    stats.budgetActual = row._sum.actualAmount ?? 0;
-  }
-
-  return memberships.map((membership) => ({
-    membershipId: membership.id,
-    role: membership.role,
-    workspace: membership.workspace,
-    stats: statsByWorkspace.get(membership.workspaceId) ?? { ...emptyStats },
-  }));
 }
 
-/** 距離婚期還有幾天；沒設日期或已過期回傳 null。 */
+function calendarDayNumber(value: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-CA-u-ca-gregory-nu-latn", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const numericPart = (type: "year" | "month" | "day") => {
+    const part = parts.find((entry) => entry.type === type)?.value;
+    return part === undefined ? Number.NaN : Number(part);
+  };
+  const year = numericPart("year");
+  const month = numericPart("month");
+  const day = numericPart("day");
+
+  if (![year, month, day].every(Number.isInteger)) {
+    throw new RangeError("Invalid calendar date");
+  }
+
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+/** 依工作區日曆日計算婚期倒數；沒設日期或婚期已過回傳 null。 */
 export function daysUntilWedding(
   weddingDate: Date | null,
   now: Date,
+  timezone: string,
 ): number | null {
   if (!weddingDate) return null;
 
-  const startOfDay = (value: Date) =>
-    Date.UTC(value.getFullYear(), value.getMonth(), value.getDate());
-  const diff = startOfDay(weddingDate) - startOfDay(now);
-  const days = Math.round(diff / 86_400_000);
+  const days =
+    calendarDayNumber(weddingDate, timezone) -
+    calendarDayNumber(now, timezone);
 
   return days >= 0 ? days : null;
 }

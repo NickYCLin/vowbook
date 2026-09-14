@@ -21,6 +21,7 @@ import {
   BUDGET_INTERNAL_UNCLASSIFIED_ITEM_KEY,
   BUDGET_INTERNAL_UNCLASSIFIED_STAGE_KEY,
   BUDGET_PRIMARY_CONTACT_LABELS,
+  BUDGET_PREPARATION_STATUS_LABELS,
   BUDGET_TAXONOMY_ITEM_KEYS,
   BUDGET_TAXONOMY_NODE_BY_KEY,
   BUDGET_TAXONOMY_STAGES,
@@ -28,14 +29,22 @@ import {
   type BudgetCostCategory,
   type BudgetTaxonomyItemKey,
   type BudgetTaxonomyNodeKey,
+  type BudgetPreparationStatus,
 } from "@/domain/budget-item";
+import { hiddenBudgetCeremonyStageKeys } from "@/domain/budget-ceremony-stage";
 import { coveredBudgetPreparationSuggestionKeys } from "@/domain/budget-preparation-preset";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
-import type { BudgetItemListItem, BudgetSummary } from "@/lib/budget-list";
+import type {
+  BudgetCeremonyStageCleanup,
+  BudgetItemListItem,
+  BudgetSummary,
+} from "@/lib/budget-list";
 import { BudgetAttachments } from "./budget-attachments";
+import { BudgetCeremonyPreferences } from "./budget-ceremony-preferences";
 import { BudgetEngagementPreset } from "./budget-engagement-preset";
 import { BudgetPreparationPreset } from "./budget-preparation-preset";
 import {
+  BudgetCeremonyStageCleanupCard,
   CreateBudgetGroupDialog,
   DeleteBudgetGroupSubtreeDialog,
   DissolveBudgetGroupForm,
@@ -43,6 +52,7 @@ import {
 } from "./budget-group-forms";
 import {
   ChangeBudgetItemBookingStatusForm,
+  ChangeBudgetItemPreparationStatusForm,
   CreateBudgetItemForm,
   DeleteBudgetItemForm,
   EditBudgetItemForm,
@@ -52,7 +62,13 @@ import {
 } from "./budget-forms";
 import type { BudgetResetSnapshot } from "@/lib/budget-reset-snapshot";
 
-type BudgetStatusFilter = "ALL" | "PLANNING" | "BOOKED_BALANCE_DUE" | "PAID";
+type BudgetStatusFilter =
+  | "ALL"
+  | "PLANNING"
+  | "BOOKED_BALANCE_DUE"
+  | "PAID"
+  | "ALREADY_OWNED"
+  | "NOT_PLANNED";
 
 type GroupExpansionState = {
   workspaceId: string | null;
@@ -85,7 +101,7 @@ type RelatedBudgetExpense = {
   name: string;
   primaryTaxonomyItemLabel: string;
   plannedAmount: number;
-  sourceHierarchyPath: string[];
+  preparationStatus: BudgetPreparationStatus;
 };
 const BUDGET_TAXONOMY_ITEM_KEY_SET: ReadonlySet<string> = new Set(
   BUDGET_TAXONOMY_ITEM_KEYS,
@@ -120,20 +136,32 @@ function taxonomyNodeLabel(value: string | null | undefined): string | null {
   return BUDGET_TAXONOMY_NODE_BY_KEY[value as BudgetTaxonomyNodeKey].label;
 }
 
-function notionSourceHierarchyPathOf(item: BudgetItemListItem): string[] {
-  const sourceHierarchyPath = item.sourceHierarchyPath ?? [];
-  if (
-    item.source !== "NOTION" ||
-    !Array.isArray(sourceHierarchyPath) ||
-    sourceHierarchyPath.length === 0 ||
-    sourceHierarchyPath.length > 4 ||
-    sourceHierarchyPath.some(
-      (segment) => typeof segment !== "string" || segment.trim().length === 0,
-    )
-  ) {
-    return [];
+
+/**
+ * 儀式設定關閉的固定階段整棵收起來：使用者已經說明沒有這場儀式，
+ * 花費頁就不該再列出用不到的分類與其底下的項目。
+ */
+function removeHiddenCeremonyStageSubtrees(
+  driveItems: BudgetItemListItem[],
+  hiddenStageKeys: ReadonlySet<string>,
+): BudgetItemListItem[] {
+  if (hiddenStageKeys.size === 0) return driveItems;
+
+  const kept: BudgetItemListItem[] = [];
+  let skipDeeperThan: number | null = null;
+  for (const item of driveItems) {
+    if (skipDeeperThan !== null) {
+      if (item.depth > skipDeeperThan) continue;
+      skipDeeperThan = null;
+    }
+    const key = systemTaxonomyKeyOf(item);
+    if (typeof key === "string" && hiddenStageKeys.has(key)) {
+      skipDeeperThan = item.depth;
+      continue;
+    }
+    kept.push(item);
   }
-  return sourceHierarchyPath.map((segment) => segment.trim());
+  return kept;
 }
 
 function pruneEmptyFixedTaxonomyNodes(
@@ -213,7 +241,10 @@ function pruneEmptyFixedTaxonomyNodes(
   });
 }
 
-function prepareBudgetDisplayItems(items: BudgetItemListItem[]): {
+function prepareBudgetDisplayItems(
+  items: BudgetItemListItem[],
+  hiddenStageKeys: ReadonlySet<string>,
+): {
   driveItems: BudgetItemListItem[];
   legacyItems: BudgetItemListItem[];
   displayItems: BudgetItemListItem[];
@@ -278,7 +309,7 @@ function prepareBudgetDisplayItems(items: BudgetItemListItem[]): {
   }
 
   const driveItems = pruneEmptyFixedTaxonomyNodes(
-    unfilteredDriveItems,
+    removeHiddenCeremonyStageSubtrees(unfilteredDriveItems, hiddenStageKeys),
     items,
   );
   return {
@@ -361,7 +392,15 @@ const STATUS_FILTERS: Array<{
   { value: "PLANNING", label: "規劃中" },
   { value: "BOOKED_BALANCE_DUE", label: "已下訂" },
   { value: "PAID", label: "已付清" },
+  { value: "ALREADY_OWNED", label: "已有／自備" },
+  { value: "NOT_PLANNED", label: "不準備" },
 ];
+
+function preparationStatusOfItem(
+  item: BudgetItemListItem,
+): BudgetPreparationStatus {
+  return item.preparationStatus ?? "NEEDS_ACTION";
+}
 
 const STATUS_SCAN_LABELS: Record<BudgetItemListItem["bookingStatus"], string> =
   {
@@ -444,18 +483,24 @@ function BudgetSummaryView({
   onShowAll,
   onShowPaid,
   onShowBalanceDue,
+  onShowSelfProvided,
+  onShowNotPlanned,
 }: {
   summary: BudgetSummary;
   onShowAll: () => void;
   onShowPaid: () => void;
   onShowBalanceDue: () => void;
+  onShowSelfProvided: () => void;
+  onShowNotPlanned: () => void;
 }) {
   return (
     <section aria-labelledby="budget-summary-heading" className="min-w-0">
       <h2 id="budget-summary-heading" className="sr-only">
         花費摘要
       </h2>
-      {summary.itemCount === 0 ? (
+      {summary.itemCount === 0 &&
+      summary.selfProvidedCount === 0 &&
+      summary.notPlannedCount === 0 ? (
         <div
           data-budget-empty-onboarding="true"
           className="border-y border-line-strong bg-clay-soft px-4 py-5 sm:px-6"
@@ -487,7 +532,7 @@ function BudgetSummaryView({
                 onClick={onShowAll}
                 className="mt-1 block min-h-11 max-w-full break-words text-left text-xs font-semibold text-clay underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
               >
-                查看全部 {summary.itemCount} 筆花費
+                查看所有準備項目
               </button>
             )}
           </dd>
@@ -503,7 +548,7 @@ function BudgetSummaryView({
               data-budget-payment-progress="true"
               className="mt-1 block font-sans text-xs tabular-nums text-ink-faint"
             >
-              已付款 {summary.paidCount} / {summary.itemCount} 筆花費
+              已付款 {summary.paidCount} / {summary.itemCount} 筆需安排花費
             </span>
             {summary.paidCount > 0 && (
               <button
@@ -530,9 +575,14 @@ function BudgetSummaryView({
             ) : (
               <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-faint">
                 <span>共 {summary.balanceDueCount} 筆花費待付</span>
-                {summary.nearestBalanceDueDate !== null && (
-                  <time dateTime={summary.nearestBalanceDueDate}>
-                    最近期限 {summary.nearestBalanceDueDate}
+                {summary.overdueBalanceDueCount > 0 && (
+                  <span className="font-semibold text-danger">
+                    已逾期 {summary.overdueBalanceDueCount} 筆
+                  </span>
+                )}
+                {summary.nearestUpcomingBalanceDueDate !== null && (
+                  <time dateTime={summary.nearestUpcomingBalanceDueDate}>
+                    最近到期日 {summary.nearestUpcomingBalanceDueDate}
                   </time>
                 )}
                 {summary.balanceDueMissingAmountCount > 0 && (
@@ -554,6 +604,29 @@ function BudgetSummaryView({
           </dd>
         </div>
       </dl>
+      {summary.selfProvidedCount > 0 || summary.notPlannedCount > 0 ? (
+        <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-x border-b border-line bg-surface-sunken px-4 py-2 text-xs text-ink-soft sm:px-5">
+          {summary.selfProvidedCount > 0 ? (
+            <button
+              type="button"
+              onClick={onShowSelfProvided}
+              className="min-h-11 font-semibold text-clay-strong underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+            >
+              已有／自備 {summary.selfProvidedCount} 筆
+            </button>
+          ) : null}
+          {summary.notPlannedCount > 0 ? (
+            <button
+              type="button"
+              onClick={onShowNotPlanned}
+              className="min-h-11 font-semibold text-clay-strong underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+            >
+              不打算準備 {summary.notPlannedCount} 筆
+            </button>
+          ) : null}
+          <span className="self-center">以上項目不計入預算與付款進度。</span>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -569,8 +642,8 @@ function BudgetHierarchyGuide() {
       </summary>
       <div className="space-y-3 border-t border-line py-4 text-sm leading-6 text-ink-soft">
         <p>
-          分類依照文件整理為 6 個籌備階段與 20 個品項，使用方式是「籌備階段
-          → 品項分類 → 實際花費」。固定階段與品項無法重新命名、移動或刪除。
+          分類最多包含 6 個籌備階段與 20 個品項，使用方式是「籌備階段 →
+          品項分類 → 實際花費」。文定與迎娶只有在下方開啟對應的中式儀式設定後才會出現；西式證婚不等於迎娶，也不會帶入迎娶項目。其餘固定分類沒有建立花費時同樣不顯示。
         </p>
         <p>
           文件中的品牌、金額與數量只是範例，不會成為分類或預設花費；請填入自己的資料。如需整理廠商方案，仍可在品項分類下建立自訂群組。
@@ -683,7 +756,8 @@ function BudgetTaxonomyNavigator({
 
 function BudgetItemRow({
   workspaceId,
-  item,
+  workspaceToday,
+  item: sourceItem,
   moveTargets,
   canEdit,
   hierarchyCategory,
@@ -705,6 +779,7 @@ function BudgetItemRow({
   isHidden = false,
 }: {
   workspaceId: string;
+  workspaceToday: string | null;
   item: BudgetItemListItem;
   moveTargets: BudgetMoveTarget[];
   canEdit: boolean;
@@ -731,14 +806,24 @@ function BudgetItemRow({
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [statusPending, setStatusPending] = useState(false);
+  const [preparationPending, setPreparationPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const [childCreatePending, setChildCreatePending] = useState(false);
   const [groupMutationPending, setGroupMutationPending] = useState(false);
   const [movePending, setMovePending] = useState(false);
   const [dissolvePending, setDissolvePending] = useState(false);
   const [attachmentPending, setAttachmentPending] = useState(false);
+  const [groupOverride, setGroupOverride] = useState<{
+    name: string;
+    version: number;
+  } | null>(null);
+  const item =
+    groupOverride && sourceItem.version < groupOverride.version
+      ? { ...sourceItem, ...groupOverride }
+      : sourceItem;
   const managePending =
     statusPending ||
+    preparationPending ||
     deletePending ||
     childCreatePending ||
     groupMutationPending ||
@@ -761,8 +846,17 @@ function BudgetItemRow({
   const isSourceGroupHeading = isGroup && !isFixedGroup;
   const isPassThrough = isPassThroughSourceNode(item);
   const suggestionKey = suggestionKeyOf(item);
+  const preparationStatus = preparationStatusOfItem(item);
+  const tracksCost = isGroup || preparationStatus === "NEEDS_ACTION";
+  const balanceDueIsOverdue =
+    tracksCost &&
+    item.bookingStatus === "BOOKED_BALANCE_DUE" &&
+    item.dueDate !== null &&
+    workspaceToday !== null &&
+    item.dueDate < workspaceToday;
   const isPendingPreparationSuggestion =
     !isGroup &&
+    tracksCost &&
     item.bookingStatus === "PLANNING" &&
     typeof suggestionKey === "string" &&
     suggestionKey.startsWith("PREPARATION_");
@@ -812,21 +906,16 @@ function BudgetItemRow({
   const relatedTaxonomyItemLabel = taxonomyNodeLabel(
     item.relatedTaxonomyItemKey,
   );
-  const notionSourceHierarchyPath = notionSourceHierarchyPathOf(item);
-  const notionSourceHierarchyPathLabel = notionSourceHierarchyPath.join(" › ");
-  /*
-    來源路徑在「明細與附件」面板裡本來就有一份。
-    只有當這一列的樹狀位置和來源不一致時（關聯費用、拍攝延伸，
-    或直接上層名稱對不上來源路徑的倒數第二段），列上那份才有資訊量。
-  */
-  const sourcePathMatchesTreePosition =
-    notionSourceHierarchyPath.length >= 2 &&
-    notionSourceHierarchyPath[notionSourceHierarchyPath.length - 2] ===
-      item.directParentName;
   const isPhotographyExtension =
     item.relatedTaxonomyItemKey === "ITEM_PRE_WEDDING_PHOTOGRAPHY";
   const relatedPlannedTotal = relatedExpenses
-    .reduce((total, relatedExpense) => total + BigInt(relatedExpense.plannedAmount), BigInt(0))
+    .reduce(
+      (total, relatedExpense) =>
+        relatedExpense.preparationStatus === "NEEDS_ACTION"
+          ? total + BigInt(relatedExpense.plannedAmount)
+          : total,
+      BigInt(0),
+    )
     .toString();
   const needsReclassification =
     isLegacyUnclassified || hierarchyTaxonomyItemKey === undefined;
@@ -902,9 +991,6 @@ function BudgetItemRow({
 
   if (relatedTaxonomyItemLabel) {
     richDetails.push(["用途關聯", relatedTaxonomyItemLabel]);
-  }
-  if (notionSourceHierarchyPathLabel) {
-    richDetails.push(["Notion 原始路徑", notionSourceHierarchyPathLabel]);
   }
   /*
     預計總價／實付／訂金／尾款四個數字一律同一個範圍。
@@ -1026,7 +1112,11 @@ function BudgetItemRow({
         data-budget-hierarchy-level={hierarchyLevel}
         data-budget-context={isContext ? "true" : undefined}
         data-budget-preparation-status={
-          isPendingPreparationSuggestion ? "pending" : undefined
+          isPendingPreparationSuggestion
+            ? "pending"
+            : !isGroup && preparationStatus !== "NEEDS_ACTION"
+              ? preparationStatus.toLocaleLowerCase().replace("_", "-")
+              : undefined
         }
         data-budget-row-kind={isGroup ? "group" : "item"}
         data-budget-ledger-row={isGroup ? "group" : "leaf"}
@@ -1172,11 +1262,6 @@ function BudgetItemRow({
                   <span data-budget-descendant-count={descendantCount}>
                     共 {descendantCount} 個下層項目
                   </span>
-                  {notionSourceHierarchyPathLabel && (
-                    <span data-budget-notion-source-path="true">
-                      Notion 原始路徑：{notionSourceHierarchyPathLabel}
-                    </span>
-                  )}
                   {isContext && <span>上層脈絡</span>}
                 </p>
               </div>
@@ -1248,15 +1333,6 @@ function BudgetItemRow({
                       </span>
                     </>
                   )}
-                  {notionSourceHierarchyPathLabel &&
-                    !sourcePathMatchesTreePosition && (
-                      <span
-                        data-budget-notion-source-path="true"
-                        className="min-w-0 break-words"
-                      >
-                        Notion 原始路徑：{notionSourceHierarchyPathLabel}
-                      </span>
-                    )}
                   {item.hasChildren && (
                     <span
                       data-budget-rollup-marker="true"
@@ -1285,7 +1361,15 @@ function BudgetItemRow({
                 )}
               </div>
 
-              {isPassThrough ? (
+              {!isGroup && !tracksCost ? (
+                <p
+                  data-budget-mobile-row="amounts"
+                  data-budget-non-cost="true"
+                  className="min-w-0 border-y border-line py-3 text-sm font-semibold leading-6 text-ink-soft md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
+                >
+                  不計入預算；原有金額仍保留
+                </p>
+              ) : isPassThrough ? (
                 <p
                   data-budget-mobile-row="amounts"
                   data-budget-pass-through="true"
@@ -1367,29 +1451,43 @@ function BudgetItemRow({
                 <span
                   className={[
                     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                    isPendingPreparationSuggestion
+                    !tracksCost
+                      ? "border-line-strong bg-surface-sunken text-ink-soft"
+                      : isPendingPreparationSuggestion
                       ? "border-positive bg-positive-soft text-positive"
                       : statusTagClass(item.bookingStatus),
                   ].join(" ")}
                 >
                   <span aria-hidden="true">
-                    {isPendingPreparationSuggestion
+                    {!tracksCost
+                      ? BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]
+                      : isPendingPreparationSuggestion
                       ? "待準備"
                       : STATUS_SCAN_LABELS[item.bookingStatus]}
                   </span>
                   <span className="sr-only">
-                    {isPendingPreparationSuggestion
+                    {!tracksCost
+                      ? `準備方式為${BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}，不計入預算與付款進度`
+                      : isPendingPreparationSuggestion
                       ? "常見婚禮項目待準備，目前狀態為規劃中"
                       : BUDGET_BOOKING_STATUS_LABELS[item.bookingStatus]}
                   </span>
                 </span>
                 {/* 期限跟狀態是同一組資訊，貼著徽章走；沒設期限就不佔一行。 */}
-                {item.dueDate ? (
+                {tracksCost && item.dueDate ? (
                   <span
                     data-budget-ledger-column="due-date"
-                    className="text-xs text-ink-soft md:-mt-1"
+                    className={[
+                      "text-xs md:-mt-1",
+                      balanceDueIsOverdue
+                        ? "font-semibold text-danger"
+                        : "text-ink-soft",
+                    ].join(" ")}
                   >
-                    <time dateTime={item.dueDate}>期限 {item.dueDate}</time>
+                    <time dateTime={item.dueDate}>
+                      期限 {item.dueDate}
+                      {balanceDueIsOverdue ? "（已逾期）" : ""}
+                    </time>
                   </span>
                 ) : null}
                 <span id={attachmentDescriptionId} className="sr-only">
@@ -1442,18 +1540,13 @@ function BudgetItemRow({
                     >
                       歸屬：{relatedExpense.primaryTaxonomyItemLabel}；用途：{item.name}
                     </p>
-                    {relatedExpense.sourceHierarchyPath.length > 0 && (
-                      <p
-                        data-budget-related-notion-source-path="true"
-                        className="break-words text-xs leading-5 text-ink-soft"
-                      >
-                        Notion 原始路徑：
-                        {relatedExpense.sourceHierarchyPath.join(" › ")}
-                      </p>
-                    )}
                   </div>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">
-                    預計 {formatTwdAmount(relatedExpense.plannedAmount)}
+                    {relatedExpense.preparationStatus === "NEEDS_ACTION"
+                      ? `預計 ${formatTwdAmount(relatedExpense.plannedAmount)}`
+                      : BUDGET_PREPARATION_STATUS_LABELS[
+                          relatedExpense.preparationStatus
+                        ] + " · 不計入預算"}
                   </span>
                 </li>
               ))}
@@ -1631,6 +1724,11 @@ function BudgetItemRow({
               </dl>
             ) : (
               <>
+                {!tracksCost ? (
+                  <p className="mb-5 border-l-2 border-clay bg-clay-soft px-4 py-3 text-sm leading-6 text-ink-soft">
+                    目前標示為「{BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}」，下列既有金額只供保留與日後恢復，不計入預算或付款進度。
+                  </p>
+                ) : null}
                 <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="min-w-0">
                     <dt className="text-xs tracking-[0.08em] text-ink-soft">
@@ -1679,7 +1777,17 @@ function BudgetItemRow({
                     </dt>
                     <dd className="mt-1 break-words text-sm text-ink-soft">
                       {item.dueDate ? (
-                        <time dateTime={item.dueDate}>{item.dueDate}</time>
+                        <time
+                          dateTime={item.dueDate}
+                          className={
+                            balanceDueIsOverdue
+                              ? "font-semibold text-danger"
+                              : undefined
+                          }
+                        >
+                          {item.dueDate}
+                          {balanceDueIsOverdue ? "（已逾期）" : ""}
+                        </time>
                       ) : (
                         "未設定"
                       )}
@@ -1759,12 +1867,6 @@ function BudgetItemRow({
               </div>
             )}
 
-            {item.source === "NOTION" && (
-              <p className="mt-5 border-t border-line pt-4 text-xs text-ink-faint">
-                資料來源：Notion 單次匯入
-              </p>
-            )}
-
             {canEdit && (
               <div className="mt-6 min-w-0 border-t border-line-strong pt-5">
                 <h4 className="text-sm font-semibold tracking-[0.08em] text-clay-strong">
@@ -1801,6 +1903,7 @@ function BudgetItemRow({
                     expectedVersion={item.version}
                     breadcrumb={breadcrumb}
                     onSuccess={setChildCreateNotice}
+                    onUpdated={setGroupOverride}
                     onPendingChange={setGroupMutationPending}
                   />
                 )}
@@ -1882,15 +1985,27 @@ function BudgetItemRow({
                       descendantCount={descendantCount}
                     />
                     <div className="mt-4 min-w-0 border-t border-dashed border-line-strong pt-4">
-                      <ChangeBudgetItemBookingStatusForm
+                      <ChangeBudgetItemPreparationStatusForm
                         workspaceId={workspaceId}
                         itemId={item.id}
-                        bookingStatus={item.bookingStatus}
+                        preparationStatus={preparationStatus}
                         itemName={item.name}
                         expectedVersion={item.version}
-                        onPendingChange={setStatusPending}
+                        onPendingChange={setPreparationPending}
                       />
                     </div>
+                    {tracksCost ? (
+                      <div className="mt-4 min-w-0 border-t border-dashed border-line-strong pt-4">
+                        <ChangeBudgetItemBookingStatusForm
+                          workspaceId={workspaceId}
+                          itemId={item.id}
+                          bookingStatus={item.bookingStatus}
+                          itemName={item.name}
+                          expectedVersion={item.version}
+                          onPendingChange={setStatusPending}
+                        />
+                      </div>
+                    ) : null}
                   </>
                 )}
                 {isGroup && !isFixedGroup && directChildCount > 0 && (
@@ -1950,11 +2065,12 @@ function matchesSearch(item: BudgetItemListItem, search: string): boolean {
     return true;
   }
 
-  const notionSourceHierarchyPath = notionSourceHierarchyPathOf(item);
-
   return [
     item.name,
     item.kind === "GROUP" ? "群組" : null,
+    item.kind === "EXPENSE"
+      ? BUDGET_PREPARATION_STATUS_LABELS[preparationStatusOfItem(item)]
+      : null,
     ...item.breadcrumb,
     taxonomyNodeLabel(item.relatedTaxonomyItemKey),
     item.relatedTaxonomyItemKey ? "用途 用途關聯" : null,
@@ -1966,9 +2082,6 @@ function matchesSearch(item: BudgetItemListItem, search: string): boolean {
     item.candidateVendors,
     item.confirmedVendor,
     item.vendorContact,
-    notionSourceHierarchyPath.length > 0 ? "Notion 原始路徑" : null,
-    notionSourceHierarchyPath.join(" › "),
-    ...notionSourceHierarchyPath,
   ]
     .filter((value): value is string => Boolean(value))
     .some((value) =>
@@ -2079,7 +2192,10 @@ function filterBudgetItems(
       (statusFilter === "ALL" ||
         (item.kind === "EXPENSE" &&
           !isPassThroughSourceNode(item) &&
-          item.bookingStatus === statusFilter)),
+          (statusFilter === "ALREADY_OWNED" || statusFilter === "NOT_PLANNED"
+            ? preparationStatusOfItem(item) === statusFilter
+            : preparationStatusOfItem(item) === "NEEDS_ACTION" &&
+              item.bookingStatus === statusFilter))),
   );
   const includedIndexes = new Set<number>();
   const contextIndexes = new Set<number>();
@@ -2141,23 +2257,39 @@ function allItemVisibility(
 export function BudgetList({
   workspaceId,
   workspaceName = "",
+  workspaceToday = null,
   items,
   summary,
   canEdit,
   canResetBudget = false,
   resetSnapshot = null,
+  hasEngagementCeremony = false,
+  hasProcessionCeremony = false,
+  ceremonyStageCleanups = [],
+  ceremonyPreferencesVersion = 0,
 }: {
   workspaceId: string;
   workspaceName?: string;
+  workspaceToday?: string | null;
   items: BudgetItemListItem[];
   summary: BudgetSummary;
   canEdit: boolean;
   canResetBudget?: boolean;
   resetSnapshot?: BudgetResetSnapshot | null;
+  hasEngagementCeremony?: boolean;
+  hasProcessionCeremony?: boolean;
+  ceremonyStageCleanups?: BudgetCeremonyStageCleanup[];
+  ceremonyPreferencesVersion?: number;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<BudgetStatusFilter>("ALL");
   const [notice, setNotice] = useState<string | null>(null);
+  const [savedCeremonyPreferences, setSavedCeremonyPreferences] = useState<{
+    workspaceId: string;
+    hasEngagementCeremony: boolean;
+    hasProcessionCeremony: boolean;
+    version: number;
+  } | null>(null);
   const [pendingRelatedNavigationId, setPendingRelatedNavigationId] = useState<
     string | null
   >(null);
@@ -2171,11 +2303,43 @@ export function BudgetList({
     expanded: {},
   });
   const selectionHeadingRef = useRef<HTMLHeadingElement>(null);
+  const selectionContextRef = useRef<HTMLDivElement>(null);
   const expansionTouchedWorkspaceRef = useRef<string | null>(null);
   const forcedExpansionDescriptionId = useId();
+  const ceremonyPreferences =
+    savedCeremonyPreferences?.workspaceId === workspaceId &&
+    savedCeremonyPreferences.version >= ceremonyPreferencesVersion
+      ? savedCeremonyPreferences
+      : {
+          workspaceId,
+          hasEngagementCeremony,
+          hasProcessionCeremony,
+          version: ceremonyPreferencesVersion,
+        };
+  const effectiveHasEngagementCeremony =
+    ceremonyPreferences.hasEngagementCeremony;
+  const effectiveHasProcessionCeremony =
+    ceremonyPreferences.hasProcessionCeremony;
+  const hiddenCeremonyStageKeys = useMemo(
+    () =>
+      hiddenBudgetCeremonyStageKeys({
+        hasEngagementCeremony: effectiveHasEngagementCeremony,
+        hasProcessionCeremony: effectiveHasProcessionCeremony,
+      }),
+    [effectiveHasEngagementCeremony, effectiveHasProcessionCeremony],
+  );
+  // Server 依已儲存的設定算出待清理階段；使用者剛把儀式重新打開時，
+  // 樂觀狀態要立刻把提示收起來，不要叫人去刪一個又要用的階段。
+  const visibleCeremonyStageCleanups = useMemo(
+    () =>
+      ceremonyStageCleanups.filter((cleanup) =>
+        hiddenCeremonyStageKeys.has(cleanup.stageKey),
+      ),
+    [ceremonyStageCleanups, hiddenCeremonyStageKeys],
+  );
   const { driveItems, legacyItems, displayItems } = useMemo(
-    () => prepareBudgetDisplayItems(items),
-    [items],
+    () => prepareBudgetDisplayItems(items, hiddenCeremonyStageKeys),
+    [hiddenCeremonyStageKeys, items],
   );
   const existingSuggestionKeys = useMemo(
     () =>
@@ -2277,7 +2441,7 @@ export function BudgetList({
         name: item.name,
         primaryTaxonomyItemLabel,
         plannedAmount: item.plannedAmount,
-        sourceHierarchyPath: notionSourceHierarchyPathOf(item),
+        preparationStatus: preparationStatusOfItem(item),
       });
       relatedByTaxonomy.set(item.relatedTaxonomyItemKey, relatedExpenses);
     });
@@ -2425,12 +2589,22 @@ export function BudgetList({
     }
     const focusTarget = row.querySelector<HTMLElement>("article") ?? row;
     focusTarget.focus({ preventScroll: true });
-    row.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    const scrollTarget =
+      pendingRelatedNavigationId === selectedTaxonomyItemId
+        ? selectionContextRef.current
+        : row;
+    scrollTarget?.scrollIntoView?.({
+      behavior: "smooth",
+      block:
+        pendingRelatedNavigationId === selectedTaxonomyItemId
+          ? "start"
+          : "center",
+    });
     const timer = window.setTimeout(() => {
       setPendingRelatedNavigationId(null);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [allVisibility, pendingRelatedNavigationId]);
+  }, [allVisibility, pendingRelatedNavigationId, selectedTaxonomyItemId]);
 
   const selectedTaxonomyItemIds = (() => {
     if (selectedTaxonomyContext === null) {
@@ -2642,6 +2816,7 @@ export function BudgetList({
       <BudgetItemRow
         key={item.id}
         workspaceId={workspaceId}
+        workspaceToday={workspaceToday}
         hierarchyCategory={hierarchyCategoryForItem(displayItems, itemIndex)}
         hierarchyTaxonomyItemKey={taxonomyItemKeyForItem(
           displayItems,
@@ -2689,6 +2864,8 @@ export function BudgetList({
         onShowAll={showAllSummaryItems}
         onShowPaid={() => showSummaryStatus("PAID")}
         onShowBalanceDue={() => showSummaryStatus("BOOKED_BALANCE_DUE")}
+        onShowSelfProvided={() => showSummaryStatus("ALREADY_OWNED")}
+        onShowNotPlanned={() => showSummaryStatus("NOT_PLANNED")}
       />
       <div className="xl:hidden">
         <BudgetHierarchyGuide />
@@ -2699,7 +2876,7 @@ export function BudgetList({
           花費明細
         </h2>
         <p className="sr-only">
-          左側依 Drive 分類定位，右側保留 Notion 來源分組與實際付款資訊。
+          左側依籌備分類定位，右側保留來源分組與實際付款資訊。
         </p>
         {notice ? (
           <p
@@ -2743,8 +2920,9 @@ export function BudgetList({
             className="min-w-0 overflow-hidden rounded-2xl border border-line-strong bg-surface shadow-[0_14px_36px_rgba(69,49,38,0.07)]"
           >
             <div
+              ref={selectionContextRef}
               data-budget-selection-context="true"
-              className="grid min-w-0 gap-4 border-b border-line bg-surface px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+              className="grid min-w-0 scroll-mt-24 gap-4 border-b border-line bg-surface px-4 py-4 sm:px-5"
             >
               <div className="min-w-0">
                 <p className="break-words text-xs font-semibold tracking-[0.08em] text-clay">
@@ -2786,7 +2964,7 @@ export function BudgetList({
               {canEdit && (
                 <div
                   data-budget-actions-toolbar="true"
-                  className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start lg:justify-end"
+                  className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start"
                 >
                   <details
                   data-budget-primary-action="true"
@@ -2854,17 +3032,46 @@ export function BudgetList({
                     />
                   </div>
                   </details>
-                  <BudgetEngagementPreset
-                    workspaceId={workspaceId}
-                    existingSuggestionKeys={existingSuggestionKeys}
-                    onSuccess={setNotice}
-                  />
+                  {effectiveHasEngagementCeremony ? (
+                    <BudgetEngagementPreset
+                      workspaceId={workspaceId}
+                      existingSuggestionKeys={existingSuggestionKeys}
+                      onSuccess={setNotice}
+                    />
+                  ) : null}
                   <BudgetPreparationPreset
                     workspaceId={workspaceId}
                     existingSuggestionKeys={existingSuggestionKeys}
                     coveredSuggestionKeys={coveredPreparationSuggestionKeys}
+                    showProcessionCeremony={effectiveHasProcessionCeremony}
                     onSuccess={setNotice}
                   />
+                  <BudgetCeremonyPreferences
+                    key={workspaceId}
+                    workspaceId={workspaceId}
+                    preferences={{
+                      hasEngagementCeremony:
+                        effectiveHasEngagementCeremony,
+                      hasProcessionCeremony:
+                        effectiveHasProcessionCeremony,
+                      version: ceremonyPreferences.version,
+                    }}
+                    onChange={(preferences) => {
+                      setSavedCeremonyPreferences({
+                        workspaceId,
+                        ...preferences,
+                      });
+                      setNotice("已更新中式儀式設定。");
+                    }}
+                  />
+                  {visibleCeremonyStageCleanups.map((cleanup) => (
+                    <BudgetCeremonyStageCleanupCard
+                      key={cleanup.stageKey}
+                      workspaceId={workspaceId}
+                      cleanup={cleanup}
+                      onSuccess={setNotice}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -2954,8 +3161,8 @@ export function BudgetList({
                   </div>
                   <div
                     role="group"
-                    aria-label="依下訂與付款狀態篩選"
-                    className="col-start-1 row-start-2 flex min-w-0 overflow-hidden rounded-lg border border-line-strong bg-surface lg:col-start-2 lg:row-start-1"
+                    aria-label="依準備、下訂與付款狀態篩選"
+                    className="col-start-1 row-start-2 grid min-w-0 grid-cols-3 overflow-hidden rounded-lg border border-line-strong bg-surface lg:col-start-2 lg:row-start-1"
                   >
                     {STATUS_FILTERS.map((filter) => {
                       const selected = statusFilter === filter.value;
@@ -2969,7 +3176,7 @@ export function BudgetList({
                             setTaxonomySelection({ workspaceId, itemId: null });
                           }}
                           className={[
-                            "min-h-11 min-w-0 flex-1 border-r border-line-strong px-2.5 py-1.5 text-xs font-semibold transition last:border-r-0 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay lg:flex-none lg:px-3",
+                            "min-h-11 min-w-0 border-b border-r border-line-strong px-2.5 py-1.5 text-xs font-semibold transition [&:nth-child(3n)]:border-r-0 [&:nth-last-child(-n+3)]:border-b-0 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay lg:px-3",
                             selected
                               ? "bg-clay-strong text-white"
                               : "bg-transparent text-ink-soft hover:bg-surface-sunken",

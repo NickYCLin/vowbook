@@ -371,6 +371,25 @@ async function seedFixture() {
   }
 }
 
+async function disableChineseCeremonyPresetFixtures() {
+  const client = new PrismaClient({
+    datasources: { db: { url: databaseUrl } },
+  });
+  try {
+    await client.weddingWorkspace.updateMany({
+      where: {
+        id: { in: Object.values(fixtures).map((fixture) => fixture.workspaceId) },
+      },
+      data: {
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: false,
+      },
+    });
+  } finally {
+    await client.$disconnect();
+  }
+}
+
 async function verifyFixture() {
   const client = new PrismaClient({
     datasources: { db: { url: databaseUrl } },
@@ -387,15 +406,100 @@ async function verifyFixture() {
       throw new Error("CRUD browser verification found an undeleted temporary workspace.");
     }
 
-    for (const fixture of Object.values(fixtures)) {
+    for (const [viewport, fixture] of Object.entries(fixtures)) {
+      const ceremonyPreferences = await client.weddingWorkspace.findUnique({
+        where: { id: fixture.workspaceId },
+        select: {
+          hasEngagementCeremony: true,
+          hasProcessionCeremony: true,
+          ceremonyPreferencesVersion: true,
+        },
+      });
+      if (
+        ceremonyPreferences?.hasEngagementCeremony !== false ||
+        ceremonyPreferences?.hasProcessionCeremony !== false ||
+        ceremonyPreferences?.ceremonyPreferencesVersion !== 1
+      ) {
+        throw new Error(
+          "CRUD browser verification found an unexpected Chinese-ceremony preference snapshot.",
+        );
+      }
+      const ceremonyCount = await client.weddingCeremony.count({
+        where: { workspaceId: fixture.workspaceId },
+      });
+      if (ceremonyCount !== 0) {
+        throw new Error(
+          "CRUD browser verification found an undeleted ceremony fixture.",
+        );
+      }
+      const ceremonyAttendanceCount =
+        await client.weddingCeremonyGuestAttendance.count({
+          where: { workspaceId: fixture.workspaceId },
+        });
+      if (ceremonyAttendanceCount !== 0) {
+        throw new Error(
+          "CRUD browser verification found an undeleted ceremony attendance fixture.",
+        );
+      }
+      const timelineCount = await client.weddingTimelineItem.count({
+        where: { workspaceId: fixture.workspaceId },
+      });
+      const westernCeremonyTimelineCount =
+        await client.weddingTimelineItem.count({
+          where: {
+            workspaceId: fixture.workspaceId,
+            title: "證婚儀式",
+          },
+        });
+      const expectedTimelineCount = viewport === "mobile" ? 8 : 9;
+      const expectedWesternCeremonyCount = viewport === "mobile" ? 0 : 1;
+      if (
+        timelineCount !== expectedTimelineCount ||
+        westernCeremonyTimelineCount !== expectedWesternCeremonyCount
+      ) {
+        throw new Error(
+          "CRUD browser verification found an unexpected explicit western-ceremony template state.",
+        );
+      }
+      const weddingGiftCount = await client.weddingGift.count({
+        where: { workspaceId: fixture.workspaceId },
+      });
+      if (weddingGiftCount !== 0) {
+        throw new Error(
+          "CRUD browser verification found an undeleted wedding gift fixture.",
+        );
+      }
+      const guestCheckInCount = await client.guestCheckIn.count({
+        where: { workspaceId: fixture.workspaceId },
+      });
+      if (guestCheckInCount !== 0) {
+        throw new Error(
+          "CRUD browser verification found an undeleted guest check-in fixture.",
+        );
+      }
       const membershipCount = await client.membership.count({
         where: {
           workspaceId: fixture.workspaceId,
           userId: fixture.memberId,
         },
       });
-      if (membershipCount !== 0) {
-        throw new Error("CRUD browser verification found a member that was not removed.");
+      const expectedMembershipCount = viewport === "mobile" ? 1 : 0;
+      if (membershipCount !== expectedMembershipCount) {
+        throw new Error("CRUD browser verification found an unexpected member state.");
+      }
+      if (viewport === "mobile") {
+        const mobileMembership = await client.membership.findFirst({
+          where: {
+            workspaceId: fixture.workspaceId,
+            userId: fixture.memberId,
+          },
+          select: { role: true },
+        });
+        if (mobileMembership?.role !== "PLANNER") {
+          throw new Error(
+            "CRUD browser verification found an unexpected mobile member role.",
+          );
+        }
       }
 
       const dissolvedFixtures = await client.budgetItem.count({
@@ -660,11 +764,11 @@ async function verifyFixture() {
         guest.name !== fixture.editedGuestName ||
         guest.side !== "PARTNER_B" ||
         guest.attendanceStatus !== "ATTENDING" ||
-        guest.partySize !== 3 ||
+        guest.partySize !== (viewport === "mobile" ? 3 : 4) ||
         guest.notes !== fixture.editedGuestNotes ||
         guest.seatingTableId !== null ||
-        // 資料編輯 1 次、安排／移出 2 次、未安排區人數調整 2 次、再安排／移出 2 次。
-        guest.version !== 7
+        // 手機只驗證呈現；桌面另加人數調整與兩輪安排／移出。
+        guest.version !== (viewport === "mobile" ? 1 : 6)
       ) {
         throw new Error("CRUD browser verification found an unexpected final guest state.");
       }
@@ -747,17 +851,16 @@ async function verifyFixture() {
         where: { workspaceId: fixture.workspaceId },
         orderBy: { position: "asc" },
       });
+      const expectedTableCount = viewport === "mobile" ? 2 : 1;
       if (
-        finalTables.length !== 1 ||
+        finalTables.length !== expectedTableCount ||
         finalTables[0]?.id !== fixture.stableTableId ||
         finalTables[0]?.name !== fixture.stableTableName ||
         finalTables[0]?.capacity !== 6 ||
         finalTables[0]?.position !== 1 ||
-        finalTables[0]?.layoutX === null ||
-        finalTables[0]?.layoutX <= 500 ||
-        finalTables[0]?.layoutX > 944 ||
-        finalTables[0]?.layoutY !== 220 ||
-        finalTables[0]?.version !== 1
+        finalTables[0]?.layoutX !== null ||
+        finalTables[0]?.layoutY !== null ||
+        finalTables[0]?.version !== 0
       ) {
         throw new Error(
           "CRUD browser verification did not preserve the stable first table.",
@@ -769,7 +872,7 @@ async function verifyFixture() {
           name: fixture.editedSecondTableName,
         },
       });
-      if (removedEditedTable !== 0) {
+      if (removedEditedTable !== (viewport === "mobile" ? 1 : 0)) {
         throw new Error("CRUD browser verification found the confirmed removed table.");
       }
     }
@@ -813,8 +916,10 @@ try {
       [
         playwrightCli,
         "test",
+        "e2e/budget-ceremony-preferences.spec.ts",
         "e2e/budget-hierarchy-visual.spec.ts",
         "e2e/crud-workflows.spec.ts",
+        "e2e/timeline-template.spec.ts",
         "--workers=1",
       ],
       environment,
@@ -845,6 +950,7 @@ try {
     );
   }
   if (status === 0) {
+    await disableChineseCeremonyPresetFixtures();
     await verifyFixture();
   }
 } catch (error) {

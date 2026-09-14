@@ -1,7 +1,14 @@
 "use client";
 
 import { UserMinus } from "@phosphor-icons/react";
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   adjustSeatingTablesAction,
   assignGuestToTableAction,
@@ -306,6 +313,40 @@ type TableFieldsProps = {
   };
 };
 
+type EditSeatingTableSnapshot = {
+  workspaceId: string;
+  tableId: string;
+  name: string;
+  capacity: number;
+  notes: string | null;
+  version: number;
+};
+
+function createEditSeatingTableSnapshot({
+  workspaceId,
+  tableId,
+  name,
+  capacity,
+  notes,
+  version,
+}: EditSeatingTableSnapshot): EditSeatingTableSnapshot {
+  return { workspaceId, tableId, name, capacity, notes, version };
+}
+
+function isSameEditSeatingTableSnapshot(
+  current: EditSeatingTableSnapshot,
+  latest: EditSeatingTableSnapshot,
+) {
+  return (
+    current.workspaceId === latest.workspaceId &&
+    current.tableId === latest.tableId &&
+    current.name === latest.name &&
+    current.capacity === latest.capacity &&
+    current.notes === latest.notes &&
+    current.version === latest.version
+  );
+}
+
 function TableFields({ idPrefix, initialValues }: TableFieldsProps) {
   return (
     <div className="min-w-0 space-y-5">
@@ -469,51 +510,64 @@ export function EditSeatingTableForm({
     closeWithoutRestoringFocus,
     restoreFocus,
   } = useModalDialog();
-  const updateAction = updateSeatingTableAction.bind(null, workspaceId, tableId);
-  const [state, formAction, isPending] = useActionState(updateAction, initialState);
-  const [formSnapshot, setFormSnapshot] = useState(() => ({
-    name,
-    capacity,
-    notes,
-    version,
-  }));
+  const latestSnapshot = useMemo(
+    () =>
+      createEditSeatingTableSnapshot({
+        workspaceId,
+        tableId,
+        name,
+        capacity,
+        notes,
+        version,
+      }),
+    [capacity, name, notes, tableId, version, workspaceId],
+  );
+  const [formSnapshot, setFormSnapshot] = useState(() => latestSnapshot);
+  const [lastServerSnapshot, setLastServerSnapshot] = useState(
+    () => latestSnapshot,
+  );
+  const [formGeneration, setFormGeneration] = useState(0);
   const [dirty, setDirty] = useState(false);
-  const handledSuccessStateRef = useRef<SeatingTableMutationState | null>(null);
-
-  useEffect(() => {
-    const actionJustSucceeded =
-      state.status === "success" && handledSuccessStateRef.current !== state;
-    if (actionJustSucceeded) {
-      handledSuccessStateRef.current = state;
-      closeWithoutRestoringFocus();
-    }
-    if (dirty && !actionJustSucceeded) {
-      return;
-    }
-
-    setFormSnapshot((current) => {
-      if (
-        current.name === name &&
-        current.capacity === capacity &&
-        current.notes === notes &&
-        current.version === version
-      ) {
-        return current;
+  const [hideActionFeedback, setHideActionFeedback] = useState(false);
+  const snapshotIsOutdated = !isSameEditSeatingTableSnapshot(
+    formSnapshot,
+    latestSnapshot,
+  );
+  const updateAction = updateSeatingTableAction.bind(
+    null,
+    formSnapshot.workspaceId,
+    formSnapshot.tableId,
+  );
+  const [state, formAction, isPending] = useActionState(
+    async (
+      previousState: SeatingTableMutationState,
+      formData: FormData,
+    ) => {
+      setHideActionFeedback(false);
+      const nextState = await updateAction(previousState, formData);
+      if (nextState.status === "success") {
+        setDirty(false);
+        closeWithoutRestoringFocus();
       }
-      return { name, capacity, notes, version };
-    });
-    if (actionJustSucceeded) {
-      setDirty(false);
+      return nextState;
+    },
+    initialState,
+  );
+
+  if (!isSameEditSeatingTableSnapshot(lastServerSnapshot, latestSnapshot)) {
+    setLastServerSnapshot(latestSnapshot);
+    if (!dirty) {
+      setFormSnapshot(latestSnapshot);
+      setFormGeneration((generation) => generation + 1);
     }
-  }, [
-    capacity,
-    closeWithoutRestoringFocus,
-    dirty,
-    name,
-    notes,
-    state,
-    version,
-  ]);
+  }
+
+  function loadLatestSnapshot() {
+    setFormSnapshot(latestSnapshot);
+    setFormGeneration((generation) => generation + 1);
+    setDirty(false);
+    setHideActionFeedback(true);
+  }
 
   useEffect(() => {
     if (state.status !== "success") {
@@ -554,6 +608,18 @@ export function EditSeatingTableForm({
         onClose={close}
         onRestoreFocus={restoreFocus}
       >
+        {dirty && snapshotIsOutdated ? (
+          <div className="mx-5 mt-5 rounded-control border border-caution/30 bg-caution-soft px-4 py-3 text-caption leading-6 text-caution sm:mx-6">
+            <p>這筆桌次已有較新的資料，目前表單仍保留原本的草稿與版本。</p>
+            <button
+              type="button"
+              onClick={loadLatestSnapshot}
+              className="mt-3 inline-flex min-h-11 items-center rounded-control border border-caution/40 px-4 font-semibold transition hover:bg-caution/10"
+            >
+              載入最新資料
+            </button>
+          </div>
+        ) : null}
         <form
           action={formAction}
           className="min-w-0"
@@ -561,7 +627,7 @@ export function EditSeatingTableForm({
         >
           <div className="min-w-0 space-y-5 px-5 py-6 sm:px-6">
             <TableFields
-              key={formSnapshot.version}
+              key={formGeneration}
               idPrefix={idPrefix}
               initialValues={formSnapshot}
             />
@@ -570,7 +636,9 @@ export function EditSeatingTableForm({
               name="expectedVersion"
               value={formSnapshot.version}
             />
-            {state.status === "success" ? null : (
+            {state.status === "success" ||
+            hideActionFeedback ||
+            isPending ? null : (
               <div data-action-feedback="seating-table-edit">
                 <SeatingTableActionFeedback state={state} />
               </div>
@@ -754,11 +822,31 @@ export type DeleteSeatingTableIntentRejection = {
   tableId: string;
 };
 
+type AssignGuestSnapshot = {
+  guestId: string;
+  guestName: string;
+  guestPartySize: number;
+  guestVersion: number;
+};
+
+function isSameAssignGuestSnapshot(
+  current: AssignGuestSnapshot,
+  latest: AssignGuestSnapshot,
+) {
+  return (
+    current.guestId === latest.guestId &&
+    current.guestName === latest.guestName &&
+    current.guestPartySize === latest.guestPartySize &&
+    current.guestVersion === latest.guestVersion
+  );
+}
+
 export function AssignGuestForm({
   workspaceId,
   guestId,
   guestName,
   guestPartySize,
+  guestVersion,
   tables,
   onAssignIntent,
   onIntentRejected,
@@ -767,6 +855,7 @@ export function AssignGuestForm({
   guestId: string;
   guestName: string;
   guestPartySize: number;
+  guestVersion: number;
   tables: { id: string; name: string; remainingCapacity: number }[];
   onAssignIntent?: (intent: AssignGuestIntent) => void;
   onIntentRejected?: (intent: SeatingGuestIntentRejection) => void;
@@ -774,9 +863,37 @@ export function AssignGuestForm({
   const selectId = useId();
   const assignAction = assignGuestToTableAction.bind(null, workspaceId, guestId);
   const [state, formAction, isPending] = useActionState(assignAction, initialState);
-  const hasAvailableTable = tables.some(
-    (table) => table.remainingCapacity >= guestPartySize,
+  const latestSnapshot = useMemo(
+    () => ({ guestId, guestName, guestPartySize, guestVersion }),
+    [guestId, guestName, guestPartySize, guestVersion],
   );
+  const [snapshot, setSnapshot] = useState(() => latestSnapshot);
+  const [lastServerSnapshot, setLastServerSnapshot] = useState(
+    () => latestSnapshot,
+  );
+  const [selectedTableId, setSelectedTableId] = useState("");
+  const snapshotIsOutdated = !isSameAssignGuestSnapshot(
+    snapshot,
+    latestSnapshot,
+  );
+  const hasAvailableTable = tables.some(
+    (table) => table.remainingCapacity >= snapshot.guestPartySize,
+  );
+
+  if (!isSameAssignGuestSnapshot(lastServerSnapshot, latestSnapshot)) {
+    setLastServerSnapshot(latestSnapshot);
+    // 還沒選桌次就沒有待保留的草稿；例如使用者在同一列更新邀請人數後，
+    // 應直接以新版本繼續安排。已選桌次時仍凍結舊版本，避免協作者更新時
+    // 靜默改變即將送出的安排內容。
+    if (selectedTableId === "") {
+      setSnapshot(latestSnapshot);
+    }
+  }
+
+  function loadLatestSnapshot() {
+    setSnapshot(latestSnapshot);
+    setSelectedTableId("");
+  }
 
   useEffect(() => {
     if (
@@ -792,6 +909,10 @@ export function AssignGuestForm({
       action={formAction}
       className="mt-2.5 min-w-0 space-y-2"
       onSubmit={(event) => {
+        if (snapshotIsOutdated) {
+          event.preventDefault();
+          return;
+        }
         const selectedTableId = new FormData(event.currentTarget).get("tableId");
         const selectedTable = tables.find(
           (table) => table.id === selectedTableId,
@@ -799,16 +920,22 @@ export function AssignGuestForm({
         if (selectedTable) {
           onAssignIntent?.({
             guestId,
-            guestName,
+            guestName: snapshot.guestName,
             tableId: selectedTable.id,
             tableName: selectedTable.name,
           });
         }
       }}
     >
+      <input
+        type="hidden"
+        name="expectedGuestVersion"
+        value={snapshot.guestVersion}
+      />
+      <input type="hidden" name="expectedSeatingTableId" value="" />
       {/* 桌名就在上一行，標籤只留給輔助技術。 */}
       <label htmlFor={selectId} className="sr-only">
-        為{guestName}選擇桌次
+        為{snapshot.guestName}選擇桌次
       </label>
       {/*
         依「未安排賓客欄」的實際寬度換行，不是視窗寬度：
@@ -819,8 +946,9 @@ export function AssignGuestForm({
           id={selectId}
           name="tableId"
           required
-          defaultValue=""
-          disabled={!hasAvailableTable}
+          value={selectedTableId}
+          onChange={(event) => setSelectedTableId(event.target.value)}
+          disabled={!hasAvailableTable || snapshotIsOutdated}
           className="flex-1 text-caption"
         >
           <option value="" disabled>
@@ -830,7 +958,7 @@ export function AssignGuestForm({
             <option
               key={table.id}
               value={table.id}
-              disabled={table.remainingCapacity < guestPartySize}
+              disabled={table.remainingCapacity < snapshot.guestPartySize}
             >
               {table.name}（剩餘 {Math.max(0, table.remainingCapacity)} 位）
             </option>
@@ -840,13 +968,25 @@ export function AssignGuestForm({
           isPending={isPending}
           pendingLabel="安排中…"
           variant="secondary"
-          disabled={!hasAvailableTable}
-          aria-label={`安排${guestName}`}
+          disabled={!hasAvailableTable || snapshotIsOutdated}
+          aria-label={`安排${snapshot.guestName}`}
           className="shrink-0"
         >
           安排入席
         </SubmitButton>
       </div>
+      {snapshotIsOutdated ? (
+        <div className="rounded-control border border-caution/30 bg-caution-soft px-3 py-2 text-caption leading-6 text-caution">
+          <p>這筆賓客已有較新的資料，目前保留原本的桌次選擇。</p>
+          <button
+            type="button"
+            onClick={loadLatestSnapshot}
+            className="mt-2 inline-flex min-h-11 items-center rounded-control border border-caution/40 px-3 font-semibold transition hover:bg-caution/10"
+          >
+            載入最新賓客資料
+          </button>
+        </div>
+      ) : null}
       {!hasAvailableTable && (
         <p className="text-caption leading-6 text-ink-soft">
           目前沒有足夠座位容納這筆賓客，請先調整桌次容量。
@@ -882,12 +1022,16 @@ export function UnassignGuestForm({
   workspaceId,
   guestId,
   guestName,
+  guestVersion,
+  seatingTableId,
   onUnassignIntent,
   onIntentRejected,
 }: {
   workspaceId: string;
   guestId: string;
   guestName: string;
+  guestVersion: number;
+  seatingTableId: string;
   onUnassignIntent?: (intent: UnassignGuestIntent) => void;
   onIntentRejected?: (intent: SeatingGuestIntentRejection) => void;
 }) {
@@ -900,6 +1044,21 @@ export function UnassignGuestForm({
     unassignAction,
     initialState,
   );
+  const [snapshot, setSnapshot] = useState(() => ({
+    guestId,
+    guestName,
+    guestVersion,
+    seatingTableId,
+  }));
+  const snapshotIsOutdated =
+    snapshot.guestId !== guestId ||
+    snapshot.guestName !== guestName ||
+    snapshot.guestVersion !== guestVersion ||
+    snapshot.seatingTableId !== seatingTableId;
+
+  function loadLatestSnapshot() {
+    setSnapshot({ guestId, guestName, guestVersion, seatingTableId });
+  }
 
   useEffect(() => {
     if (
@@ -914,14 +1073,34 @@ export function UnassignGuestForm({
     <form
       action={formAction}
       className="mt-1.5 flex min-w-0 flex-col items-end gap-2"
-      onSubmit={() => onUnassignIntent?.({ guestId, guestName })}
+      onSubmit={(event) => {
+        if (snapshotIsOutdated) {
+          event.preventDefault();
+          return;
+        }
+        onUnassignIntent?.({
+          guestId,
+          guestName: snapshot.guestName,
+        });
+      }}
     >
+      <input
+        type="hidden"
+        name="expectedGuestVersion"
+        value={snapshot.guestVersion}
+      />
+      <input
+        type="hidden"
+        name="expectedSeatingTableId"
+        value={snapshot.seatingTableId}
+      />
       <SubmitButton
         isPending={isPending}
         pendingLabel="移出中…"
         variant="danger"
         size="sm"
-        aria-label={`將${guestName}移出桌次`}
+        aria-label={`將${snapshot.guestName}移出桌次`}
+        disabled={snapshotIsOutdated}
         className="min-h-11 sm:min-h-9"
       >
         <UserMinus
@@ -932,6 +1111,18 @@ export function UnassignGuestForm({
         />
         移出此桌
       </SubmitButton>
+      {snapshotIsOutdated ? (
+        <div className="w-full rounded-control border border-caution/30 bg-caution-soft px-3 py-2 text-caption leading-6 text-caution">
+          <p>這筆賓客的桌次已有較新的資料，目前不會送出舊的移出操作。</p>
+          <button
+            type="button"
+            onClick={loadLatestSnapshot}
+            className="mt-2 inline-flex min-h-11 items-center rounded-control border border-caution/40 px-3 font-semibold transition hover:bg-caution/10"
+          >
+            載入最新桌次資料
+          </button>
+        </div>
+      ) : null}
       <div
         className="w-full"
         data-action-feedback="seating-table-unassignment"

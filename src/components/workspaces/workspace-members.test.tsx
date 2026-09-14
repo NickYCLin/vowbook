@@ -510,6 +510,12 @@ describe("WorkspaceMembersPanel", () => {
       "已更新協作者角色。",
     );
     await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
+    const currentMembers = screen.getByRole("region", { name: "目前成員" });
+    expect(
+      within(within(currentMembers).getByRole("listitem")).getByText("檢視者", {
+        selector: "p",
+      }),
+    ).toBeInTheDocument();
     expect(trigger).toHaveFocus();
     const submitted = actions.updateWorkspaceMemberRoleAction.mock.calls[1][2];
     expect(submitted.get("membershipId")).toBe("membership_partner");
@@ -574,6 +580,9 @@ describe("WorkspaceMembersPanel", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("已移除協作者。");
     await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
     expect(screen.getByRole("heading", { name: "目前成員" })).toHaveFocus();
+    const currentMembers = screen.getByRole("region", { name: "目前成員" });
+    expect(within(currentMembers).getByText("0 位")).toBeInTheDocument();
+    expect(within(currentMembers).queryAllByRole("listitem")).toHaveLength(0);
     const submitted = actions.removeWorkspaceMemberAction.mock.calls[0][2];
     expect(submitted.get("membershipId")).toBe("membership_partner");
     expect(submitted.get("expectedUpdatedAt")).toBe(

@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { WeddingWorkspace } from "@prisma/client";
+import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import {
   getWorkspacePermissions,
   WorkspaceAccessDeniedError,
@@ -9,6 +9,7 @@ import type {
   BudgetBookingStatus,
   BudgetCostCategory,
   BudgetItemKind,
+  BudgetPreparationStatus,
   BudgetPrimaryContact,
   BudgetSystemNodeKey,
   BudgetTaxonomyItemKey,
@@ -21,6 +22,11 @@ import {
   isBudgetTaxonomyItemKey,
 } from "@/domain/budget-item";
 import {
+  BUDGET_CEREMONY_STAGE_PREFERENCES,
+  budgetCeremonyStageLabel,
+  type BudgetCeremonyStageKey,
+} from "@/domain/budget-ceremony-stage";
+import {
   ALLOWED_BUDGET_ATTACHMENT_MEDIA_TYPES,
   type BudgetAttachmentMetadata,
   type BudgetAttachmentMediaType,
@@ -32,6 +38,7 @@ import { fingerprintBudgetDirectChildIds } from "@/lib/budget-direct-child-set";
 import {
   summarizeBudgetResetSnapshot,
   summarizeBudgetSubtreeNode,
+  summarizeBudgetSubtreeSnapshot,
   type BudgetResetSnapshot,
   type BudgetSubtreeChildSnapshot,
   type BudgetSubtreeDeleteSnapshot,
@@ -46,7 +53,6 @@ type BudgetItemRecord = {
   parentId: string | null;
   source: BudgetItemSource;
   sourceOrder: number | null;
-  sourceHierarchyPath: string[];
   name: string;
   kind: BudgetItemKind;
   category: BudgetCostCategory | null;
@@ -60,6 +66,7 @@ type BudgetItemRecord = {
   paid: boolean;
   paidAt: Date | null;
   bookingStatus: BudgetBookingStatus;
+  preparationStatus: BudgetPreparationStatus;
   depositAmount: number | null;
   balanceAmount: number | null;
   additionalAmount: number | null;
@@ -79,10 +86,31 @@ type BudgetItemRecord = {
   }>;
 };
 
-type BudgetItemPrismaClient = {
+type BudgetItemTransactionClient = {
+  membership: {
+    findUnique(args: unknown): Promise<{
+      role: string;
+      workspace: Pick<
+        WeddingWorkspace,
+        | "id"
+        | "name"
+        | "timezone"
+        | "hasEngagementCeremony"
+        | "hasProcessionCeremony"
+        | "ceremonyPreferencesVersion"
+      >;
+    } | null>;
+  };
   budgetItem: {
     findMany(args: unknown): Promise<BudgetItemRecord[]>;
   };
+};
+
+type BudgetItemPrismaClient = {
+  $transaction<T>(
+    operation: (transaction: BudgetItemTransactionClient) => Promise<T>,
+    options: { isolationLevel: string },
+  ): Promise<T>;
 };
 
 export type BudgetItemListItem = {
@@ -101,7 +129,6 @@ export type BudgetItemListItem = {
   descendantCount: number;
   subtreeDeleteSnapshot?: BudgetSubtreeDeleteSnapshot;
   source: BudgetItemSource;
-  sourceHierarchyPath: string[];
   name: string;
   kind: BudgetItemKind;
   category: BudgetCostCategory | null;
@@ -123,6 +150,7 @@ export type BudgetItemListItem = {
   paid: boolean;
   paidAt: string | null;
   bookingStatus: BudgetBookingStatus;
+  preparationStatus?: BudgetPreparationStatus;
   depositAmount: number | null;
   balanceAmount: number | null;
   additionalAmount: number | null;
@@ -142,8 +170,11 @@ export type BudgetSummary = {
   actualTotal: string;
   balanceDueTotal: string;
   balanceDueCount: number;
+  overdueBalanceDueCount: number;
   balanceDueMissingAmountCount: number;
-  nearestBalanceDueDate: string | null;
+  nearestUpcomingBalanceDueDate: string | null;
+  selfProvidedCount: number;
+  notPlannedCount: number;
 };
 
 const DATA_ERROR_MESSAGE = "目前無法載入婚禮花費，請稍後再試。";
@@ -160,7 +191,6 @@ const budgetItemSelect = {
   parentId: true,
   source: true,
   sourceOrder: true,
-  sourceHierarchyPath: true,
   name: true,
   kind: true,
   category: true,
@@ -174,6 +204,7 @@ const budgetItemSelect = {
   paid: true,
   paidAt: true,
   bookingStatus: true,
+  preparationStatus: true,
   depositAmount: true,
   balanceAmount: true,
   additionalAmount: true,
@@ -209,6 +240,23 @@ function amountAsBigInt(amount: number): bigint {
     throw new BudgetItemDataError();
   }
   return BigInt(amount);
+}
+
+function preparationStatusOf(
+  item: Pick<BudgetItemRecord, "kind" | "preparationStatus">,
+): BudgetPreparationStatus {
+  const status = item.preparationStatus;
+  if (
+    status !== "NEEDS_ACTION" &&
+    status !== "ALREADY_OWNED" &&
+    status !== "NOT_PLANNED"
+  ) {
+    throw new BudgetItemDataError();
+  }
+  if (item.kind === "GROUP" && status !== "NEEDS_ACTION") {
+    throw new BudgetItemDataError();
+  }
+  return status;
 }
 
 export function sumTwdAmounts(amounts: Iterable<number>): string {
@@ -267,20 +315,6 @@ function itemViewModel(
   rolledUpBalanceAmount: bigint,
   rolledUpBalanceAmountRecorded: boolean,
 ): BudgetItemListItem {
-  const sourceHierarchyPath = item.sourceHierarchyPath ?? [];
-  if (
-    !Array.isArray(sourceHierarchyPath) ||
-    sourceHierarchyPath.length > 4 ||
-    sourceHierarchyPath.some(
-      (segment) =>
-        typeof segment !== "string" ||
-        segment.length === 0 ||
-        segment !== segment.trim(),
-    ) ||
-    (item.source !== "NOTION" && sourceHierarchyPath.length > 0)
-  ) {
-    throw new BudgetItemDataError();
-  }
   const attachments = item.attachments?.map((attachment) => {
     if (
       !(ALLOWED_BUDGET_ATTACHMENT_MEDIA_TYPES as readonly string[]).includes(
@@ -318,7 +352,6 @@ function itemViewModel(
       ? {}
       : { subtreeDeleteSnapshot }),
     source: item.source,
-    sourceHierarchyPath: [...sourceHierarchyPath],
     name: item.name,
     kind: item.kind,
     category: item.category,
@@ -349,6 +382,7 @@ function itemViewModel(
     paid: item.paid,
     paidAt: item.paidAt?.toISOString() ?? null,
     bookingStatus: item.bookingStatus,
+    preparationStatus: preparationStatusOf(item),
     depositAmount: item.depositAmount,
     balanceAmount: item.balanceAmount,
     additionalAmount: item.additionalAmount,
@@ -480,6 +514,7 @@ function buildTree(items: BudgetItemRecord[]): BudgetItemListItem[] {
   const roots: BudgetItemRecord[] = [];
 
   for (const item of items) {
+    preparationStatusOf(item);
     if (byId.has(item.id)) throw new BudgetItemDataError();
     if (
       (item.kind === "GROUP" && item.category !== null) ||
@@ -531,22 +566,30 @@ function buildTree(items: BudgetItemRecord[]): BudgetItemListItem[] {
       if (!frame) break;
       const currentColor = color.get(frame.item.id) ?? 0;
       if (frame.exiting) {
-        let planned = amountAsBigInt(frame.item.plannedAmount);
+        const includesDirectAmounts =
+          frame.item.kind === "GROUP" ||
+          preparationStatusOf(frame.item) === "NEEDS_ACTION";
+        let planned = includesDirectAmounts
+          ? amountAsBigInt(frame.item.plannedAmount)
+          : BigInt(0);
         let actual =
-          frame.item.actualAmount === null
+          !includesDirectAmounts || frame.item.actualAmount === null
             ? BigInt(0)
             : amountAsBigInt(frame.item.actualAmount);
-        let actualRecorded = frame.item.actualAmount !== null;
+        let actualRecorded =
+          includesDirectAmounts && frame.item.actualAmount !== null;
         let deposit =
-          frame.item.depositAmount === null
+          !includesDirectAmounts || frame.item.depositAmount === null
             ? BigInt(0)
             : amountAsBigInt(frame.item.depositAmount);
-        let depositRecorded = frame.item.depositAmount !== null;
+        let depositRecorded =
+          includesDirectAmounts && frame.item.depositAmount !== null;
         let balance =
-          frame.item.balanceAmount === null
+          !includesDirectAmounts || frame.item.balanceAmount === null
             ? BigInt(0)
             : amountAsBigInt(frame.item.balanceAmount);
-        let balanceRecorded = frame.item.balanceAmount !== null;
+        let balanceRecorded =
+          includesDirectAmounts && frame.item.balanceAmount !== null;
         let descendantCount = 0;
         const childSubtreeSnapshots: BudgetSubtreeChildSnapshot[] = [];
         for (const child of childrenByParent.get(frame.item.id) ?? []) {
@@ -692,26 +735,54 @@ function buildTree(items: BudgetItemRecord[]): BudgetItemListItem[] {
   return result;
 }
 
-function summarize(items: BudgetItemRecord[]): BudgetSummary {
+function dateKeyInTimezone(value: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const part = (type: "year" | "month" | "day") =>
+    parts.find((entry) => entry.type === type)?.value;
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  if (!year || !month || !day) throw new BudgetItemDataError();
+  return `${year}-${month}-${day}`;
+}
+
+function summarize(
+  items: BudgetItemRecord[],
+  workspaceToday: string,
+): BudgetSummary {
   const expenseItems = items.filter((item) => item.kind === "EXPENSE");
-  const balanceDueItems = expenseItems.filter(
+  const trackedExpenseItems = expenseItems.filter(
+    (item) => preparationStatusOf(item) === "NEEDS_ACTION",
+  );
+  const balanceDueItems = trackedExpenseItems.filter(
     (item) => item.bookingStatus === "BOOKED_BALANCE_DUE",
   );
   const balanceDueDates = balanceDueItems.flatMap((item) =>
     item.dueDate === null ? [] : [item.dueDate.toISOString().slice(0, 10)],
   );
+  const overdueBalanceDueDates = balanceDueDates.filter(
+    (date) => date < workspaceToday,
+  );
+  const upcomingBalanceDueDates = balanceDueDates.filter(
+    (date) => date >= workspaceToday,
+  );
 
   return {
-    itemCount: expenseItems.length,
-    paidCount: expenseItems.reduce(
+    itemCount: trackedExpenseItems.length,
+    paidCount: trackedExpenseItems.reduce(
       (total, item) => total + (item.paid ? 1 : 0),
       0,
     ),
     plannedTotal: sumTwdAmounts(
-      expenseItems.map((item) => item.plannedAmount),
+      trackedExpenseItems.map((item) => item.plannedAmount),
     ),
     actualTotal: sumTwdAmounts(
-      expenseItems.flatMap((item) =>
+      trackedExpenseItems.flatMap((item) =>
         item.actualAmount === null ? [] : [item.actualAmount],
       ),
     ),
@@ -721,60 +792,189 @@ function summarize(items: BudgetItemRecord[]): BudgetSummary {
       ),
     ),
     balanceDueCount: balanceDueItems.length,
+    overdueBalanceDueCount: overdueBalanceDueDates.length,
     balanceDueMissingAmountCount: balanceDueItems.reduce(
       (total, item) => total + (item.balanceAmount === null ? 1 : 0),
       0,
     ),
-    nearestBalanceDueDate:
-      balanceDueDates.length === 0 ? null : balanceDueDates.sort()[0],
+    nearestUpcomingBalanceDueDate:
+      upcomingBalanceDueDates.length === 0
+        ? null
+        : upcomingBalanceDueDates.sort()[0],
+    selfProvidedCount: expenseItems.filter(
+      (item) => preparationStatusOf(item) === "ALREADY_OWNED",
+    ).length,
+    notPlannedCount: expenseItems.filter(
+      (item) => preparationStatusOf(item) === "NOT_PLANNED",
+    ).length,
   };
 }
 
-export async function getBudgetPageData(workspaceId: string) {
-  const currentUser = await requireCurrentUser();
+export type BudgetCeremonyStageCleanup = {
+  stageKey: BudgetCeremonyStageKey;
+  label: string;
+  removableItemCount: number;
+  attachmentCount: number;
+  snapshotToken: string;
+};
 
-  let access;
-  try {
-    access = await requireWorkspaceAccess<
-      Pick<WeddingWorkspace, "id" | "name">
-    >(workspaceId, currentUser.id, "read");
-  } catch (error) {
-    if (error instanceof WorkspaceAccessDeniedError) throw error;
-    throw new BudgetItemDataError();
+type CeremonyCleanupRow = {
+  id: string;
+  parentId: string | null;
+  version: number;
+  source: "MANUAL" | "NOTION";
+  systemTaxonomyKey?: string | null;
+  attachments?: ReadonlyArray<{ id: string }>;
+};
+
+/**
+ * 儀式設定關閉、但底下還留著使用者資料的階段，要能一次清乾淨。
+ * snapshotToken 涵蓋整棵階段子樹（含固定分類節點），送出時只要有人動過
+ * 其中任何一列就對不上，避免刪掉畫面沒顯示過的花費。
+ */
+export function summarizeBudgetCeremonyStageCleanups(
+  rows: ReadonlyArray<CeremonyCleanupRow>,
+  preferences: { hasEngagementCeremony: boolean; hasProcessionCeremony: boolean },
+): BudgetCeremonyStageCleanup[] {
+  const childrenByParent = new Map<string, CeremonyCleanupRow[]>();
+  for (const row of rows) {
+    if (row.parentId === null) continue;
+    const children = childrenByParent.get(row.parentId) ?? [];
+    children.push(row);
+    childrenByParent.set(row.parentId, children);
   }
 
-  try {
-    const budgetPrisma = prisma as unknown as BudgetItemPrismaClient;
-    const records = await budgetPrisma.budgetItem.findMany({
-      where: { workspaceId },
-      orderBy: deterministicOrder,
-      select: budgetItemSelect,
-    });
-    const permissions = getWorkspacePermissions(access.role);
-    const resetSnapshot: BudgetResetSnapshot | null = permissions.canManageMembers
-      ? summarizeBudgetResetSnapshot(
-          records
-            .filter((item) => (item.systemTaxonomyKey ?? null) === null)
-            .map((item) => ({
-              id: item.id,
-              version: item.version,
-              source: item.source,
-              attachments: item.attachments?.map((attachment) => ({
-                id: attachment.id,
-              })),
-            })),
-        )
-      : null;
+  const cleanups: BudgetCeremonyStageCleanup[] = [];
+  for (const entry of BUDGET_CEREMONY_STAGE_PREFERENCES) {
+    if (preferences[entry.preference]) continue;
+    const stage = rows.find(
+      (row) => (row.systemTaxonomyKey ?? null) === entry.stageKey,
+    );
+    if (!stage) continue;
 
-    return {
-      workspaceName: access.workspace.name,
-      canEdit: permissions.canEdit,
-      canResetBudget: permissions.canManageMembers,
-      resetSnapshot,
-      items: buildTree(records),
-      summary: summarize(records),
-    };
-  } catch {
+    const subtree: CeremonyCleanupRow[] = [];
+    const visited = new Set<string>();
+    const stack = [stage];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || visited.has(current.id)) continue;
+      visited.add(current.id);
+      subtree.push(current);
+      for (const child of childrenByParent.get(current.id) ?? []) {
+        stack.push(child);
+      }
+    }
+
+    const removable = subtree.filter(
+      (row) => (row.systemTaxonomyKey ?? null) === null,
+    );
+    if (removable.length === 0) continue;
+
+    cleanups.push({
+      stageKey: entry.stageKey,
+      label: budgetCeremonyStageLabel(entry.stageKey),
+      removableItemCount: removable.length,
+      attachmentCount: removable.reduce(
+        (count, row) => count + (row.attachments?.length ?? 0),
+        0,
+      ),
+      snapshotToken: summarizeBudgetSubtreeSnapshot(
+        subtree.map((row) => ({
+          id: row.id,
+          parentId: row.parentId,
+          version: row.version,
+          source: row.source,
+          attachments: row.attachments,
+        })),
+        stage.id,
+      ).token,
+    });
+  }
+
+  return cleanups;
+}
+
+export async function getBudgetPageData(
+  workspaceId: string,
+  { now = new Date() }: { now?: Date } = {},
+) {
+  const currentUser = await requireCurrentUser();
+  const budgetPrisma = prisma as unknown as BudgetItemPrismaClient;
+
+  try {
+    return await budgetPrisma.$transaction(
+      async (transaction) => {
+        const access = await requireWorkspaceAccess<
+          Pick<
+            WeddingWorkspace,
+            | "id"
+            | "name"
+            | "timezone"
+            | "hasEngagementCeremony"
+            | "hasProcessionCeremony"
+            | "ceremonyPreferencesVersion"
+          >
+        >(workspaceId, currentUser.id, "read", transaction);
+        const workspaceToday = dateKeyInTimezone(
+          now,
+          access.workspace.timezone,
+        );
+        const records = await transaction.budgetItem.findMany({
+          where: { workspaceId },
+          orderBy: deterministicOrder,
+          select: {
+            ...budgetItemSelect,
+            attachments: {
+              ...budgetItemSelect.attachments,
+              where: { workspaceId },
+            },
+          },
+        });
+        const permissions = getWorkspacePermissions(access.role);
+        const resetSnapshot: BudgetResetSnapshot | null =
+          permissions.canManageMembers
+            ? summarizeBudgetResetSnapshot(
+                records
+                  .filter(
+                    (item) => (item.systemTaxonomyKey ?? null) === null,
+                  )
+                  .map((item) => ({
+                    id: item.id,
+                    version: item.version,
+                    source: item.source,
+                    attachments: item.attachments?.map((attachment) => ({
+                      id: attachment.id,
+                    })),
+                  })),
+              )
+            : null;
+
+        return {
+          workspaceName: access.workspace.name,
+          workspaceToday,
+          canEdit: permissions.canEdit,
+          canResetBudget: permissions.canManageMembers,
+          resetSnapshot,
+          hasEngagementCeremony: access.workspace.hasEngagementCeremony,
+          hasProcessionCeremony: access.workspace.hasProcessionCeremony,
+          ceremonyPreferencesVersion:
+            access.workspace.ceremonyPreferencesVersion,
+          ceremonyStageCleanups: permissions.canEdit
+            ? summarizeBudgetCeremonyStageCleanups(records, {
+                hasEngagementCeremony:
+                  access.workspace.hasEngagementCeremony,
+                hasProcessionCeremony:
+                  access.workspace.hasProcessionCeremony,
+              })
+            : [],
+          items: buildTree(records),
+          summary: summarize(records, workspaceToday),
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  } catch (error) {
+    if (error instanceof WorkspaceAccessDeniedError) throw error;
     throw new BudgetItemDataError();
   }
 }

@@ -25,6 +25,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+const transactionClient = {
+  membership: { findUnique: vi.fn() },
+  seatingTable: { findMany: findTables },
+  guest: { findMany: findGuests },
+};
+
 import { SeatingPlanDataError, getSeatingPlan } from "./seating-plan";
 
 describe("getSeatingPlan", () => {
@@ -38,14 +44,25 @@ describe("getSeatingPlan", () => {
     findTables.mockResolvedValue([]);
     findGuests.mockResolvedValue([]);
     transaction.mockImplementation(async (operation) =>
-      operation({
-        seatingTable: { findMany: findTables },
-        guest: { findMany: findGuests },
-      }),
+      operation(transactionClient),
     );
   });
 
-  it("authenticates, authorizes, then scopes tables and unassigned guests", async () => {
+  it("uses current vegetarian details for assigned and unassigned guests without exposing source records", async () => {
+    const importRecords = [
+      { source: "LINEIN", sourceManaged: true, vegetarianCount: 4 },
+      { source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false, vegetarianCount: 2 },
+    ];
+    findTables.mockResolvedValue([{ id: "table", position: 1, guests: [{ id: "assigned", importRecords }] }]);
+    findGuests.mockResolvedValue([{ id: "waiting", importRecords }]);
+    const result = await getSeatingPlan("workspace_1");
+    expect(result.tables[0].guests[0].vegetarianCount).toBe(2);
+    expect(result.unassignedGuests[0].vegetarianCount).toBe(2);
+    expect(result.tables[0].guests[0]).not.toHaveProperty("importRecords");
+    expect(result.unassignedGuests[0]).not.toHaveProperty("importRecords");
+  });
+
+  it("authenticates, then authorizes and scopes both reads in one RepeatableRead snapshot", async () => {
     await expect(getSeatingPlan("workspace_1")).resolves.toMatchObject({
       role: "VIEWER",
       tables: [],
@@ -57,6 +74,7 @@ describe("getSeatingPlan", () => {
       "workspace_1",
       "session_user",
       "read",
+      transactionClient,
     );
     expect(findTables).toHaveBeenCalledWith({
       where: { workspaceId: "workspace_1" },
@@ -75,6 +93,7 @@ describe("getSeatingPlan", () => {
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
+            version: true,
             name: true,
             partySize: true,
             side: true,
@@ -86,6 +105,7 @@ describe("getSeatingPlan", () => {
                 sourceInstance: true,
                 sourceManaged: true,
                 childSeatCount: true,
+                vegetarianCount: true,
               },
             },
           },
@@ -109,16 +129,26 @@ describe("getSeatingPlan", () => {
         side: true,
         attendanceStatus: true,
         notes: true,
+        importRecords: {
+          orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+          select: { source: true, sourceInstance: true, sourceManaged: true, vegetarianCount: true },
+        },
       },
     });
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: "RepeatableRead",
     });
     expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
+      transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
       requireWorkspaceAccess.mock.invocationCallOrder[0],
     );
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       findTables.mock.invocationCallOrder[0],
+    );
+    expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      findGuests.mock.invocationCallOrder[0],
     );
   });
 
@@ -170,6 +200,7 @@ describe("getSeatingPlan", () => {
         guests: [
           {
             id: "guest_manual",
+            version: 4,
             name: "人工調整",
             partySize: 3,
             side: "SHARED",
@@ -191,6 +222,7 @@ describe("getSeatingPlan", () => {
           },
           {
             id: "guest_cleared",
+            version: 2,
             name: "已取消需求",
             partySize: 2,
             side: "PARTNER_A",
@@ -212,6 +244,7 @@ describe("getSeatingPlan", () => {
           },
           {
             id: "guest_imported",
+            version: 1,
             name: "沿用匯入",
             partySize: 2,
             side: "PARTNER_B",
@@ -238,9 +271,21 @@ describe("getSeatingPlan", () => {
     const plan = await getSeatingPlan("workspace_1");
 
     expect(plan.tables[0]?.guests).toEqual([
-      expect.objectContaining({ id: "guest_manual", childSeatCount: 1 }),
-      expect.objectContaining({ id: "guest_cleared", childSeatCount: null }),
-      expect.objectContaining({ id: "guest_imported", childSeatCount: 2 }),
+      expect.objectContaining({
+        id: "guest_manual",
+        version: 4,
+        childSeatCount: 1,
+      }),
+      expect.objectContaining({
+        id: "guest_cleared",
+        version: 2,
+        childSeatCount: null,
+      }),
+      expect.objectContaining({
+        id: "guest_imported",
+        version: 1,
+        childSeatCount: 2,
+      }),
     ]);
     expect(plan.tables[0]?.guests[0]).not.toHaveProperty("importRecords");
   });

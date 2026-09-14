@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const rawTestDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (!rawTestDatabaseUrl) {
@@ -50,25 +50,58 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
-const guestSeniorityMigration = migrationEntries.at(-1);
-const familyPartySizeMigration = migrationEntries.at(-2);
-const userAccessMigration = migrationEntries.at(-3);
-const guestDetailsMigration = migrationEntries.at(-4);
-const avatarMigration = migrationEntries.at(-5);
-const taskSidesMigration = migrationEntries.at(-6);
-const rosterCategoriesMigration = migrationEntries.at(-7);
-const duplicateNamesMigration = migrationEntries.at(-8);
-const floorPlanMigration = migrationEntries.at(-9);
-const preparationSuggestionMigration = migrationEntries.at(-10);
-const engagementSuggestionMigration = migrationEntries.at(-11);
-const proposalLabelMigration = migrationEntries.at(-12);
-const repairMigration = migrationEntries.at(-13);
-const sourceHierarchyMigration = migrationEntries.at(-14);
-const relatedTaxonomyMigration = migrationEntries.at(-15);
-const fixedGroupsMigration = migrationEntries.at(-16);
-const failClosedMigration = migrationEntries.at(-17);
-const priorHeadMigration = migrationEntries.at(-18);
+// 發餅家庭新增空表與可空關聯，不回填既有名單。
+const cakeHouseholdMigration = migrationEntries.at(-1);
+const coordinatorHandoffMigration = migrationEntries.at(-2);
+const guestGiftExemptionMigration = migrationEntries.at(-3);
+const dropVendorMigration = migrationEntries.at(-4);
+const budgetStaffRedEnvelopeMigration = migrationEntries.at(-5);
+const staffRedEnvelopeMigration = migrationEntries.at(-6);
+const giftReturnMigration = migrationEntries.at(-7);
+const staffMealMigration = migrationEntries.at(-8);
+const guestCheckInMigration = migrationEntries.at(-9);
+const planningPreferencesMigration = migrationEntries.at(-10);
+const giftMigration = migrationEntries.at(-11);
+const declinedSeatingConsistencyMigration = migrationEntries.at(-12);
+const ceremonyAttendanceMigration = migrationEntries.at(-13);
+const ceremonyMigration = migrationEntries.at(-14);
+const vendorMigration = migrationEntries.at(-15);
+const preparationStatusMigration = migrationEntries.at(-16);
+const guestSeniorityMigration = migrationEntries.at(-17);
+const familyPartySizeMigration = migrationEntries.at(-18);
+const userAccessMigration = migrationEntries.at(-19);
+const guestDetailsMigration = migrationEntries.at(-20);
+const avatarMigration = migrationEntries.at(-21);
+const taskSidesMigration = migrationEntries.at(-22);
+const rosterCategoriesMigration = migrationEntries.at(-23);
+const duplicateNamesMigration = migrationEntries.at(-24);
+const floorPlanMigration = migrationEntries.at(-25);
+const preparationSuggestionMigration = migrationEntries.at(-26);
+const engagementSuggestionMigration = migrationEntries.at(-27);
+const proposalLabelMigration = migrationEntries.at(-28);
+const repairMigration = migrationEntries.at(-29);
+const sourceHierarchyMigration = migrationEntries.at(-30);
+const relatedTaxonomyMigration = migrationEntries.at(-31);
+const fixedGroupsMigration = migrationEntries.at(-32);
+const failClosedMigration = migrationEntries.at(-33);
+const priorHeadMigration = migrationEntries.at(-34);
 if (
+  !cakeHouseholdMigration ||
+  !coordinatorHandoffMigration ||
+  !guestGiftExemptionMigration ||
+  !dropVendorMigration ||
+  !budgetStaffRedEnvelopeMigration ||
+  !staffRedEnvelopeMigration ||
+  !giftReturnMigration ||
+  !staffMealMigration ||
+  !guestCheckInMigration ||
+  !planningPreferencesMigration ||
+  !giftMigration ||
+  !declinedSeatingConsistencyMigration ||
+  !ceremonyAttendanceMigration ||
+  !ceremonyMigration ||
+  !vendorMigration ||
+  !preparationStatusMigration ||
   !guestSeniorityMigration ||
   !familyPartySizeMigration ||
   !userAccessMigration ||
@@ -87,14 +120,35 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length < 17
+  migrationEntries.length !== 49
 ) {
-  throw new Error("At least seventeen migrations are required for the upgrade gate.");
+  throw new Error("Exactly forty-eight migrations are required for the upgrade gate.");
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 33 ||
+  migrationEntries.length !== 49 ||
   priorHeadPosition !== 16 ||
+  cakeHouseholdMigration !== "20260914063000_wedding_cake_households" ||
+  coordinatorHandoffMigration !== "20260914010000_coordinator_handoffs" ||
+  guestGiftExemptionMigration !== "20260914000000_guest_gift_exemption" ||
+  dropVendorMigration !== "20260908000000_drop_wedding_vendors" ||
+  budgetStaffRedEnvelopeMigration !==
+    "20260901010000_budget_staff_red_envelopes" ||
+  staffRedEnvelopeMigration !== "20260901000000_wedding_staff_red_envelopes" ||
+  giftReturnMigration !== "20260831020000_wedding_gift_returns" ||
+  staffMealMigration !== "20260831010000_wedding_staff_meals" ||
+  guestCheckInMigration !== "20260831000000_guest_check_ins" ||
+  planningPreferencesMigration !==
+    "20260830040000_wedding_planning_preferences" ||
+  giftMigration !== "20260830030000_wedding_gifts" ||
+  declinedSeatingConsistencyMigration !==
+    "20260830020000_declined_guest_seating_consistency" ||
+  ceremonyAttendanceMigration !==
+    "20260830010000_wedding_ceremony_guest_attendance" ||
+  ceremonyMigration !== "20260830000000_wedding_ceremonies" ||
+  vendorMigration !== "20260829220000_wedding_vendors" ||
+  preparationStatusMigration !==
+    "20260829210000_budget_preparation_status" ||
   guestSeniorityMigration !== "20260825120000_guest_seniority" ||
   familyPartySizeMigration !==
     "20260824213500_allow_family_party_size" ||
@@ -121,7 +175,7 @@ if (
   priorHeadMigration !== "20260802151000_linein_party_size_ownership"
 ) {
   throw new Error(
-    "Upgrade gate requires prior head 16 through migrations 17 to 33.",
+    "Upgrade gate requires prior head 16 through migrations 17 to 45.",
   );
 }
 
@@ -239,6 +293,20 @@ function extendProductionDriftMigrations() {
   );
 }
 
+function extendProductionDriftToPlanningPreferencePriorHead() {
+  const repairPosition = migrationEntries.indexOf(repairMigration);
+  const planningPosition = migrationEntries.indexOf(
+    planningPreferencesMigration,
+  );
+  for (const entry of migrationEntries.slice(repairPosition, planningPosition)) {
+    cpSync(
+      path.join(migrationsDirectory, entry),
+      path.join(productionDriftMigrationsDirectory, entry),
+      { recursive: true },
+    );
+  }
+}
+
 const productionDriftCategories = [
   ["RINGS_KEEPSAKES", "戒指與信物"],
   ["PHOTOGRAPHY_VIDEO", "攝影與影像"],
@@ -274,6 +342,7 @@ const fixedTaxonomyExpectedParents = new Map([
   ["ITEM_INVITATIONS_POSTAGE", "STAGE_COUNTDOWN_2_MONTHS"],
   ["ITEM_BEAUTY_TREATMENTS", "STAGE_COUNTDOWN_2_MONTHS"],
   ["ITEM_WEDDING_FAVORS", "STAGE_COUNTDOWN_2_MONTHS"],
+  ["ITEM_STAFF_RED_ENVELOPES", "STAGE_COUNTDOWN_2_MONTHS"],
   ["ITEM_ENGAGEMENT_GROOM", "STAGE_ENGAGEMENT_CEREMONY"],
   ["ITEM_ENGAGEMENT_BRIDE", "STAGE_ENGAGEMENT_CEREMONY"],
   ["ITEM_PROCESSION_GROOM", "STAGE_WEDDING_PROCESSION"],
@@ -438,6 +507,10 @@ function runFreshChain() {
     "src/test/postgres-workspace-invitations.integration.test.ts",
     "src/test/postgres-profile-avatar.integration.test.ts",
     "src/test/postgres-user-access.integration.test.ts",
+    "src/test/postgres-wedding-gifts.integration.test.ts",
+    "src/test/postgres-coordinator-handoffs.integration.test.ts",
+    "src/test/postgres-wedding-cakes.integration.test.ts",
+    "src/test/postgres-guest-check-ins.integration.test.ts",
   ];
   for (const integrationFile of integrationFiles) {
     const testStatus = run(
@@ -1141,6 +1214,7 @@ async function runPriorHeadUpgrade() {
       ["ITEM_INVITATIONS_POSTAGE", "STAGE_COUNTDOWN_2_MONTHS"],
       ["ITEM_BEAUTY_TREATMENTS", "STAGE_COUNTDOWN_2_MONTHS"],
       ["ITEM_WEDDING_FAVORS", "STAGE_COUNTDOWN_2_MONTHS"],
+      ["ITEM_STAFF_RED_ENVELOPES", "STAGE_COUNTDOWN_2_MONTHS"],
       ["ITEM_ENGAGEMENT_GROOM", "STAGE_ENGAGEMENT_CEREMONY"],
       ["ITEM_ENGAGEMENT_BRIDE", "STAGE_ENGAGEMENT_CEREMONY"],
       ["ITEM_PROCESSION_GROOM", "STAGE_WEDDING_PROCESSION"],
@@ -1148,12 +1222,12 @@ async function runPriorHeadUpgrade() {
       ["INTERNAL_UNCLASSIFIED_ITEM", "INTERNAL_UNCLASSIFIED_STAGE"],
     ]);
     const fixedTaxonomyTopologyIsValid =
-      fixedTaxonomyNodes.length === 28 &&
-      fixedTaxonomyByKey.size === 28 &&
+      fixedTaxonomyNodes.length === 29 &&
+      fixedTaxonomyByKey.size === 29 &&
       [...fixedTaxonomyByKey.keys()].filter((key) => key.startsWith("ITEM_"))
-        .length === 20 &&
+        .length === 21 &&
       expectedStageKeys.size === 7 &&
-      expectedItemParentKeys.size === 21 &&
+      expectedItemParentKeys.size === 22 &&
       fixedTaxonomyByKey.get("ITEM_PROPOSAL")?.name === "求婚" &&
       [...expectedStageKeys].every(
         (stageKey) => fixedTaxonomyByKey.get(stageKey)?.parentId === null,
@@ -1192,7 +1266,7 @@ async function runPriorHeadUpgrade() {
       legacyImportBatch?.rows[0]?.guestImportRecordId !== guestId ||
       legacyImportBatch?.rows[0]?.externalId !== rsvpExternalId ||
       legacyImportBatch?.rows[0]?.status !== "SUCCEEDED" ||
-      budgetItems !== 33 ||
+      budgetItems !== 34 ||
       !fixedTaxonomyTopologyIsValid ||
       !internalItemId ||
       storedGuest?.seatingTableId !== tableId ||
@@ -1244,6 +1318,7 @@ async function runPriorHeadUpgrade() {
       storedPlanningBudget?.sourceHash !== null ||
       storedPlanningBudget?.sourceOrder !== null ||
       storedPlanningBudget?.bookingStatus !== "PLANNING" ||
+      storedPlanningBudget?.preparationStatus !== "NEEDS_ACTION" ||
       storedPlanningBudget?.name !== "Prior-head 規劃中預算" ||
       storedPlanningBudget?.kind !== "EXPENSE" ||
       storedPlanningBudget?.category !== "OTHER_PENDING" ||
@@ -1268,6 +1343,7 @@ async function runPriorHeadUpgrade() {
       storedBookedBudget?.sourceHash !== null ||
       storedBookedBudget?.sourceOrder !== null ||
       storedBookedBudget?.bookingStatus !== "BOOKED_BALANCE_DUE" ||
+      storedBookedBudget?.preparationStatus !== "NEEDS_ACTION" ||
       storedBookedBudget?.name !== "Prior-head 已訂尾款預算" ||
       storedBookedBudget?.kind !== "EXPENSE" ||
       storedBookedBudget?.category !== "OTHER_PENDING" ||
@@ -1292,6 +1368,7 @@ async function runPriorHeadUpgrade() {
       storedPaidBudget?.sourceHash !== null ||
       storedPaidBudget?.sourceOrder !== null ||
       storedPaidBudget?.bookingStatus !== "PAID" ||
+      storedPaidBudget?.preparationStatus !== "NEEDS_ACTION" ||
       storedPaidBudget?.name !== "Prior-head 已付款預算" ||
       storedPaidBudget?.kind !== "EXPENSE" ||
       storedPaidBudget?.category !== "OTHER_PENDING" ||
@@ -1317,6 +1394,7 @@ async function runPriorHeadUpgrade() {
       storedNeutralGroup?.plannedAmount !== 0 ||
       storedNeutralGroup?.actualAmount !== null ||
       storedNeutralGroup?.bookingStatus !== "PLANNING" ||
+      storedNeutralGroup?.preparationStatus !== "NEEDS_ACTION" ||
       storedNeutralGroup?.paid !== false ||
       storedNeutralGroup?.relatedTaxonomyItemKey !== null ||
       storedNeutralGroup?.sourceHierarchyPath.length !== 0 ||
@@ -1329,6 +1407,7 @@ async function runPriorHeadUpgrade() {
       storedKnownChild?.legacyCategory !== "場地與餐飲" ||
       storedKnownChild?.plannedAmount !== 321 ||
       storedKnownChild?.notes !== "保留已知分類與階層" ||
+      storedKnownChild?.preparationStatus !== "NEEDS_ACTION" ||
       storedKnownChild?.version !== 11 ||
       weddingStaff !== 0 ||
       storedKnownChild?.relatedTaxonomyItemKey !== null ||
@@ -1369,6 +1448,9 @@ async function runPriorHeadUpgrade() {
       budgetTaxonomyNameConstraint[0]?.validated !== true ||
       !budgetTaxonomyNameConstraint[0]?.definition?.includes("ITEM_PROPOSAL") ||
       !budgetTaxonomyNameConstraint[0]?.definition?.includes("求婚") ||
+      !budgetTaxonomyNameConstraint[0]?.definition?.includes(
+        "ITEM_STAFF_RED_ENVELOPES",
+      ) ||
       budgetTaxonomyNameConstraint[0]?.definition?.includes("提親")
     ) {
       console.error(
@@ -1560,6 +1642,184 @@ async function runPriorHeadUpgrade() {
         "prior-head upgrade verification failed: guest-seniority migration missing",
       );
     }
+    const appliedPreparationStatus = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${preparationStatusMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    if (
+      !Array.isArray(appliedPreparationStatus) ||
+      appliedPreparationStatus.length !== 1
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: preparation-status migration missing",
+      );
+    }
+    const appliedVendor = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${vendorMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    if (!Array.isArray(appliedVendor) || appliedVendor.length !== 1) {
+      throw new Error(
+        "prior-head upgrade verification failed: vendor migration missing",
+      );
+    }
+    const appliedDropVendor = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${dropVendorMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    if (!Array.isArray(appliedDropVendor) || appliedDropVendor.length !== 1) {
+      throw new Error(
+        "prior-head upgrade verification failed: drop-vendor migration missing",
+      );
+    }
+    if (await upgradedClient.weddingCakeHousehold.count() !== 0 || await upgradedClient.guest.count({where:{cakeHouseholdId:{not:null}}}) !== 0) throw new Error("Unexpected cake household backfill");
+    if (await upgradedClient.coordinatorHandoff.count() !== 0) throw new Error("Unexpected handoff backfill");
+    const exemptionRows = await upgradedClient.guest.findMany({
+      select: { giftExemptWithCake: true },
+    });
+    if (exemptionRows.length === 0 || exemptionRows.some((guest) => guest.giftExemptWithCake !== false)) {
+      throw new Error("prior-head upgrade verification failed: guest exemption default");
+    }
+    // 廠商功能移除後，兩張表與 enum 都不該殘留；guard 只在表為空時才允許 drop。
+    const [vendorRemnants] = await upgradedClient.$queryRaw`
+      SELECT
+        (to_regclass('public.wedding_vendors') IS NOT NULL)::int
+          + (to_regclass('public.wedding_vendor_budget_items') IS NOT NULL)::int
+          + (SELECT count(*) FROM pg_type WHERE typname = 'WeddingVendorStatus')::int
+          AS remnants
+    `;
+    if (Number(vendorRemnants?.remnants ?? -1) !== 0) {
+      throw new Error(
+        "prior-head upgrade verification failed: vendor tables or enum still exist after the drop migration",
+      );
+    }
+    const appliedCeremony = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${ceremonyMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    const upgradedCeremonies = await upgradedClient.weddingCeremony.count();
+    if (
+      !Array.isArray(appliedCeremony) ||
+      appliedCeremony.length !== 1 ||
+      upgradedCeremonies !== 0
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: ceremony migration missing or unexpectedly seeded data",
+      );
+    }
+    const appliedCeremonyAttendance = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${ceremonyAttendanceMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    const upgradedCeremonyAttendances =
+      await upgradedClient.weddingCeremonyGuestAttendance.count();
+    if (
+      !Array.isArray(appliedCeremonyAttendance) ||
+      appliedCeremonyAttendance.length !== 1 ||
+      upgradedCeremonyAttendances !== 0
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: ceremony-attendance migration missing or unexpectedly backfilled data",
+      );
+    }
+    const appliedDeclinedSeatingConsistency = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${declinedSeatingConsistencyMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    const declinedSeatingConstraints = await upgradedClient.$queryRaw`
+      SELECT conname
+      FROM pg_constraint
+      WHERE conrelid = '"guests"'::regclass
+        AND conname = 'guests_declined_seating_consistency_check'
+        AND convalidated
+    `;
+    const declinedSeatingViolations = await upgradedClient.guest.count({
+      where: {
+        attendanceStatus: "DECLINED",
+        seatingTableId: { not: null },
+      },
+    });
+    if (
+      !Array.isArray(appliedDeclinedSeatingConsistency) ||
+      appliedDeclinedSeatingConsistency.length !== 1 ||
+      !Array.isArray(declinedSeatingConstraints) ||
+      declinedSeatingConstraints.length !== 1 ||
+      declinedSeatingViolations !== 0
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: declined seating consistency constraint missing or violated",
+      );
+    }
+    const appliedGift = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${giftMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    const upgradedGifts = await upgradedClient.weddingGift.count();
+    if (
+      !Array.isArray(appliedGift) ||
+      appliedGift.length !== 1 ||
+      upgradedGifts !== 0
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: wedding-gift migration missing or unexpectedly backfilled data",
+      );
+    }
+    const appliedPlanningPreferences = await upgradedClient.$queryRaw`
+      SELECT migration_name
+      FROM _prisma_migrations
+      WHERE migration_name = ${planningPreferencesMigration}
+        AND finished_at IS NOT NULL
+        AND rolled_back_at IS NULL
+    `;
+    const [upgradedPlanningPreferences] = await upgradedClient.$queryRaw`
+      SELECT "has_engagement_ceremony" AS "hasEngagementCeremony",
+        "has_procession_ceremony" AS "hasProcessionCeremony",
+        "ceremony_preferences_version" AS "version"
+      FROM "wedding_workspaces"
+      WHERE "id" = ${workspaceId}
+    `;
+    const planningPreferenceConstraints = await upgradedClient.$queryRaw`
+      SELECT conname
+      FROM pg_constraint
+      WHERE conrelid = '"wedding_workspaces"'::regclass
+        AND conname =
+          'wedding_workspaces_ceremony_preferences_version_check'
+        AND convalidated
+    `;
+    if (
+      !Array.isArray(appliedPlanningPreferences) ||
+      appliedPlanningPreferences.length !== 1 ||
+      upgradedPlanningPreferences?.hasEngagementCeremony !== false ||
+      upgradedPlanningPreferences?.hasProcessionCeremony !== false ||
+      upgradedPlanningPreferences?.version !== 0 ||
+      !Array.isArray(planningPreferenceConstraints) ||
+      planningPreferenceConstraints.length !== 1
+    ) {
+      throw new Error(
+        "prior-head upgrade verification failed: planning preferences migration missing or not opt-in by default",
+      );
+    }
     const duplicateNameIndexes = await upgradedClient.$queryRaw`
       SELECT indexname
       FROM pg_indexes
@@ -1689,7 +1949,7 @@ async function runPriorHeadUpgrade() {
   }
 
   console.log(
-    `Prior-head upgrade passed: ${failClosedMigration} normalized the stale LINEIN/default target and validated the fail-closed PARTY_SIZE constraint, then ${fixedGroupsMigration} established six public Drive budget stages and twenty public Drive item groups plus one hidden internal preservation stage and item group, ${relatedTaxonomyMigration} added the validated optional public Drive item purpose relation, ${sourceHierarchyMigration} added the validated Notion source hierarchy path with an empty path for every existing Budget row, ${repairMigration} accepted the canonical final shape as a data no-op, ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚, and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity, then ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys while preserving the same key, all twenty public item groups, and all twenty-eight system nodes; ${floorPlanMigration} added nullable paired floor-plan coordinates without backfilling the legacy table; ${duplicateNamesMigration} removed table-name uniqueness while preserving position identity; ${taskSidesMigration} defaulted the verified prior-head task to SHARED; ${avatarMigration} added an empty one-to-one private avatar table; ${guestDetailsMigration} allowed normalized invitation choices without source-specific reply text while preserving paper-address enforcement; ${userAccessMigration} defaulted existing users to ACTIVE with null access audit and login timestamps; ${familyPartySizeMigration} allowed FAMILY party size while keeping COUPLE one person; ${guestSeniorityMigration} kept existing ordinary guests explicitly UNSPECIFIED for manual classification; preserved all scalar values across 4 Guests, preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP, changed only the target sourcePartySize, managedFields, sourceManaged, and updatedAt values, preserved the table ID, name, capacity, position, and target Guest assignment, and kept the verified prior-head task, audit, Budget, attachment, invitation, user, workspace, and membership fixtures unchanged.`,
+    `Prior-head upgrade passed: ${failClosedMigration} normalized the stale LINEIN/default target and validated the fail-closed PARTY_SIZE constraint, then ${fixedGroupsMigration} established six public Drive budget stages and twenty public Drive item groups plus one hidden internal preservation stage and item group, ${relatedTaxonomyMigration} added the validated optional public Drive item purpose relation, ${sourceHierarchyMigration} added the validated Notion source hierarchy path with an empty path for every existing Budget row, ${repairMigration} accepted the canonical final shape as a data no-op, ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚, and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity, then ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys while preserving the same key, all twenty public item groups, and all twenty-eight system nodes; ${floorPlanMigration} added nullable paired floor-plan coordinates without backfilling the legacy table; ${duplicateNamesMigration} removed table-name uniqueness while preserving position identity; ${taskSidesMigration} defaulted the verified prior-head task to SHARED; ${avatarMigration} added an empty one-to-one private avatar table; ${guestDetailsMigration} allowed normalized invitation choices without source-specific reply text while preserving paper-address enforcement; ${userAccessMigration} defaulted existing users to ACTIVE with null access audit and login timestamps; ${familyPartySizeMigration} allowed FAMILY party size while keeping COUPLE one person; ${guestSeniorityMigration} kept existing ordinary guests explicitly UNSPECIFIED for manual classification; ${preparationStatusMigration} defaulted every existing Budget row to NEEDS_ACTION and constrained GROUP rows to that neutral status; ${vendorMigration} added an empty workspace-scoped vendor directory and composite tenant-safe Budget links; ${ceremonyMigration} added an empty workspace-scoped ceremony directory without auto-creating Chinese or western ceremonies; ${ceremonyAttendanceMigration} added an empty event-scoped attendance table without backfilling or changing legacy ceremony responses; ${declinedSeatingConsistencyMigration} rejected declined guests with a table assignment without repairing any Guest rows; ${giftMigration} added an empty one-record-per-invitation-group gift ledger without touching Budget; ${planningPreferencesMigration} added opt-in Chinese engagement/procession flags at false with CAS version zero for a workspace that had no legacy ceremony rows; preserved all scalar values across 4 Guests, preserved all scalar provenance values for LINEIN/secondary and FUTURE_RSVP, changed only the target sourcePartySize, managedFields, sourceManaged, and updatedAt values, preserved the table ID, name, capacity, position, and target Guest assignment, and kept the verified prior-head task, audit, Budget, attachment, invitation, user, workspace, and membership fixtures unchanged.`,
   );
   return 0;
 }
@@ -1726,6 +1986,7 @@ async function snapshotProductionDriftChildren(client) {
             - 'system_category'
             - 'system_taxonomy_key'
             - 'suggestion_key'
+            - 'preparation_status'
           )::TEXT,
           E'\\x1e' ORDER BY "child"."id"
         )),
@@ -1752,6 +2013,7 @@ async function snapshotProductionDriftOrdinaryRows(client) {
             - 'system_category'
             - 'system_taxonomy_key'
             - 'suggestion_key'
+            - 'preparation_status'
           )::TEXT,
           E'\\x1e' ORDER BY "item"."id"
         )),
@@ -1777,6 +2039,34 @@ async function snapshotAllBudgetRows(client) {
     FROM "budget_items" AS "item"
   `;
   return snapshot;
+}
+
+async function snapshotPlanningPreferencePriorData(client, workspaceIds) {
+  const workspaces = await client.$queryRaw`
+    SELECT "id", "name", "created_by_id" AS "createdById",
+      "updated_at" AS "updatedAt"
+    FROM "wedding_workspaces"
+    WHERE "id" IN (${Prisma.join(workspaceIds)})
+    ORDER BY "id"
+  `;
+  const ceremonies = await client.$queryRaw`
+    SELECT "id", "workspace_id" AS "workspaceId", "type"::TEXT AS "type",
+      "name", "event_date" AS "eventDate", "start_minute" AS "startMinute",
+      "location", "notes", "version", "created_at" AS "createdAt",
+      "updated_at" AS "updatedAt"
+    FROM "wedding_ceremonies"
+    WHERE "workspace_id" IN (${Prisma.join(workspaceIds)})
+    ORDER BY "id"
+  `;
+  const attendances = await client.$queryRaw`
+    SELECT "ceremony_id" AS "ceremonyId", "guest_id" AS "guestId",
+      "workspace_id" AS "workspaceId", "status"::TEXT AS "status",
+      "version", "created_at" AS "createdAt", "updated_at" AS "updatedAt"
+    FROM "wedding_ceremony_guest_attendances"
+    WHERE "workspace_id" IN (${Prisma.join(workspaceIds)})
+    ORDER BY "ceremony_id", "guest_id", "workspace_id"
+  `;
+  return JSON.stringify({ workspaces, ceremonies, attendances });
 }
 
 async function runProductionDriftRepair() {
@@ -1836,6 +2126,7 @@ async function runProductionDriftRepair() {
   let beforeRoots;
   let currentHeadBudgetSnapshot;
   let currentHeadAttachmentSnapshot;
+  let planningPreferencePriorSnapshot;
   try {
     await preRepairClient.$executeRaw`
       UPDATE "budget_items"
@@ -2011,13 +2302,82 @@ async function runProductionDriftRepair() {
     await preRepairClient.$disconnect();
   }
 
-  const repairStatus = run(
+  extendProductionDriftToPlanningPreferencePriorHead();
+  const planningPreferencePriorStatus = run(
+    process.execPath,
+    [prismaCli, "migrate", "deploy", "--schema", productionDriftSchemaPath],
+    environment,
+  );
+  if (planningPreferencePriorStatus !== 0) {
+    return planningPreferencePriorStatus;
+  }
+
+  const planningPreferencePriorClient = new PrismaClient({
+    datasources: { db: { url: productionDriftDatabaseUrl } },
+  });
+  try {
+    const [engagementWorkspaceId, processionWorkspaceId] = fixture.workspaceIds;
+    const engagementCeremonyId = `planning_pref_engagement_${runId}`;
+    const westernCeremonyId = `planning_pref_western_${runId}`;
+    const processionCeremonyId = `planning_pref_procession_${runId}`;
+    const attendanceGuestId = `planning_pref_guest_${runId}`;
+    await planningPreferencePriorClient.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        INSERT INTO "guests" (
+          "id", "workspace_id", "name", "side", "attendance_status",
+          "party_size", "updated_at"
+        ) VALUES (
+          ${attendanceGuestId}, ${engagementWorkspaceId}, ${"匿名既有賓客"},
+          CAST(${"SHARED"} AS "GuestSide"),
+          CAST(${"ATTENDING"} AS "GuestAttendanceStatus"), 1,
+          CURRENT_TIMESTAMP
+        )
+      `;
+      await transaction.$executeRaw`
+        INSERT INTO "wedding_ceremonies" (
+          "id", "workspace_id", "type", "name", "version", "updated_at"
+        ) VALUES (
+          ${engagementCeremonyId}, ${engagementWorkspaceId},
+          CAST(${"ENGAGEMENT"} AS "WeddingCeremonyType"), ${"既有文定"}, 2,
+          CURRENT_TIMESTAMP
+        ), (
+          ${westernCeremonyId}, ${engagementWorkspaceId},
+          CAST(${"WESTERN_CEREMONY"} AS "WeddingCeremonyType"),
+          ${"既有西式證婚"}, 4, CURRENT_TIMESTAMP
+        ), (
+          ${processionCeremonyId}, ${processionWorkspaceId},
+          CAST(${"PROCESSION"} AS "WeddingCeremonyType"), ${"既有迎娶"}, 6,
+          CURRENT_TIMESTAMP
+        )
+      `;
+      await transaction.$executeRaw`
+        INSERT INTO "wedding_ceremony_guest_attendances" (
+          "ceremony_id", "guest_id", "workspace_id", "status", "version",
+          "updated_at"
+        ) VALUES (
+          ${engagementCeremonyId}, ${attendanceGuestId},
+          ${engagementWorkspaceId},
+          CAST(${"ATTENDING"} AS "WeddingCeremonyAttendanceStatus"), 3,
+          CURRENT_TIMESTAMP
+        )
+      `;
+    });
+    planningPreferencePriorSnapshot =
+      await snapshotPlanningPreferencePriorData(
+        planningPreferencePriorClient,
+        fixture.workspaceIds,
+      );
+  } finally {
+    await planningPreferencePriorClient.$disconnect();
+  }
+
+  const planningPreferenceStatus = run(
     process.execPath,
     [prismaCli, "migrate", "deploy"],
     environment,
   );
-  if (repairStatus !== 0) {
-    return repairStatus;
+  if (planningPreferenceStatus !== 0) {
+    return planningPreferenceStatus;
   }
 
   const repairedClient = new PrismaClient({
@@ -2086,6 +2446,16 @@ async function runProductionDriftRepair() {
         ) AS "systemTaxonomyColumns",
         (
           SELECT count(*)::INTEGER
+          FROM "information_schema"."columns"
+          WHERE "table_schema" = current_schema()
+            AND "table_name" = 'budget_items'
+            AND "column_name" = 'preparation_status'
+            AND "udt_name" = 'BudgetPreparationStatus'
+            AND "is_nullable" = 'NO'
+            AND "column_default" = '''NEEDS_ACTION''::"BudgetPreparationStatus"'
+        ) AS "preparationStatusColumns",
+        (
+          SELECT count(*)::INTEGER
           FROM "pg_constraint"
           WHERE "conrelid" = '"budget_items"'::regclass
             AND "conname" IN (
@@ -2123,6 +2493,13 @@ async function runProductionDriftRepair() {
             AND position('求婚' IN pg_get_constraintdef("oid")) > 0
             AND position('提親' IN pg_get_constraintdef("oid")) = 0
         ) AS "proposalLabelConstraintExact"
+        , EXISTS (
+          SELECT 1
+          FROM "pg_constraint"
+          WHERE "conrelid" = '"budget_items"'::regclass
+            AND "conname" = 'budget_items_preparation_status_kind_check'
+            AND "convalidated"
+        ) AS "preparationStatusConstraintExact"
     `;
     const [postRepairCounts] = await repairedClient.$queryRaw`
       SELECT
@@ -2153,6 +2530,9 @@ async function runProductionDriftRepair() {
             )
           )
         )::INTEGER AS "sourceIdentityViolations"
+        , count(*) FILTER (
+          WHERE "preparation_status" <> 'NEEDS_ACTION'::"BudgetPreparationStatus"
+        )::INTEGER AS "preparationStatusViolations"
       FROM "budget_items"
     `;
     const [repairedNotionChild] = await repairedClient.$queryRaw`
@@ -2192,6 +2572,93 @@ async function runProductionDriftRepair() {
         AND "finished_at" IS NOT NULL
         AND "rolled_back_at" IS NULL
     `;
+    const preparationStatusHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${preparationStatusMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const vendorHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${vendorMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const ceremonyHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${ceremonyMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const ceremonyAttendanceHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${ceremonyAttendanceMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const declinedSeatingConsistencyHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${declinedSeatingConsistencyMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const giftHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${giftMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const planningPreferenceHistory = await repairedClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${planningPreferencesMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const planningPreferenceRows = await repairedClient.$queryRaw`
+      SELECT "id", "has_engagement_ceremony" AS "hasEngagementCeremony",
+        "has_procession_ceremony" AS "hasProcessionCeremony",
+        "ceremony_preferences_version" AS "version"
+      FROM "wedding_workspaces"
+      WHERE "id" IN (${Prisma.join(fixture.workspaceIds)})
+      ORDER BY "id"
+    `;
+    const planningPreferenceConstraints = await repairedClient.$queryRaw`
+      SELECT "conname"
+      FROM "pg_constraint"
+      WHERE "conrelid" = '"wedding_workspaces"'::regclass
+        AND "conname" =
+          'wedding_workspaces_ceremony_preferences_version_check'
+        AND "convalidated"
+    `;
+    const planningPreferenceAfterSnapshot =
+      await snapshotPlanningPreferencePriorData(
+        repairedClient,
+        fixture.workspaceIds,
+      );
+    const repairedDeclinedSeatingConstraints = await repairedClient.$queryRaw`
+      SELECT "conname"
+      FROM "pg_constraint"
+      WHERE "conrelid" = '"guests"'::regclass
+        AND "conname" = 'guests_declined_seating_consistency_check'
+        AND "convalidated"
+    `;
+    const ceremonyRows = await repairedClient.weddingCeremony.count();
+    const ceremonyAttendanceRows =
+      await repairedClient.weddingCeremonyGuestAttendance.count();
+    const giftRows = await repairedClient.weddingGift.count();
+    const repairedDeclinedSeatingViolations = await repairedClient.guest.count({
+      where: {
+        attendanceStatus: "DECLINED",
+        seatingTableId: { not: null },
+      },
+    });
 
     const rootParentByCategory = new Map([
       ["RINGS_KEEPSAKES", "ITEM_PROPOSAL"],
@@ -2211,10 +2678,10 @@ async function runProductionDriftRepair() {
       taxonomyKeysByWorkspace.set(node.workspaceId, keys);
     }
     const taxonomyTopologyIsExact =
-      fixedTaxonomyExpectedParents.size === 28 &&
-      taxonomyNodes.length === 56 &&
+      fixedTaxonomyExpectedParents.size === 29 &&
+      taxonomyNodes.length === 58 &&
       taxonomyKeysByWorkspace.size === 2 &&
-      [...taxonomyKeysByWorkspace.values()].every((keys) => keys.size === 28) &&
+      [...taxonomyKeysByWorkspace.values()].every((keys) => keys.size === 29) &&
       taxonomyNodes.every(
         (node) =>
           fixedTaxonomyExpectedParents.has(node.key) &&
@@ -2247,19 +2714,22 @@ async function runProductionDriftRepair() {
       taxonomySummary.length !== 2 ||
       taxonomySummary.some(
         (row) =>
-          row.nodeCount !== 28 ||
+          row.nodeCount !== 29 ||
           row.stageCount !== 7 ||
-          row.itemCount !== 21 ||
-          row.publicItemCount !== 20,
+          row.itemCount !== 22 ||
+          row.publicItemCount !== 21,
       ) ||
       postRepairShape?.hasSystemCategory !== false ||
       postRepairShape?.systemTaxonomyColumns !== 1 ||
+      postRepairShape?.preparationStatusColumns !== 1 ||
       postRepairShape?.validatedFinalConstraints !== 5 ||
       postRepairShape?.finalIndexExact !== true ||
       postRepairShape?.proposalLabelConstraintExact !== true ||
+      postRepairShape?.preparationStatusConstraintExact !== true ||
       postRepairCounts?.ordinaryRows !== 20 ||
       postRepairCounts?.ordinaryRoots !== 0 ||
       postRepairCounts?.sourceIdentityViolations !== 0 ||
+      postRepairCounts?.preparationStatusViolations !== 0 ||
       repairedNotionChild?.parentId !== fixture.rootId(0, "ATTIRE_STYLING") ||
       repairedNotionChild?.version !== 0 ||
       repairedNotionChild?.relatedTaxonomyItemKey !==
@@ -2269,7 +2739,36 @@ async function runProductionDriftRepair() {
       repairedHistory.length !== 1 ||
       proposalLabelHistory.length !== 1 ||
       engagementSuggestionHistory.length !== 1 ||
-      preparationSuggestionHistory.length !== 1
+      preparationSuggestionHistory.length !== 1 ||
+      preparationStatusHistory.length !== 1 ||
+      vendorHistory.length !== 1 ||
+      ceremonyHistory.length !== 1 ||
+      ceremonyAttendanceHistory.length !== 1 ||
+      declinedSeatingConsistencyHistory.length !== 1 ||
+      giftHistory.length !== 1 ||
+      planningPreferenceHistory.length !== 1 ||
+      planningPreferenceConstraints.length !== 1 ||
+      planningPreferenceAfterSnapshot !== planningPreferencePriorSnapshot ||
+      planningPreferenceRows.length !== 2 ||
+      planningPreferenceRows.some((row) => {
+        const isEngagementWorkspace = row.id === fixture.workspaceIds[0];
+        const isProcessionWorkspace = row.id === fixture.workspaceIds[1];
+        return (
+          row.version !== 0 ||
+          (isEngagementWorkspace &&
+            (row.hasEngagementCeremony !== true ||
+              row.hasProcessionCeremony !== false)) ||
+          (isProcessionWorkspace &&
+            (row.hasEngagementCeremony !== false ||
+              row.hasProcessionCeremony !== true)) ||
+          (!isEngagementWorkspace && !isProcessionWorkspace)
+        );
+      }) ||
+      repairedDeclinedSeatingConstraints.length !== 1 ||
+      ceremonyRows !== 3 ||
+      ceremonyAttendanceRows !== 1 ||
+      giftRows !== 0 ||
+      repairedDeclinedSeatingViolations !== 0
     ) {
       throw new Error("production-like drift repair verification failed");
     }
@@ -2296,6 +2795,11 @@ async function runProductionDriftRepair() {
       await snapshotAllBudgetRows(currentHeadClient);
     const afterNoOpAttachmentSnapshot =
       await snapshotProductionDriftAttachments(currentHeadClient);
+    const afterNoOpPlanningPreferenceSnapshot =
+      await snapshotPlanningPreferencePriorData(
+        currentHeadClient,
+        fixture.workspaceIds,
+      );
     const [proposalLabelSummary] = await currentHeadClient.$queryRaw`
       SELECT
         count(*)::INTEGER AS "proposalNodes",
@@ -2326,6 +2830,54 @@ async function runProductionDriftRepair() {
         AND "finished_at" IS NOT NULL
         AND "rolled_back_at" IS NULL
     `;
+    const appliedCeremonyAttendances = await currentHeadClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${ceremonyAttendanceMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const appliedDeclinedSeatingConsistency = await currentHeadClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${declinedSeatingConsistencyMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const appliedGifts = await currentHeadClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${giftMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const appliedPlanningPreferences = await currentHeadClient.$queryRaw`
+      SELECT "migration_name"
+      FROM "_prisma_migrations"
+      WHERE "migration_name" = ${planningPreferencesMigration}
+        AND "finished_at" IS NOT NULL
+        AND "rolled_back_at" IS NULL
+    `;
+    const currentHeadDeclinedSeatingConstraints =
+      await currentHeadClient.$queryRaw`
+        SELECT "conname"
+        FROM "pg_constraint"
+        WHERE "conrelid" = '"guests"'::regclass
+          AND "conname" = 'guests_declined_seating_consistency_check'
+          AND "convalidated"
+      `;
+    const afterNoOpCeremonies =
+      await currentHeadClient.weddingCeremony.count();
+    const afterNoOpCeremonyAttendances =
+      await currentHeadClient.weddingCeremonyGuestAttendance.count();
+    const afterNoOpGifts = await currentHeadClient.weddingGift.count();
+    const afterNoOpDeclinedSeatingViolations =
+      await currentHeadClient.guest.count({
+        where: {
+          attendanceStatus: "DECLINED",
+          seatingTableId: { not: null },
+        },
+      });
     if (
       afterNoOpBudgetSnapshot?.count !== currentHeadBudgetSnapshot?.count ||
       afterNoOpBudgetSnapshot?.digest !== currentHeadBudgetSnapshot?.digest ||
@@ -2333,13 +2885,23 @@ async function runProductionDriftRepair() {
         currentHeadAttachmentSnapshot?.count ||
       afterNoOpAttachmentSnapshot?.digest !==
         currentHeadAttachmentSnapshot?.digest ||
+      afterNoOpPlanningPreferenceSnapshot !== planningPreferencePriorSnapshot ||
       proposalLabelSummary?.proposalNodes !== 2 ||
       proposalLabelSummary?.workspaces !== 2 ||
       proposalLabelSummary?.finalLabels !== 2 ||
       proposalLabelSummary?.oldLabels !== 0 ||
       appliedProposalLabels.length !== 1 ||
       appliedEngagementSuggestions.length !== 1 ||
-      appliedPreparationSuggestions.length !== 1
+      appliedPreparationSuggestions.length !== 1 ||
+      appliedCeremonyAttendances.length !== 1 ||
+      appliedDeclinedSeatingConsistency.length !== 1 ||
+      appliedGifts.length !== 1 ||
+      appliedPlanningPreferences.length !== 1 ||
+      currentHeadDeclinedSeatingConstraints.length !== 1 ||
+      afterNoOpCeremonies !== 3 ||
+      afterNoOpCeremonyAttendances !== 1 ||
+      afterNoOpGifts !== 0 ||
+      afterNoOpDeclinedSeatingViolations !== 0
     ) {
       throw new Error("current-head migration no-op verification failed");
     }
@@ -2348,7 +2910,7 @@ async function runProductionDriftRepair() {
   }
 
   console.log(
-    `Production-like drift repair passed: a modified-checksum ${fixedGroupsMigration} history row plus the exact experimental eight-root shape was repaired by ${repairMigration}, then ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚 and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity and ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys; all 20 ordinary rows, nested hierarchy and versions, Notion purpose/path metadata, and attachment bytes were preserved while 16 legacy roots were attached beneath the canonical 28-node-per-workspace Drive taxonomy with 20 public item groups. A second current-head migrate deploy was an exact Budget and attachment data no-op.`,
+    `Production-like drift repair passed: a modified-checksum ${fixedGroupsMigration} history row plus the exact experimental eight-root shape was repaired by ${repairMigration}, then ${proposalLabelMigration} changed only ITEM_PROPOSAL from 提親 to 求婚 and ${engagementSuggestionMigration} added the nullable workspace-scoped engagement suggestion identity and ${preparationSuggestionMigration} expanded the validated identity constraint to PREPARATION keys; ${ceremonyAttendanceMigration} remained a no-backfill compatibility layer, ${declinedSeatingConsistencyMigration} installed a validated Guest seating constraint without repairing data, and ${giftMigration} added an empty invitation-group gift ledger separate from Budget; ${planningPreferencesMigration} backfilled engagement and procession flags only from three dormant legacy ceremony rows (the western row set neither flag), while the three ceremony rows and one attendance row remained byte-for-byte equivalent in the canonical snapshot. All 20 ordinary rows, nested hierarchy and versions, Notion purpose/path metadata, and attachment bytes were preserved while 16 legacy roots were attached beneath the canonical 28-node-per-workspace Drive taxonomy with 20 public item groups. A second current-head migrate deploy was an exact Budget, attachment, dormant ceremony, attendance, planning-preference, and gift-ledger data no-op with the constraints still validated and unviolated.`,
   );
   return 0;
 }

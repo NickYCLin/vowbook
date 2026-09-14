@@ -162,7 +162,8 @@ try {
       "e2e/budget-attachments.spec.ts",
       "--workers=1",
     ];
-    status = process.env.DISPLAY
+    // Xvfb 只供無顯示器的 Linux 使用；Windows/macOS 直接啟動 Chromium。
+    status = process.platform !== "linux" || process.env.DISPLAY
       ? run(process.execPath, playwrightArgs, environment)
       : run(
           "xvfb-run",

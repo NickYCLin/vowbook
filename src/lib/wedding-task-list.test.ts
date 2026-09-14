@@ -52,7 +52,10 @@ describe("getWeddingTaskList", () => {
     findMany.mockResolvedValue([]);
     transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) =>
-        callback({ weddingTask: { findMany } }),
+        callback({
+          membership: { findUnique: vi.fn() },
+          weddingTask: { findMany },
+        }),
     );
   });
 
@@ -68,6 +71,7 @@ describe("getWeddingTaskList", () => {
       "workspace_1",
       "session_user",
       "read",
+      expect.objectContaining({ weddingTask: { findMany } }),
     );
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: "RepeatableRead",
@@ -86,10 +90,10 @@ describe("getWeddingTaskList", () => {
       select,
     });
     expect(requireCurrentUser.mock.invocationCallOrder[0]).toBeLessThan(
-      requireWorkspaceAccess.mock.invocationCallOrder[0],
-    );
-    expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       transaction.mock.invocationCallOrder[0],
+    );
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(
+      requireWorkspaceAccess.mock.invocationCallOrder[0],
     );
   });
 
@@ -173,7 +177,7 @@ describe("getWeddingTaskList", () => {
     await expect(
       getWeddingTaskList("workspace_secret"),
     ).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
     expect(findMany).not.toHaveBeenCalled();
   });
 
@@ -193,7 +197,7 @@ describe("getWeddingTaskList", () => {
     await expect(getWeddingTaskList("workspace_1")).rejects.toEqual(
       new WeddingTaskDataError("目前無法載入婚宴任務，請稍後再試。"),
     );
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
 
     requireWorkspaceAccess.mockResolvedValueOnce({
       role: "OWNER",

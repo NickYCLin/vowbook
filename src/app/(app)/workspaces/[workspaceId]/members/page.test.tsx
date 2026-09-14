@@ -53,7 +53,7 @@ describe("MembersPage", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "合成婚宴・分享與協作",
+        name: "分享與協作",
       }),
     ).toBeInTheDocument();
     expect(
@@ -100,7 +100,7 @@ describe("MembersPage", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "合成婚宴・協作者",
+        name: "協作者",
       }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Google 帳號 Email")).not.toBeInTheDocument();

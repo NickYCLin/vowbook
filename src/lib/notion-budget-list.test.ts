@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireCurrentUser, requireWorkspaceAccess, findMany } = vi.hoisted(
+const { requireCurrentUser, requireWorkspaceAccess, findMany, transaction } = vi.hoisted(
   () => ({
     requireCurrentUser: vi.fn(),
     requireWorkspaceAccess: vi.fn(),
     findMany: vi.fn(),
+    transaction: vi.fn(),
   }),
 );
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
 vi.mock("@/lib/workspace-access", () => ({ requireWorkspaceAccess }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { budgetItem: { findMany } },
+  prisma: { $transaction: transaction },
 }));
 
 import { BudgetItemDataError, getBudgetPageData } from "./budget-list";
@@ -38,6 +39,7 @@ function record(
     paid: id === "root",
     paidAt: null,
     bookingStatus: id === "root" ? "PAID" : "PLANNING",
+    preparationStatus: "NEEDS_ACTION",
     depositAmount: plannedAmount,
     balanceAmount: null,
     additionalAmount: null,
@@ -54,10 +56,20 @@ function record(
 describe("Notion Budget tree query", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transaction.mockImplementation(async (operation) =>
+      operation({ budgetItem: { findMany } }),
+    );
     requireCurrentUser.mockResolvedValue({ id: "synthetic_user" });
     requireWorkspaceAccess.mockResolvedValue({
       role: "VIEWER",
-      workspace: { id: "synthetic_workspace", name: "合成婚宴" },
+      workspace: {
+        id: "synthetic_workspace",
+        name: "合成婚宴",
+        timezone: "Asia/Taipei",
+        hasEngagementCeremony: false,
+        hasProcessionCeremony: false,
+        ceremonyPreferencesVersion: 0,
+      },
     });
   });
 
@@ -99,8 +111,11 @@ describe("Notion Budget tree query", () => {
       actualTotal: "60",
       balanceDueTotal: "0",
       balanceDueCount: 0,
+      overdueBalanceDueCount: 0,
       balanceDueMissingAmountCount: 0,
-      nearestBalanceDueDate: null,
+      nearestUpcomingBalanceDueDate: null,
+      selfProvidedCount: 0,
+      notPlannedCount: 0,
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
     expect(findMany).toHaveBeenCalledOnce();

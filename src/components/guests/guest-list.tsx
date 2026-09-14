@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   GUEST_CATEGORIES,
   GUEST_CATEGORY_LABELS,
@@ -8,6 +8,7 @@ import {
   GUEST_SIDE_LABELS,
   GUEST_SENIORITY_LABELS,
   guestIdentityLabel,
+  compareGuestsBySeniorityThenSurnameStroke,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
   type GuestSideValue,
@@ -83,6 +84,7 @@ type InvitationPlanSummary = {
   paper: InvitationDeliverySummary;
   digital: InvitationDeliverySummary;
   noneCount: number;
+  unknownCount: number;
   unsetCount: number;
 };
 
@@ -130,6 +132,7 @@ function summariseInvitations(
   const paper: InvitationRecipient[] = [];
   const digital: InvitationRecipient[] = [];
   let noneCount = 0;
+  let unknownCount = 0;
   let unsetCount = 0;
 
   for (const guest of guests) {
@@ -146,6 +149,8 @@ function summariseInvitations(
       digital.push(recipient);
     } else if (delivery === "NONE") {
       noneCount += 1;
+    } else if (delivery === "UNKNOWN") {
+      unknownCount += 1;
     } else {
       unsetCount += 1;
     }
@@ -155,6 +160,7 @@ function summariseInvitations(
     paper: { total: paper.length, recipients: paper },
     digital: { total: digital.length, recipients: digital },
     noneCount,
+    unknownCount,
     unsetCount,
   };
 }
@@ -400,7 +406,11 @@ function PaperInvitationSummary({
   );
 }
 
-export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
+export function GuestList({
+  workspaceId,
+  guests,
+  canEdit,
+}: GuestListProps) {
   const [feedback, setFeedback] = useState<GuestFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const [search, setSearch] = useState("");
@@ -487,9 +497,10 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
       const matchesSide = sideFilter === "ALL" || guest.side === sideFilter;
       const matchesSeating =
         seatingFilter === "ALL" ||
-        (seatingFilter === "ASSIGNED"
-          ? guest.seatingTable !== null
-          : guest.seatingTable === null);
+        (guest.attendanceStatus !== "DECLINED" &&
+          (seatingFilter === "ASSIGNED"
+            ? guest.seatingTable !== null
+            : guest.seatingTable === null));
 
       return (
         matchesName &&
@@ -513,7 +524,9 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
   const filteredGeneralGuests = filteredGuests.filter(
     (guest) => guest.category === "GUEST",
   );
-  const displayedGuests = [...filteredHosts, ...filteredGeneralGuests];
+  const filteredCouple = filteredHosts.filter(guest => guest.category === "COUPLE");
+  const filteredFamilies = filteredHosts.filter(guest => guest.category === "FAMILY")
+    .sort(compareGuestsBySeniorityThenSurnameStroke);
   const hasActiveFilter =
     search.trim().length > 0 ||
     attendanceFilter !== "ALL" ||
@@ -543,6 +556,136 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
       message,
       revision: (current?.revision ?? 0) + 1,
     }));
+  }
+
+  function renderGuestRow(guest: GuestListItem) {
+    return (
+                    <li key={guest.id} className="min-w-0">
+                      <article className="min-w-0 px-4 py-2.5 sm:px-5">
+                        {/*
+                          窄欄是兩欄兩列：姓名／出席在上，其餘資訊／操作在下。
+                          純靠自動排版會把徽章排到姓名下面，一位賓客就佔掉四行。
+
+                          寬欄的徽章欄寬度寫死：每一列是各自獨立的 grid，只要
+                          這欄依內容伸縮，「尚未確認」那幾列就會把前面的欄位往
+                          左推，整份名單的關係／人數／桌次會排不齊。
+                        */}
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @4xl:grid-cols-[minmax(0,1fr)_6rem_4rem_minmax(0,11rem)_10rem_auto] @4xl:gap-x-4">
+                          <h3 className="min-w-0 font-serif text-body font-semibold break-words text-ink">
+                            {guest.name}
+                          </h3>
+                          {/*
+                            display:contents：窄欄時這三項是一行以「·」分隔的
+                            文字，寬欄時外框消失、三個 span 直接變成對齊的欄，
+                            一位賓客只佔一列，右邊不再空一大片。
+                          */}
+                          {/*
+                            這裡不放「·」分隔點：窄欄一行塞不下三項，斷行後會
+                            留一個孤零零的點在行尾。三項的字重與顏色本來就不同，
+                            靠間距就分得開。
+                          */}
+                          <div className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-ink-soft @4xl:contents">
+                            <span className="min-w-0 break-words">
+                              {guestIdentityLabel(guest.category, guest.side)}
+                              <span className="text-ink-faint">
+                                {" · "}{GUEST_SENIORITY_LABELS[guest.seniority]}
+                              </span>
+                            </span>
+                            <span className="tabular-nums">
+                              {guest.partySize} 位
+                            </span>
+                            {/*
+                              桌名可以重複，賓客真正要知道的是「幾號桌」，
+                              桌名只是給規劃的人對照用的標籤。
+                            */}
+                            <span
+                              data-guest-seating="summary"
+                              className={cn(
+                                "min-w-0 break-words",
+                                guest.seatingTable
+                                  ? "font-medium text-ink"
+                                  : "text-ink-faint",
+                              )}
+                            >
+                              {guest.attendanceStatus === "DECLINED" ? (
+                                "座位：不需安排"
+                              ) : guest.seatingTable ? (
+                                <>
+                                  桌次：{guest.seatingTable.number} 號桌
+                                  <span className="ml-1.5 font-normal text-ink-soft">
+                                    {guest.seatingTable.name}
+                                  </span>
+                                </>
+                              ) : (
+                                "桌次：尚未安排"
+                              )}
+                            </span>
+                          </div>
+                          <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center justify-end gap-1.5 @4xl:col-auto @4xl:row-auto">
+                            {guest.category !== "GUEST" ? (
+                              <Badge
+                                tone={guest.category === "COUPLE" ? "brand" : "sage"}
+                              >
+                                {GUEST_CATEGORY_LABELS[guest.category]}
+                              </Badge>
+                            ) : null}
+                            <Badge
+                              tone={attendanceTones[guest.attendanceStatus]}
+                            >
+                              <BadgeDot />
+                              {attendanceLabels[guest.attendanceStatus]}
+                            </Badge>
+                          </div>
+                          {canEdit && (
+                            <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-0.5 @4xl:col-auto @4xl:row-auto">
+                              <EditGuestForm
+                                workspaceId={workspaceId}
+                                guestId={guest.id}
+                                expectedVersion={guest.version}
+                                name={guest.name}
+                                category={guest.category}
+                                seniority={guest.seniority}
+                                side={guest.side}
+                                attendanceStatus={guest.attendanceStatus}
+                                partySize={guest.partySize}
+                                notes={guest.notes}
+                                details={guest.details}
+                                onSuccess={announceFeedback}
+                                managedFields={Array.from(
+                                  new Set(
+                                    guest.importRecords.flatMap((record) =>
+                                      record.sourceManaged
+                                        ? record.managedFields
+                                        : [],
+                                    ),
+                                  ),
+                                )}
+                              />
+                              <DeleteGuestForm
+                                workspaceId={workspaceId}
+                                guestId={guest.id}
+                                expectedVersion={guest.version}
+                                name={guest.name}
+                                weddingGift={guest.weddingGift}
+                                checkIn={guest.checkIn}
+                                onSuccess={announceFeedback}
+                                hasManagedImportSource={guest.importRecords.some(
+                                  (record) => record.sourceManaged,
+                                )}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {guest.notes && (
+                          <p className="mt-1 text-caption leading-6 break-words whitespace-pre-wrap text-ink-soft">
+                            {guest.notes}
+                          </p>
+                        )}
+
+                      </article>
+                    </li>
+    );
   }
 
   return (
@@ -666,7 +809,8 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                     每筆名單依目前喜帖方式計 1 份，不受出席狀態影響。
                   </p>
                   <p className="mt-0.5 text-caption leading-6 text-ink-faint">
-                    不需寄送 {invitations.noneCount} 組 · 尚未設定{" "}
+                    不需寄送 {invitations.noneCount} 組 · 尚未確認{" "}
+                    {invitations.unknownCount} 組 · 尚未填寫{" "}
                     {invitations.unsetCount} 組
                   </p>
                 </div>
@@ -691,7 +835,9 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                 : "可以編輯此工作區的成員尚未加入名單成員。"
             }
             action={
-              canEdit ? <CreateGuestDialog workspaceId={workspaceId} /> : null
+              canEdit ? (
+                <CreateGuestDialog workspaceId={workspaceId} />
+              ) : null
             }
           />
         ) : (
@@ -703,6 +849,8 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                 value={search}
                 onChange={setSearch}
               />
+              {/* 四個篩選在手機排成兩欄，不再吃掉半個畫面；桌機仍併入工具列。 */}
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:contents">
               <Select
                 aria-label="名單身份篩選"
                 value={categoryFilter}
@@ -764,6 +912,7 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                 <option value="ASSIGNED">已安排</option>
                 <option value="UNASSIGNED">未安排</option>
               </Select>
+              </div>
               <div className="flex min-h-11 min-w-0 items-center gap-3 sm:ml-auto">
                 <p
                   aria-live="polite"
@@ -786,156 +935,36 @@ export function GuestList({ workspaceId, guests, canEdit }: GuestListProps) {
                 action={<Button onClick={clearFilters}>清除篩選</Button>}
               />
             ) : (
-              /*
-                一張卡片裝整份名單，靠分隔線分列。原本每位賓客各自一張帶陰影
-                的卡片，八個人就是八個框加七道間距，橫向又只用到左邊三分之一。
-              */
-              <Card>
-                <ul className="min-w-0 divide-y divide-line">
-                  {displayedGuests.map((guest, index) => (
-                    <Fragment key={guest.id}>
-                      {index === 0 && filteredHosts.length > 0 ? (
-                        <li className="border-b border-line bg-clay-soft/50 px-4 py-3 sm:px-5">
-                          <h3 className="font-serif text-body font-semibold text-ink">
-                            新人與家人
-                          </h3>
-                          <p className="mt-1 text-caption leading-6 text-ink-soft">
-                            不計入一般賓客統計，仍會計入宴席人數與桌位。
-                          </p>
-                        </li>
-                      ) : null}
-                      {index === filteredHosts.length &&
-                      filteredGeneralGuests.length > 0 ? (
-                        <li className="border-b border-line bg-surface-sunken px-4 py-3 sm:px-5">
-                          <h3 className="font-serif text-body font-semibold text-ink">
-                            一般賓客
-                          </h3>
-                        </li>
-                      ) : null}
-                    <li className="min-w-0">
-                      <article className="min-w-0 px-4 py-2.5 sm:px-5">
-                        {/*
-                          窄欄是兩欄兩列：姓名／出席在上，其餘資訊／操作在下。
-                          純靠自動排版會把徽章排到姓名下面，一位賓客就佔掉四行。
-
-                          寬欄的徽章欄寬度寫死：每一列是各自獨立的 grid，只要
-                          這欄依內容伸縮，「尚未確認」那幾列就會把前面的欄位往
-                          左推，整份名單的關係／人數／桌次會排不齊。
-                        */}
-                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @4xl:grid-cols-[minmax(0,1fr)_6rem_4rem_minmax(0,11rem)_10rem_auto] @4xl:gap-x-4">
-                          <h3 className="min-w-0 font-serif text-body font-semibold break-words text-ink">
-                            {guest.name}
-                          </h3>
-                          {/*
-                            display:contents：窄欄時這三項是一行以「·」分隔的
-                            文字，寬欄時外框消失、三個 span 直接變成對齊的欄，
-                            一位賓客只佔一列，右邊不再空一大片。
-                          */}
-                          {/*
-                            這裡不放「·」分隔點：窄欄一行塞不下三項，斷行後會
-                            留一個孤零零的點在行尾。三項的字重與顏色本來就不同，
-                            靠間距就分得開。
-                          */}
-                          <div className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-ink-soft @4xl:contents">
-                            <span className="min-w-0 break-words">
-                              {guestIdentityLabel(guest.category, guest.side)}
-                              <span className="text-ink-faint">
-                                {" · "}{GUEST_SENIORITY_LABELS[guest.seniority]}
-                              </span>
-                            </span>
-                            <span className="tabular-nums">
-                              {guest.partySize} 位
-                            </span>
-                            {/*
-                              桌名可以重複，賓客真正要知道的是「幾號桌」，
-                              桌名只是給規劃的人對照用的標籤。
-                            */}
-                            <span
-                              data-guest-seating="summary"
-                              className={cn(
-                                "min-w-0 break-words",
-                                guest.seatingTable
-                                  ? "font-medium text-ink"
-                                  : "text-ink-faint",
-                              )}
-                            >
-                              {guest.seatingTable ? (
-                                <>
-                                  桌次：{guest.seatingTable.number} 號桌
-                                  <span className="ml-1.5 font-normal text-ink-soft">
-                                    {guest.seatingTable.name}
-                                  </span>
-                                </>
-                              ) : (
-                                "桌次：尚未安排"
-                              )}
-                            </span>
-                          </div>
-                          <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center justify-end gap-1.5 @4xl:col-auto @4xl:row-auto">
-                            {guest.category !== "GUEST" ? (
-                              <Badge
-                                tone={guest.category === "COUPLE" ? "brand" : "sage"}
-                              >
-                                {GUEST_CATEGORY_LABELS[guest.category]}
-                              </Badge>
-                            ) : null}
-                            <Badge
-                              tone={attendanceTones[guest.attendanceStatus]}
-                            >
-                              <BadgeDot />
-                              {attendanceLabels[guest.attendanceStatus]}
-                            </Badge>
-                          </div>
-                          {canEdit && (
-                            <div className="col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-end gap-0.5 @4xl:col-auto @4xl:row-auto">
-                              <EditGuestForm
-                                workspaceId={workspaceId}
-                                guestId={guest.id}
-                                expectedVersion={guest.version}
-                                name={guest.name}
-                                category={guest.category}
-                                seniority={guest.seniority}
-                                side={guest.side}
-                                attendanceStatus={guest.attendanceStatus}
-                                partySize={guest.partySize}
-                                notes={guest.notes}
-                                details={guest.details}
-                                onSuccess={announceFeedback}
-                                managedFields={Array.from(
-                                  new Set(
-                                    guest.importRecords.flatMap((record) =>
-                                      record.sourceManaged
-                                        ? record.managedFields
-                                        : [],
-                                    ),
-                                  ),
-                                )}
-                              />
-                              <DeleteGuestForm
-                                workspaceId={workspaceId}
-                                guestId={guest.id}
-                                expectedVersion={guest.version}
-                                name={guest.name}
-                                hasManagedImportSource={guest.importRecords.some(
-                                  (record) => record.sourceManaged,
-                                )}
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {guest.notes && (
-                          <p className="mt-1 text-caption leading-6 break-words whitespace-pre-wrap text-ink-soft">
-                            {guest.notes}
-                          </p>
-                        )}
-
-                      </article>
-                    </li>
-                    </Fragment>
-                  ))}
-                </ul>
-              </Card>
+              <div className="space-y-5">
+                {filteredHosts.length > 0 ? <section aria-label="新人與家人" className="min-w-0 space-y-4">
+                  <div>
+                    <h3 className="font-serif text-body font-semibold text-ink">新人與家人</h3>
+                    <p className="mt-1 text-caption leading-6 text-ink-soft">不計入一般賓客統計，仍會計入宴席人數與桌位。家人依輩份排列，同輩份依姓名筆畫排序。</p>
+                  </div>
+                  {filteredCouple.length > 0 ? <Card as="section" aria-label="新人" className="@container">
+                    <h4 className="border-b border-line bg-clay-soft/50 px-4 py-3 font-semibold sm:px-5">新人</h4>
+                    <ul className="min-w-0 divide-y divide-line">{filteredCouple.map(renderGuestRow)}</ul>
+                  </Card> : null}
+                  {filteredFamilies.length > 0 ? <div className="grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2">
+                    {(["PARTNER_A", "PARTNER_B"] as const).map(side => {
+                      const members = filteredFamilies.filter(guest => guest.side === side);
+                      const title = side === "PARTNER_A" ? "新郎家人" : "新娘家人";
+                      return <Card key={side} as="section" aria-label={title} className="@container">
+                        <h4 className="border-b border-line bg-clay-soft/50 px-4 py-3 font-semibold sm:px-5">{title}</h4>
+                        {members.length ? <ul className="min-w-0 divide-y divide-line">{members.map(renderGuestRow)}</ul> : <p className="px-4 py-5 text-sm text-ink-soft">尚無符合條件的家人。</p>}
+                      </Card>;
+                    })}
+                  </div> : null}
+                  {filteredFamilies.some(guest => guest.side === "SHARED") ? <Card as="section" aria-label="雙方共同家人" className="@container">
+                    <h4 className="border-b border-line bg-surface-sunken px-4 py-3 font-semibold sm:px-5">雙方共同家人</h4>
+                    <ul className="min-w-0 divide-y divide-line">{filteredFamilies.filter(guest => guest.side === "SHARED").map(renderGuestRow)}</ul>
+                  </Card> : null}
+                </section> : null}
+                {filteredGeneralGuests.length > 0 ? <Card as="section" aria-label="一般賓客" className="@container">
+                  <h3 className="border-b border-line bg-surface-sunken px-4 py-3 font-serif text-body font-semibold text-ink sm:px-5">一般賓客</h3>
+                  <ul className="min-w-0 divide-y divide-line">{filteredGeneralGuests.map(renderGuestRow)}</ul>
+                </Card> : null}
+              </div>
             )}
           </>
         )}

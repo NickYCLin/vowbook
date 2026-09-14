@@ -36,16 +36,6 @@ export type WorkspaceMutationState = {
   message?: string;
 };
 
-const WORKSPACE_MODULE_PATHS = [
-  "guests",
-  "tables",
-  "tasks",
-  "budget",
-  "staff",
-  "timeline",
-  "members",
-] as const;
-
 function detailsFromFormData(formData: FormData): NormalizedWorkspaceDetails {
   return normalizeWorkspaceDetails({
     name: formData.get("name"),
@@ -89,24 +79,35 @@ async function isTransactionOwner(
   return memberships[0]?.role === "OWNER";
 }
 
-function revalidateUpdatedWorkspace(workspaceId: string): boolean {
-  try {
-    revalidatePath("/dashboard");
-    for (const modulePath of WORKSPACE_MODULE_PATHS) {
-      revalidatePath(`/workspaces/${workspaceId}/${modulePath}`);
+function revalidateUpdatedWorkspace(): boolean {
+  let succeeded = true;
+  const attempts = [
+    () => revalidatePath("/dashboard"),
+    () => revalidatePath("/workspaces/[workspaceId]", "layout"),
+  ];
+  for (const attempt of attempts) {
+    try {
+      attempt();
+    } catch {
+      succeeded = false;
     }
-    return true;
-  } catch {
-    console.error("婚宴工作區頁面重新驗證失敗。");
-    return false;
   }
+  if (!succeeded) {
+    console.error("婚宴工作區頁面重新驗證失敗。");
+  }
+  return succeeded;
 }
 
 function revalidateWorkspaceCollection(): void {
-  try {
-    revalidatePath("/dashboard");
-    revalidatePath("/onboarding");
-  } catch {
+  let succeeded = true;
+  for (const path of ["/dashboard", "/onboarding"]) {
+    try {
+      revalidatePath(path);
+    } catch {
+      succeeded = false;
+    }
+  }
+  if (!succeeded) {
     console.error("婚宴工作區清單重新驗證失敗。");
   }
 }
@@ -236,7 +237,7 @@ export async function updateWorkspaceAction(
 
   return {
     status: "success",
-    message: revalidateUpdatedWorkspace(workspaceId)
+    message: revalidateUpdatedWorkspace()
       ? "已更新婚宴工作區。"
       : "已更新婚宴工作區；畫面未自動更新，請重新整理。",
   };

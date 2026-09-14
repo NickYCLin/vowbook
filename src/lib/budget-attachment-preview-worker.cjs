@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { createCanvas } = require("@napi-rs/canvas");
 const { PDFDocument } = require("pdf-lib");
 const sharpModule = require("sharp");
@@ -11,12 +12,15 @@ const sharp = sharpModule.default ?? sharpModule;
 const IMAGE_INPUT_PIXEL_LIMIT = 20_000_000;
 const PDF_RENDER_SCALE = 2;
 const PDFJS_ROOT = path.dirname(require.resolve("pdfjs-dist/package.json"));
-const PDFJS_CMAP_URL = `${path.join(PDFJS_ROOT, "cmaps")}${path.sep}`;
-const PDFJS_STANDARD_FONT_DATA_URL = `${path.join(
-  PDFJS_ROOT,
-  "standard_fonts",
-)}${path.sep}`;
-const PDFJS_WASM_URL = `${path.join(PDFJS_ROOT, "wasm")}${path.sep}`;
+function pdfjsDirectoryUrl(directoryName) {
+  return pathToFileURL(
+    `${path.join(PDFJS_ROOT, directoryName)}${path.sep}`,
+  ).href;
+}
+
+const PDFJS_CMAP_URL = pdfjsDirectoryUrl("cmaps");
+const PDFJS_STANDARD_FONT_DATA_URL = pdfjsDirectoryUrl("standard_fonts");
+const PDFJS_WASM_URL = pdfjsDirectoryUrl("wasm");
 
 function failPreview() {
   throw new Error("preview unavailable");

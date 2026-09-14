@@ -103,6 +103,27 @@ enum BudgetBookingStatus {
   PAID
 }
 
+enum BudgetPreparationStatus {
+  NEEDS_ACTION
+  ALREADY_OWNED
+  NOT_PLANNED
+}
+
+enum WeddingCeremonyType {
+  WESTERN_CEREMONY
+  ENGAGEMENT
+  PROCESSION
+  RECEPTION
+  CUSTOM
+}
+
+enum WeddingCeremonyAttendanceStatus {
+  NOT_INCLUDED
+  UNDECIDED
+  ATTENDING
+  DECLINED
+}
+
 enum BudgetPrimaryContact {
   PARTNER_A
   PARTNER_B
@@ -162,10 +183,15 @@ model UserAvatar {
 }
 
 model WeddingWorkspace {
+  cakeHouseholds WeddingCakeHousehold[]
+  coordinatorHandoffs CoordinatorHandoff[]
   id                              String                             @id @default(cuid())
   name                            String
   weddingDate                     DateTime?                          @map("wedding_date")
   timezone                        String                             @default("Asia/Taipei")
+  hasEngagementCeremony           Boolean                            @default(false) @map("has_engagement_ceremony")
+  hasProcessionCeremony           Boolean                            @default(false) @map("has_procession_ceremony")
+  ceremonyPreferencesVersion      Int                                @default(0) @map("ceremony_preferences_version")
   createdById                     String                             @map("created_by_id")
   createdAt                       DateTime                           @default(now()) @map("created_at")
   updatedAt                       DateTime                           @updatedAt @map("updated_at")
@@ -176,18 +202,26 @@ model WeddingWorkspace {
   tasks                           WeddingTask[]
   budgetItems                     BudgetItem[]
   budgetAttachments               BudgetAttachment[]
+  ceremonies                      WeddingCeremony[]
+  ceremonyGuestAttendances        WeddingCeremonyGuestAttendance[]
   weddingStaffAssignments         WeddingStaffAssignment[]
   weddingTimelineItems            WeddingTimelineItem[]
   weddingTimelineStaffAssignments WeddingTimelineStaffAssignment[]
   invitations                     WorkspaceInvitation[]
   guestImportBatches               GuestImportBatch[]
   guestImportBatchRows             GuestImportBatchRow[]
+  weddingGifts                     WeddingGift[]
+  guestCheckIns                    GuestCheckIn[]
 
   @@index([createdById])
   @@map("wedding_workspaces")
 }
 
 model Guest {
+  cakeHouseholdId String? @map("cake_household_id")
+  cakeHousehold WeddingCakeHousehold? @relation(fields: [cakeHouseholdId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
+  /// 長輩請客等不收禮金、仍會送喜餅的安排；不代表已送餅。
+  giftExemptWithCake Boolean @default(false) @map("gift_exempt_with_cake")
   id               String                @id @default(cuid())
   workspaceId      String                @map("workspace_id")
   name             String
@@ -201,16 +235,60 @@ model Guest {
   createdAt        DateTime              @default(now()) @map("created_at")
   updatedAt        DateTime              @updatedAt @map("updated_at")
   workspace        WeddingWorkspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  seatingTableId   String?               @map("seating_table_id")
-  seatingTable     SeatingTable?         @relation(fields: [seatingTableId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
-  importRecords    GuestImportRecord[]
+  seatingTableId      String?                          @map("seating_table_id")
+  seatingTable        SeatingTable?                    @relation(fields: [seatingTableId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
+  importRecords       GuestImportRecord[]
+  ceremonyAttendances WeddingCeremonyGuestAttendance[]
+  weddingGift         WeddingGift?
+  checkIn             GuestCheckIn?
 
   @@unique([id, workspaceId])
   @@index([workspaceId])
+  @@index([workspaceId, cakeHouseholdId])
   @@index([workspaceId, category])
   @@index([workspaceId, seniority])
   @@index([workspaceId, seatingTableId])
   @@map("guests")
+}
+
+model WeddingGift {
+  id              String       @id @default(cuid())
+  workspaceId     String       @map("workspace_id")
+  guestId         String       @map("guest_id")
+  amount          Int
+  notes           String?      @db.VarChar(500)
+  /// 禮到人不到時要回禮回喜餅；有值代表已回禮，同時記下回禮時間。
+  returnGiftSentAt DateTime?   @map("return_gift_sent_at")
+  returnGiftNote   String?     @db.VarChar(200) @map("return_gift_note")
+  version     Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  guest       Guest            @relation(fields: [guestId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Cascade, map: "wedding_gifts_guest_ws_fkey")
+
+  @@unique([id, workspaceId])
+  @@unique([guestId, workspaceId])
+  @@index([workspaceId, createdAt, id], map: "wedding_gifts_ws_created_id_idx")
+  @@map("wedding_gifts")
+}
+
+model GuestCheckIn {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  guestId     String           @map("guest_id")
+  headcount   Int
+  notes       String?          @db.VarChar(200)
+  checkedInAt DateTime         @default(now()) @map("checked_in_at")
+  version     Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  guest       Guest            @relation(fields: [guestId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Cascade, map: "guest_check_ins_guest_ws_fkey")
+
+  @@unique([id, workspaceId])
+  @@unique([guestId, workspaceId])
+  @@index([workspaceId, checkedInAt, id], map: "guest_check_ins_ws_checked_in_id_idx")
+  @@map("guest_check_ins")
 }
 
 model GuestImportRecord {
@@ -367,6 +445,7 @@ model BudgetItem {
   paid              Boolean               @default(false)
   paidAt            DateTime?             @map("paid_at")
   bookingStatus     BudgetBookingStatus   @default(PLANNING) @map("booking_status")
+  preparationStatus BudgetPreparationStatus @default(NEEDS_ACTION) @map("preparation_status")
   depositAmount     Int?                  @map("deposit_amount")
   balanceAmount     Int?                  @map("balance_amount")
   additionalAmount  Int?                  @map("additional_amount")
@@ -391,6 +470,7 @@ model BudgetItem {
   @@index([workspaceId, parentId, sourceOrder, category, name, createdAt, id], map: "budget_items_ws_parent_source_order_tree_idx")
   @@index([workspaceId, paid, dueDate, category, createdAt, id], map: "budget_items_ws_paid_due_category_created_id_idx")
   @@index([workspaceId, kind, category, createdAt, id], map: "budget_items_ws_kind_category_created_id_idx")
+  @@index([workspaceId, preparationStatus, bookingStatus, dueDate, createdAt, id], map: "budget_items_ws_preparation_booking_due_created_id_idx")
   @@map("budget_items")
 }
 
@@ -415,13 +495,57 @@ model BudgetAttachment {
   @@map("budget_attachments")
 }
 
+model WeddingCeremony {
+  id               String                                    @id @default(cuid())
+  workspaceId      String                                    @map("workspace_id")
+  type             WeddingCeremonyType
+  name             String                                    @db.VarChar(120)
+  eventDate        DateTime?                                 @db.Date @map("event_date")
+  startMinute      Int?                                      @map("start_minute")
+  location         String?                                   @db.VarChar(120)
+  notes            String?                                   @db.VarChar(1000)
+  version          Int                                       @default(0)
+  createdAt        DateTime                                  @default(now()) @map("created_at")
+  updatedAt        DateTime                                  @updatedAt @map("updated_at")
+  workspace        WeddingWorkspace                          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  guestAttendances WeddingCeremonyGuestAttendance[]
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, eventDate, startMinute, createdAt, id], map: "wedding_ceremonies_ws_date_start_created_id_idx")
+  @@map("wedding_ceremonies")
+}
+
+model WeddingCeremonyGuestAttendance {
+  ceremonyId  String                          @map("ceremony_id")
+  guestId     String                          @map("guest_id")
+  workspaceId String                          @map("workspace_id")
+  status      WeddingCeremonyAttendanceStatus @default(UNDECIDED)
+  version     Int                             @default(0)
+  createdAt   DateTime                        @default(now()) @map("created_at")
+  updatedAt   DateTime                        @updatedAt @map("updated_at")
+  ceremony    WeddingCeremony                 @relation(fields: [ceremonyId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Cascade, map: "ceremony_guest_attendance_ceremony_ws_fkey")
+  guest       Guest                           @relation(fields: [guestId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Cascade, map: "ceremony_guest_attendance_guest_ws_fkey")
+  workspace   WeddingWorkspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([ceremonyId, guestId, workspaceId])
+  @@index([workspaceId, ceremonyId, status, guestId], map: "ceremony_guest_attendance_ws_ceremony_status_guest_idx")
+  @@index([workspaceId, guestId, ceremonyId], map: "ceremony_guest_attendance_ws_guest_ceremony_idx")
+  @@map("wedding_ceremony_guest_attendances")
+}
+
 model WeddingStaffAssignment {
+  coordinatorHandoffs CoordinatorHandoff[]
   id                  String                           @id @default(cuid())
   workspaceId         String                           @map("workspace_id")
   roleName             String                           @db.VarChar(60) @map("role_name")
   personName           String                           @db.VarChar(120) @map("person_name")
   contactPhone         String?                          @db.VarChar(40) @map("contact_phone")
   notes                String?                          @db.VarChar(500)
+  mealCount            Int?                             @map("meal_count")
+  vegetarianMealCount  Int?                             @map("vegetarian_meal_count")
+  /// 婚宴結束時發給工作人員的紅包；有 sentAt 代表已經發出去了。
+  redEnvelopeAmount    Int?                             @map("red_envelope_amount")
+  redEnvelopeSentAt    DateTime?                        @map("red_envelope_sent_at")
   version              Int                              @default(0)
   createdAt            DateTime                         @default(now()) @map("created_at")
   updatedAt            DateTime                         @updatedAt @map("updated_at")
@@ -434,6 +558,7 @@ model WeddingStaffAssignment {
 }
 
 model WeddingTimelineItem {
+  coordinatorHandoffs CoordinatorHandoff[]
   id                  String                           @id @default(cuid())
   workspaceId         String                           @map("workspace_id")
   startMinute         Int                              @map("start_minute")
@@ -513,4 +638,43 @@ model WorkspaceInvitation {
   @@index([invitedByUserId], map: "workspace_invitations_inviter_idx")
   @@index([acceptedByUserId], map: "workspace_invitations_accepter_idx")
   @@map("workspace_invitations")
+}
+
+model CoordinatorHandoff {
+  id String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  title String @db.VarChar(120)
+  details String @db.VarChar(2000)
+  phase String @db.VarChar(20)
+  status String @default("PENDING") @db.VarChar(20)
+  dueAt DateTime? @map("due_at") @db.Timestamptz(3)
+  staffId String? @map("staff_id")
+  timelineItemId String? @map("timeline_item_id")
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  staff WeddingStaffAssignment? @relation(fields: [staffId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
+  timelineItem WeddingTimelineItem? @relation(fields: [timelineItemId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, dueAt, createdAt, id])
+  @@index([staffId, workspaceId])
+  @@index([timelineItemId, workspaceId])
+  @@map("coordinator_handoffs")
+}
+
+model WeddingCakeHousehold {
+  id String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  name String @db.VarChar(100)
+  boxes Int @default(1)
+  version Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  guests Guest[]
+  @@unique([id, workspaceId])
+  @@index([workspaceId])
+  @@map("wedding_cake_households")
 }

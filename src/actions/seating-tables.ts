@@ -16,6 +16,7 @@ import {
   type NormalizedSeatingTableInput,
   SeatingTableValidationError,
 } from "@/domain/seating-table";
+import { normalizeGuestVersion } from "@/domain/guest";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import {
@@ -62,6 +63,8 @@ class SeatingRecordNotFoundError extends Error {}
 class SeatingCapacityError extends Error {}
 
 class SeatingGuestDeclinedError extends Error {}
+
+class SeatingGuestStaleError extends Error {}
 
 class SeatingTableStaleError extends Error {}
 
@@ -143,9 +146,46 @@ function guestsPath(workspaceId: string): string {
   return `/workspaces/${workspaceId}/guests`;
 }
 
-function revalidateSeatingViews(workspaceId: string): void {
-  revalidatePath(tablesPath(workspaceId));
-  revalidatePath(guestsPath(workspaceId));
+async function revalidateSeatingPath(
+  revalidate: () => void | Promise<void>,
+): Promise<boolean> {
+  try {
+    await revalidate();
+    return true;
+  } catch {
+    console.error("桌次相關頁面重新驗證失敗。");
+    return false;
+  }
+}
+
+async function revalidateSeatingViews(workspaceId: string): Promise<boolean> {
+  const revalidations = [
+    () => revalidatePath(tablesPath(workspaceId)),
+    () => revalidatePath(guestsPath(workspaceId)),
+    () => revalidatePath(`/workspaces/${workspaceId}/overview`),
+    () => revalidatePath("/dashboard"),
+  ];
+  let revalidated = true;
+
+  for (const revalidate of revalidations) {
+    if (!(await revalidateSeatingPath(revalidate))) {
+      revalidated = false;
+    }
+  }
+
+  return revalidated;
+}
+
+function seatingSuccessState(
+  message: string,
+  revalidated: boolean,
+): SeatingTableMutationState {
+  return {
+    status: "success",
+    message: revalidated
+      ? message
+      : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`,
+  };
 }
 
 function tableInputFromFormData(formData: FormData): NormalizedSeatingTableInput {
@@ -154,6 +194,24 @@ function tableInputFromFormData(formData: FormData): NormalizedSeatingTableInput
     capacity: formData.get("capacity"),
     notes: formData.get("notes"),
   });
+}
+
+function expectedGuestAssignmentSnapshot(formData: FormData): {
+  version: number;
+  seatingTableId: string | null;
+} {
+  const version = normalizeGuestVersion(formData.get("expectedGuestVersion"));
+  const rawTableId = formData.get("expectedSeatingTableId");
+  if (
+    typeof rawTableId !== "string" ||
+    rawTableId.length > 191 ||
+    rawTableId.trim() !== rawTableId
+  ) {
+    throw new SeatingTableValidationError(
+      "賓客桌次快照無效，請重新整理後再試。",
+    );
+  }
+  return { version, seatingTableId: rawTableId === "" ? null : rawTableId };
 }
 
 function adjustmentInputFromFormData(
@@ -598,6 +656,13 @@ function capacityOrConflictState(
     };
   }
 
+  if (error instanceof SeatingGuestStaleError) {
+    return {
+      status: "error",
+      message: "賓客桌次已由其他人更新，請重新載入後再試。",
+    };
+  }
+
   if (error instanceof SeatingTableStaleError) {
     return {
       status: "error",
@@ -701,8 +766,10 @@ export async function createSeatingTableAction(
     );
   }
 
-  revalidatePath(tablesPath(workspaceId));
-  return { status: "success", message: "已新增桌次。" };
+  return seatingSuccessState(
+    "已新增桌次。",
+    await revalidateSeatingViews(workspaceId),
+  );
 }
 
 export async function adjustSeatingTablesAction(
@@ -820,7 +887,10 @@ export async function adjustSeatingTablesAction(
   }
 
   if (result.status === "success") {
-    revalidateSeatingViews(workspaceId);
+    return seatingSuccessState(
+      result.message,
+      await revalidateSeatingViews(workspaceId),
+    );
   }
   return result;
 }
@@ -909,8 +979,10 @@ export async function updateSeatingTableAction(
     );
   }
 
-  revalidateSeatingViews(workspaceId);
-  return { status: "success", message: "已更新桌次。" };
+  return seatingSuccessState(
+    "已更新桌次。",
+    await revalidateSeatingViews(workspaceId),
+  );
 }
 
 export async function updateSeatingTableLayoutAction(
@@ -982,13 +1054,12 @@ export async function resetSeatingTableLayoutsAction(
     );
   }
 
-  revalidatePath(tablesPath(workspaceId));
-  return resetCount === 0
-    ? { status: "success", message: "所有桌次都已是自動排列。" }
-    : {
-        status: "success",
-        message: `已將 ${resetCount} 桌還原自動排列。`,
-      };
+  return seatingSuccessState(
+    resetCount === 0
+      ? "所有桌次都已是自動排列。"
+      : `已將 ${resetCount} 桌還原自動排列。`,
+    await revalidateSeatingPath(() => revalidatePath(tablesPath(workspaceId))),
+  );
 }
 
 /**
@@ -1152,11 +1223,10 @@ export async function swapSeatingTableContentsAction(
     );
   }
 
-  revalidateSeatingViews(workspaceId);
-  return {
-    status: "success",
-    message: "已交換兩桌的桌名與入座賓客；桌號保持不變。",
-  };
+  return seatingSuccessState(
+    "已交換兩桌的桌名與入座賓客；桌號保持不變。",
+    await revalidateSeatingViews(workspaceId),
+  );
 }
 
 export async function deleteSeatingTableAction(
@@ -1199,7 +1269,10 @@ export async function deleteSeatingTableAction(
   }
 
   if (result.status === "success") {
-    revalidateSeatingViews(workspaceId);
+    return seatingSuccessState(
+      result.message,
+      await revalidateSeatingViews(workspaceId),
+    );
   }
   return result;
 }
@@ -1219,6 +1292,12 @@ export async function assignGuestToTableAction(
   if (!tableId) {
     return { status: "error", message: "請選擇桌次。" };
   }
+  let expectedGuest: ReturnType<typeof expectedGuestAssignmentSnapshot>;
+  try {
+    expectedGuest = expectedGuestAssignmentSnapshot(formData);
+  } catch (error) {
+    return validationState(error);
+  }
 
   let result: "updated" | "unchanged";
   try {
@@ -1236,10 +1315,17 @@ export async function assignGuestToTableAction(
           partySize: true,
           attendanceStatus: true,
           seatingTableId: true,
+          version: true,
         },
       });
       if (!guest) {
         throw new SeatingRecordNotFoundError();
+      }
+      if (
+        guest.version !== expectedGuest.version ||
+        guest.seatingTableId !== expectedGuest.seatingTableId
+      ) {
+        throw new SeatingGuestStaleError();
       }
       if (guest.attendanceStatus === "DECLINED") {
         throw new SeatingGuestDeclinedError();
@@ -1267,10 +1353,16 @@ export async function assignGuestToTableAction(
         throw new SeatingCapacityError("此桌剩餘座位不足，請重新安排。");
       }
 
-      await transaction.guest.update({
-        where: { id_workspaceId: { id: guestId, workspaceId } },
+      const moved = await transaction.guest.updateMany({
+        where: {
+          id: guestId,
+          workspaceId,
+          version: expectedGuest.version,
+          seatingTableId: expectedGuest.seatingTableId,
+        },
         data: { seatingTableId: tableId, version: { increment: 1 } },
       });
+      if (moved.count !== 1) throw new SeatingGuestStaleError();
       return "updated";
     });
   } catch (error) {
@@ -1281,26 +1373,41 @@ export async function assignGuestToTableAction(
   }
 
   if (result === "unchanged") {
-    revalidateSeatingViews(workspaceId);
-    return { status: "success", message: "桌次安排沒有變更。" };
+    return seatingSuccessState(
+      "桌次安排沒有變更。",
+      await revalidateSeatingViews(workspaceId),
+    );
   }
 
-  revalidateSeatingViews(workspaceId);
-  return { status: "success", message: "已安排賓客桌次。" };
+  return seatingSuccessState(
+    "已安排賓客桌次。",
+    await revalidateSeatingViews(workspaceId),
+  );
 }
 
 export async function unassignGuestFromTableAction(
   workspaceId: string,
   guestId: string,
   _previousState: SeatingTableMutationState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<SeatingTableMutationState> {
   void _previousState;
-  void _formData;
 
   const authorization = await authorizeSeatingMutation(workspaceId);
   if (typeof authorization !== "string") {
     return authorization;
+  }
+
+  let expectedGuest: ReturnType<typeof expectedGuestAssignmentSnapshot>;
+  try {
+    expectedGuest = expectedGuestAssignmentSnapshot(formData);
+    if (expectedGuest.seatingTableId === null) {
+      throw new SeatingTableValidationError(
+        "賓客桌次快照無效，請重新整理後再試。",
+      );
+    }
+  } catch (error) {
+    return validationState(error);
   }
 
   try {
@@ -1311,10 +1418,16 @@ export async function unassignGuestFromTableAction(
         "edit",
         transaction,
       );
-      await transaction.guest.update({
-        where: { id_workspaceId: { id: guestId, workspaceId } },
+      const moved = await transaction.guest.updateMany({
+        where: {
+          id: guestId,
+          workspaceId,
+          version: expectedGuest.version,
+          seatingTableId: expectedGuest.seatingTableId,
+        },
         data: { seatingTableId: null, version: { increment: 1 } },
       });
+      if (moved.count !== 1) throw new SeatingGuestStaleError();
     });
   } catch (error) {
     return capacityOrConflictState(
@@ -1323,6 +1436,8 @@ export async function unassignGuestFromTableAction(
     );
   }
 
-  revalidateSeatingViews(workspaceId);
-  return { status: "success", message: "已將賓客移出桌次。" };
+  return seatingSuccessState(
+    "已將賓客移出桌次。",
+    await revalidateSeatingViews(workspaceId),
+  );
 }

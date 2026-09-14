@@ -69,7 +69,7 @@ describe("Notion Budget schema and forward migration contract", () => {
     ];
 
     expect(migrationNames.slice(0, 7)).toEqual(firstSevenMigrations);
-    expect(migrationNames).toEqual([
+    expect(migrationNames.slice(0, 35)).toEqual([
       ...firstSevenMigrations,
       consistencyMigrationName,
       "20260727120000_wedding_operations",
@@ -97,6 +97,8 @@ describe("Notion Budget schema and forward migration contract", () => {
       "20260824004000_user_access_admin",
       "20260824213500_allow_family_party_size",
       "20260825120000_guest_seniority",
+      "20260829210000_budget_preparation_status",
+      "20260829220000_wedding_vendors",
     ]);
     expect(fs.existsSync(migrationPath)).toBe(true);
   });

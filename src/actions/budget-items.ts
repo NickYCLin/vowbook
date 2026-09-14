@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import {
   BUDGET_BOOKING_STATUS_LABELS,
+  BUDGET_PREPARATION_STATUS_LABELS,
   BUDGET_INTERNAL_UNCLASSIFIED_ITEM_KEY,
   BUDGET_SYSTEM_NODE_BY_KEY,
   BUDGET_TAXONOMY_ITEM_DEFAULT_CATEGORIES,
@@ -12,12 +13,14 @@ import {
   isBudgetTaxonomyItemKey,
   normalizeBudgetGroupDetails,
   normalizeBudgetItemDetails,
+  normalizeBudgetPreparationStatus,
   normalizeBudgetTaxonomyItemKey,
   normalizeOptionalBudgetTaxonomyItemKey,
   normalizeRelatedBudgetTaxonomyItemKey,
   type BudgetCostCategory,
   type BudgetBookingStatus,
   type BudgetItemKind,
+  type BudgetPreparationStatus,
   type BudgetTaxonomyItemKey,
   type BudgetSystemNodeKey,
   type NormalizedBudgetItemDetails,
@@ -30,6 +33,11 @@ import {
   BUDGET_PREPARATION_PRESET_GROUPS,
   type BudgetPreparationSuggestionKey,
 } from "@/domain/budget-preparation-preset";
+import {
+  BUDGET_CEREMONY_STAGE_PREFERENCES,
+  budgetCeremonyStageLabel,
+  isBudgetCeremonyStageKey,
+} from "@/domain/budget-ceremony-stage";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import {
   normalizeWorkspaceDeletionConfirmation,
@@ -122,7 +130,11 @@ type BudgetItemPrismaClient = {
     deleteMany(args: unknown): Promise<CountResult>;
   };
   weddingWorkspace: {
-    findFirst(args: unknown): Promise<{ name: string } | null>;
+    findFirst(args: unknown): Promise<{
+      name: string;
+      hasEngagementCeremony: boolean;
+      hasProcessionCeremony: boolean;
+    } | null>;
   };
 };
 
@@ -130,6 +142,13 @@ class BudgetGroupDissolveConflictError extends Error {
   constructor() {
     super("Budget GROUP dissolve CAS conflict.");
     this.name = "BudgetGroupDissolveConflictError";
+  }
+}
+
+class BudgetCeremonyStageCleanupConflictError extends Error {
+  constructor() {
+    super("Budget ceremony stage cleanup snapshot conflict.");
+    this.name = "BudgetCeremonyStageCleanupConflictError";
   }
 }
 
@@ -167,7 +186,7 @@ function budgetPath(workspaceId: string): string {
   return `/workspaces/${workspaceId}/budget`;
 }
 
-async function revalidateBudgetView(workspaceId: string): Promise<boolean> {
+async function revalidateBudgetPage(workspaceId: string): Promise<boolean> {
   try {
     await revalidatePath(budgetPath(workspaceId));
     return true;
@@ -175,6 +194,22 @@ async function revalidateBudgetView(workspaceId: string): Promise<boolean> {
     console.error("婚禮花費頁面重新驗證失敗。");
     return false;
   }
+}
+
+async function revalidateBudgetView(workspaceId: string): Promise<boolean> {
+  let revalidated = await revalidateBudgetPage(workspaceId);
+  for (const path of [
+    `/workspaces/${workspaceId}/overview`,
+    "/dashboard",
+  ]) {
+    try {
+      await revalidatePath(path);
+    } catch {
+      console.error("婚宴花費相關頁面重新驗證失敗。");
+      revalidated = false;
+    }
+  }
+  return revalidated;
 }
 
 function successAfterRevalidation(
@@ -309,6 +344,18 @@ function subtreeSnapshotTokenFromFormData(formData: FormData): string {
   return value;
 }
 
+function ceremonyCleanupSnapshotTokenFromFormData(
+  formData: FormData,
+): string {
+  const value = formData.get("expectedSnapshotToken");
+  if (typeof value !== "string" || !/^[0-9a-f]{64}$/u.test(value)) {
+    throw new BudgetItemValidationError(
+      "階段內容確認資訊無效，請重新整理後再試。",
+    );
+  }
+  return value;
+}
+
 function groupDeletionConfirmationFromFormData(formData: FormData): string {
   return normalizeBudgetGroupDetails({
     name: formData.get("confirmationName"),
@@ -385,6 +432,23 @@ function preparationSuggestionKeysFromFormData(
   return keys;
 }
 
+function preparationStatusesFromFormData(
+  formData: FormData,
+  keys: readonly BudgetPreparationSuggestionKey[],
+): Map<BudgetPreparationSuggestionKey, BudgetPreparationStatus> {
+  return new Map(
+    keys.map((key) => {
+      const value = formData.get(`preparationStatus:${key}`);
+      return [
+        key,
+        value === null
+          ? "NEEDS_ACTION"
+          : normalizeBudgetPreparationStatus(value),
+      ];
+    }),
+  );
+}
+
 function preparedSnapshotConfirmationFromFormData(formData: FormData): void {
   if (formData.get("preparedSnapshot") !== "READY") {
     throw new BudgetItemValidationError(
@@ -402,6 +466,19 @@ function bookingStatusFromFormData(formData: FormData): BudgetBookingStatus {
     throw new BudgetItemValidationError("請選擇有效的下訂與付款狀態。");
   }
   return value as BudgetBookingStatus;
+}
+
+function preparationStatusFromFormData(
+  formData: FormData,
+): BudgetPreparationStatus {
+  const value = formData.get("preparationStatus");
+  if (
+    typeof value !== "string" ||
+    !Object.hasOwn(BUDGET_PREPARATION_STATUS_LABELS, value)
+  ) {
+    throw new BudgetItemValidationError("請選擇有效的準備方式。");
+  }
+  return normalizeBudgetPreparationStatus(value);
 }
 
 function targetParentIdFromFormData(formData: FormData): string | null {
@@ -534,7 +611,7 @@ async function hierarchyTaxonomyItem(
 async function returnStaleAfterRevalidation(
   workspaceId: string,
 ): Promise<BudgetItemMutationState> {
-  await revalidateBudgetView(workspaceId);
+  await revalidateBudgetPage(workspaceId);
   return staleState();
 }
 
@@ -560,6 +637,15 @@ export async function addBudgetEngagementSuggestionsAction(
       workspaceId,
       currentUserId,
       async (transaction) => {
+        const workspace = await transaction.weddingWorkspace.findFirst({
+          where: { id: workspaceId },
+          select: { hasEngagementCeremony: true },
+        });
+        if (!workspace?.hasEngagementCeremony) {
+          throw new BudgetItemValidationError(
+            "請先在花費頁開啟文定儀式設定，再加入文定建議項目。",
+          );
+        }
         const suggestions = suggestionKeys.map((key) => {
           const suggestion = BUDGET_ENGAGEMENT_SUGGESTION_BY_KEY.get(key);
           if (!suggestion) {
@@ -664,8 +750,16 @@ export async function addBudgetPreparationSuggestionsAction(
   const currentUserId = authorization;
 
   let suggestionKeys: BudgetPreparationSuggestionKey[];
+  let preparationStatuses: Map<
+    BudgetPreparationSuggestionKey,
+    BudgetPreparationStatus
+  >;
   try {
     suggestionKeys = preparationSuggestionKeysFromFormData(formData);
+    preparationStatuses = preparationStatusesFromFormData(
+      formData,
+      suggestionKeys,
+    );
   } catch (error) {
     return validationState(error);
   }
@@ -685,6 +779,22 @@ export async function addBudgetPreparationSuggestionsAction(
           }
           return suggestion;
         });
+        const includesProcession = suggestions.some((suggestion) =>
+          ["ITEM_PROCESSION_GROOM", "ITEM_PROCESSION_BRIDE"].includes(
+            suggestion.taxonomyItemKey,
+          ),
+        );
+        if (includesProcession) {
+          const workspace = await transaction.weddingWorkspace.findFirst({
+            where: { id: workspaceId },
+            select: { hasProcessionCeremony: true },
+          });
+          if (!workspace?.hasProcessionCeremony) {
+            throw new BudgetItemValidationError(
+              "請先在花費頁開啟迎娶儀式設定，再加入迎娶建議項目。",
+            );
+          }
+        }
         const parentIds = new Map<BudgetTaxonomyItemKey, string>();
         for (const taxonomyItemKey of new Set(
           suggestions.map((suggestion) => suggestion.taxonomyItemKey),
@@ -731,6 +841,8 @@ export async function addBudgetPreparationSuggestionsAction(
             paid: false,
             paidAt: null,
             bookingStatus: "PLANNING" as const,
+            preparationStatus:
+              preparationStatuses.get(suggestion.key) ?? "NEEDS_ACTION",
             depositAmount: null,
             balanceAmount: null,
             additionalAmount: null,
@@ -756,7 +868,7 @@ export async function addBudgetPreparationSuggestionsAction(
       return validationState(error);
     }
     return unavailableState(
-      "目前無法新增常見婚禮建議項目，請稍後再試。",
+      "目前無法記錄常見婚禮建議項目，請稍後再試。",
     );
   }
 
@@ -764,8 +876,8 @@ export async function addBudgetPreparationSuggestionsAction(
     createdCount === 0
       ? "所選常見婚禮建議項目已存在。"
       : createdCount === suggestionKeys.length
-        ? "已新增 " + createdCount + " 筆常見婚禮建議項目。"
-        : "已新增 " + createdCount +
+        ? "已記錄 " + createdCount + " 筆常見婚禮建議項目。"
+        : "已記錄 " + createdCount +
           " 筆常見婚禮建議項目；其餘已存在。";
   return successAfterRevalidation(
     message,
@@ -1251,6 +1363,7 @@ export async function changeBudgetItemBookingStatusAction(
           AND "workspace_id" = ${workspaceId}
           AND "version" = ${expectedVersion}
           AND "kind" = 'EXPENSE'
+          AND "preparation_status" = 'NEEDS_ACTION'::"BudgetPreparationStatus"
           `,
         ),
     );
@@ -1266,6 +1379,64 @@ export async function changeBudgetItemBookingStatusAction(
 
   return successAfterRevalidation(
     "已更新付款狀態。",
+    await revalidateBudgetView(workspaceId),
+  );
+}
+
+export async function changeBudgetItemPreparationStatusAction(
+  workspaceId: string,
+  itemId: string,
+  _previousState: BudgetItemMutationState,
+  formData: FormData,
+): Promise<BudgetItemMutationState> {
+  const authorization = await authorizeBudgetMutation(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+  const currentUserId = authorization;
+
+  let preparationStatus: BudgetPreparationStatus;
+  let expectedVersion: number;
+  try {
+    preparationStatus = preparationStatusFromFormData(formData);
+    expectedVersion = expectedVersionFromFormData(formData);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await runLockedBudgetTransaction(
+      workspaceId,
+      currentUserId,
+      (transaction) =>
+        transaction.budgetItem.updateMany({
+          where: {
+            id: itemId,
+            workspaceId,
+            version: expectedVersion,
+            kind: "EXPENSE",
+          },
+          data: {
+            preparationStatus,
+            version: { increment: 1 },
+          },
+        }),
+    );
+  } catch (error) {
+    const authorizationFailure = authorizationFailureState(error);
+    if (authorizationFailure) return authorizationFailure;
+    return unavailableState("目前無法更新準備方式，請稍後再試。");
+  }
+
+  if (result.count === 0) {
+    return returnStaleAfterRevalidation(workspaceId);
+  }
+
+  const message =
+    preparationStatus === "NEEDS_ACTION"
+      ? "已更新準備方式；項目已重新計入預算。"
+      : "已更新準備方式；原有金額仍保留，但不再計入預算。";
+  return successAfterRevalidation(
+    message,
     await revalidateBudgetView(workspaceId),
   );
 }
@@ -1734,6 +1905,183 @@ export async function deleteBudgetGroupSubtreeAction(
       : `，以及 ${outcome.attachmentCount} 個附件`;
   return successAfterRevalidation(
     `已永久刪除群組「${outcome.groupName}」與 ${descendantCount} 筆下層項目${attachmentDescription}。`,
+    await revalidateBudgetView(workspaceId),
+  );
+}
+
+/**
+ * 清空一個「已宣告沒有這場儀式」的固定階段底下所有使用者資料。
+ * 固定分類節點本身永遠保留：階段一旦清空就會自然從瀏覽畫面收起來，
+ * 日後重新開啟儀式設定時仍能照常使用建議項目。
+ */
+export async function clearBudgetCeremonyStageAction(
+  workspaceId: string,
+  stageKey: string,
+  _previousState: BudgetItemMutationState,
+  formData: FormData,
+): Promise<BudgetItemMutationState> {
+  const authorization = await authorizeBudgetMutation(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+  const currentUserId = authorization;
+
+  // 綁進 Server Action 的 stageKey 一樣來自 client，必須先過白名單。
+  if (!isBudgetCeremonyStageKey(stageKey)) {
+    return validationState(
+      new BudgetItemValidationError("儀式階段資訊無效，請重新整理後再試。"),
+    );
+  }
+  const preferenceField = BUDGET_CEREMONY_STAGE_PREFERENCES.find(
+    (entry) => entry.stageKey === stageKey,
+  )?.preference;
+  if (!preferenceField) {
+    return validationState(
+      new BudgetItemValidationError("儀式階段資訊無效，請重新整理後再試。"),
+    );
+  }
+
+  let expectedSnapshotToken: string;
+  let confirmationName: string;
+  try {
+    expectedSnapshotToken =
+      ceremonyCleanupSnapshotTokenFromFormData(formData);
+    confirmationName = groupDeletionConfirmationFromFormData(formData);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  const stageLabel = budgetCeremonyStageLabel(stageKey);
+  if (
+    confirmationName !==
+    normalizeBudgetGroupDetails({ name: stageLabel }).name
+  ) {
+    return {
+      status: "error",
+      code: "VALIDATION",
+      message: "階段名稱不相符，項目均未刪除。",
+    };
+  }
+
+  let outcome: { itemCount: number; attachmentCount: number };
+  try {
+    outcome = await runSerializableTransaction(async (transaction) => {
+      await requireLockedWorkspaceAccess(
+        workspaceId,
+        currentUserId,
+        "edit",
+        transaction,
+      );
+      await transaction.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0::bigint))`,
+      );
+      const client = transaction as unknown as BudgetItemPrismaClient;
+
+      // 只有仍宣告「沒有這場儀式」時才准清空，避免把正在使用的階段掃掉。
+      const workspace = await client.weddingWorkspace.findFirst({
+        where: { id: workspaceId },
+        select: {
+          hasEngagementCeremony: true,
+          hasProcessionCeremony: true,
+        },
+      });
+      if (!workspace || workspace[preferenceField]) {
+        throw new BudgetCeremonyStageCleanupConflictError();
+      }
+
+      const rows = await client.budgetItem.findMany<
+        BudgetSubtreeSnapshotRow[]
+      >({
+        where: { workspaceId },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          parentId: true,
+          name: true,
+          kind: true,
+          version: true,
+          source: true,
+          systemTaxonomyKey: true,
+          attachments: { orderBy: { id: "asc" }, select: { id: true } },
+        },
+      });
+
+      const byId = new Map<string, BudgetSubtreeSnapshotRow>();
+      const childrenByParent = new Map<string, BudgetSubtreeSnapshotRow[]>();
+      for (const row of rows) {
+        if (byId.has(row.id)) {
+          throw new BudgetCeremonyStageCleanupConflictError();
+        }
+        byId.set(row.id, row);
+        if (row.parentId !== null) {
+          const children = childrenByParent.get(row.parentId) ?? [];
+          children.push(row);
+          childrenByParent.set(row.parentId, children);
+        }
+      }
+
+      const stage = rows.find(
+        (row) => (row.systemTaxonomyKey ?? null) === stageKey,
+      );
+      if (!stage) throw new BudgetCeremonyStageCleanupConflictError();
+
+      const subtreeRows: BudgetSubtreeSnapshotRow[] = [];
+      const visited = new Set<string>();
+      const stack = [stage];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current || visited.has(current.id)) {
+          throw new BudgetCeremonyStageCleanupConflictError();
+        }
+        visited.add(current.id);
+        subtreeRows.push(current);
+        const children = childrenByParent.get(current.id) ?? [];
+        for (let index = children.length - 1; index >= 0; index -= 1) {
+          stack.push(children[index]);
+        }
+      }
+
+      const snapshot = summarizeBudgetSubtreeSnapshot(subtreeRows, stage.id);
+      if (snapshot.token !== expectedSnapshotToken) {
+        throw new BudgetCeremonyStageCleanupConflictError();
+      }
+
+      const removable = subtreeRows.filter(
+        (row) => (row.systemTaxonomyKey ?? null) === null,
+      );
+      if (removable.length === 0) {
+        throw new BudgetCeremonyStageCleanupConflictError();
+      }
+      const attachmentCount = removable.reduce(
+        (count, row) => count + (row.attachments?.length ?? 0),
+        0,
+      );
+
+      const deleted = await client.budgetItem.deleteMany({
+        where: {
+          workspaceId,
+          systemTaxonomyKey: null,
+          id: { in: removable.map((row) => row.id).toSorted() },
+        },
+      });
+      if (deleted.count !== removable.length) {
+        throw new BudgetCeremonyStageCleanupConflictError();
+      }
+      return { itemCount: removable.length, attachmentCount };
+    });
+  } catch (error) {
+    const authorizationFailure = authorizationFailureState(error);
+    if (authorizationFailure) return authorizationFailure;
+    if (error instanceof BudgetCeremonyStageCleanupConflictError) {
+      return returnStaleAfterRevalidation(workspaceId);
+    }
+    return unavailableState("目前無法移除這個階段的項目，請稍後再試。");
+  }
+
+  const attachmentDescription =
+    outcome.attachmentCount === 0
+      ? ""
+      : `，以及 ${outcome.attachmentCount} 個附件`;
+  return successAfterRevalidation(
+    `已永久移除「${stageLabel}」底下的 ${outcome.itemCount} 筆項目${attachmentDescription}。`,
     await revalidateBudgetView(workspaceId),
   );
 }

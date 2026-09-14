@@ -41,7 +41,7 @@ describe("TasksPage", () => {
 
     expect(getWeddingTaskList).toHaveBeenCalledWith("workspace_1");
     expect(
-      screen.getByRole("heading", { name: "我們的婚宴・婚宴任務" }),
+      screen.getByRole("heading", { level: 1, name: "婚宴任務" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯任務")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回我的婚宴" })).toHaveAttribute(
@@ -49,7 +49,7 @@ describe("TasksPage", () => {
       "/dashboard",
     );
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(7);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
     expect(within(navigation).getByRole("link", { name: "任務" })).toHaveAttribute(
       "aria-current",
       "page",
