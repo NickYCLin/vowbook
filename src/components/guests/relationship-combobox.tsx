@@ -45,7 +45,7 @@ export function RelationshipCombobox({id,value,onChange}:{id:string;value:string
     {options.map((option,index)=><li id={`${id}-option-${index}`} key={option.value} role="option" aria-selected={index===active}
       className={`flex min-h-11 cursor-pointer flex-wrap items-center gap-x-2 px-3 py-2 text-sm ${index===active?"bg-clay-soft text-clay-strong":"text-ink hover:bg-surface-sunken"}`}
       onMouseDown={event=>event.preventDefault()} onClick={()=>choose(option.value)}>
-      <span>{option.value}{option.aliases?`（${option.aliases}）`:""}</span><span className="text-caption text-ink-faint">{option.group}</span>
+      <span>{option.value}{option.aliases?`（${option.aliases}）`:""}</span><span className="text-ink-soft">｜{option.description}</span><span className="text-caption text-ink-faint">{option.group}</span>
     </li>)}
    </ul>
    <p role="status" className="border-t border-line px-3 py-2 text-caption text-ink-soft">{options.length?`找到 ${options.length} 個稱謂；也可直接保留輸入的自訂稱呼。`:"沒有符合的稱謂，將保留你輸入的自訂稱呼。"}</p>

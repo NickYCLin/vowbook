@@ -1,9 +1,10 @@
+import { FAMILY_RELATIONSHIP_DESCRIPTIONS } from "./family-relationship-descriptions";
 /**
  * 家人稱謂選項，採繁體中文常用稱呼；地區別稱放在選項說明。
  * 參考：https://xinhuo.tw/親戚稱謂關係/
  * 只提供填寫建議，不推算輩份或更動既有關係文字。
  */
-export const FAMILY_RELATIONSHIP_GROUPS = [
+const CATALOG_GROUPS = [
   { label: "高祖輩", options: [
     ["高祖父", ""],
     ["高外祖父", ""],
@@ -184,18 +185,39 @@ export const FAMILY_RELATIONSHIP_GROUPS = [
   ] },
 
 ] as const;
+// 以新人本人為基準，先列父母、手足、子女與祖父母，再列其他親屬。
+const CLOSE_FAMILY = ["父親", "母親", "哥哥", "弟弟", "姊姊", "妹妹", "兒子", "女兒", "祖父", "外祖父", "祖母", "外祖母"];
+const GROUP_ORDER = ["父系親屬", "母系親屬", "兄弟姊妹與配偶", "父母與配偶父母", "子女、姪甥與配偶", "堂親與配偶", "表親與配偶", "配偶與姻親", "孫輩", "祖輩旁系親屬", "曾祖輩", "高祖輩", "曾孫輩", "玄孫輩"];
+const allOptions = CATALOG_GROUPS.flatMap(group => [...group.options]);
+export const FAMILY_RELATIONSHIP_GROUPS = [
+  {label: "至親", options: CLOSE_FAMILY.map(value => allOptions.find(option => option[0] === value)!)},
+  ...CATALOG_GROUPS.map(group => ({label: group.label, options: group.options.filter(([value]) => !CLOSE_FAMILY.includes(value))}))
+    .filter(group => group.options.length > 0)
+    .sort((a,b) => GROUP_ORDER.indexOf(a.label) - GROUP_ORDER.indexOf(b.label)),
+];
+
+/** 僅辨識已填寫的稱謂或完整別稱，不從姓名猜測關係。 */
+export function familyRelationshipRank(label?: string | null): number {
+  const text = label?.normalize("NFKC").trim().replaceAll("姐", "姊");
+  if (!text) return Number.MAX_SAFE_INTEGER;
+  const index = FAMILY_RELATIONSHIP_GROUPS.flatMap(group => group.options).findIndex(([value,aliases]) =>
+    [value,...aliases.split("、")].some(name => name.replaceAll("姐", "姊") === text));
+  return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+}
+
 export const FAMILY_RELATIONSHIP_VALUES: readonly string[] =
   FAMILY_RELATIONSHIP_GROUPS.flatMap((group) => group.options.map(([value]) => value));
 
-/** 別稱、分類及依序出現的字元都可搜尋；相同分數維持原本輩份順序。 */
+/** 別稱、分類及依序出現的字元都可搜尋；相同分數維持親近關係順序。 */
 export function searchFamilyRelationships(query: string) {
   const normalize = (text: string) => text.normalize("NFKC").replace(/\s+/gu, "").replaceAll("姐", "姊").toLocaleLowerCase("zh-TW");
   const needle = normalize(query);
   return FAMILY_RELATIONSHIP_GROUPS.flatMap(group => group.options.map(([value, aliases]) => {
     const names = [value, ...aliases.split("、")].map(normalize);
-    const candidates = [...names, normalize(group.label)];
+    const description = FAMILY_RELATIONSHIP_DESCRIPTIONS[value];
+    const candidates = [...names, normalize(group.label), normalize(description)];
     const subsequence = (text: string) => { let index=0; for(const char of text) if(char===needle[index])index++; return index===needle.length; };
     const score = !needle ? 0 : names.includes(needle) ? 0 : candidates.some(text=>text.includes(needle)) ? 1 : candidates.some(subsequence) ? 2 : 3;
-    return {value,aliases,group:group.label,score};
+    return {value,aliases,description,group:group.label,score};
   })).filter(option=>option.score<3).sort((a,b)=>a.score-b.score);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareGuestsBySeniorityThenSurnameStroke,
+  compareFamilyGuestsByRelationship,
   GUEST_CATEGORY_LABELS,
   GUEST_SENIORITY_LABELS,
   guestIdentityLabel,
@@ -224,4 +225,14 @@ describe("guest domain contract", () => {
       }),
     ).toThrow(GuestValidationError);
   });
+});
+
+it("orders family by relationship before surname or recorded seniority", () => {
+ const entries = [
+  {id:"mother",name:"王媽媽",seniority:"ELDER" as const,details:{relationshipLabel:"媽媽"}},
+  {id:"aunt",name:"李阿姨",seniority:"ELDER" as const,details:{relationshipLabel:"姨母"}},
+  {id:"father",name:"陳爸爸",seniority:"UNSPECIFIED" as const,details:{relationshipLabel:"父親"}},
+  {id:"unknown",name:"張親友",seniority:"ELDER" as const,details:null},
+ ];
+ expect(entries.sort(compareFamilyGuestsByRelationship).map(e=>e.id)).toEqual(["father","mother","aunt","unknown"]);
 });

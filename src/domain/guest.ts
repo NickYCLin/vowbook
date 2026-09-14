@@ -1,3 +1,4 @@
+import { familyRelationshipRank } from "./family-relationship";
 export const GUEST_SIDES = ["PARTNER_A", "PARTNER_B", "SHARED"] as const;
 export const GUEST_CATEGORIES = ["GUEST", "COUPLE", "FAMILY"] as const;
 export const GUEST_SENIORITIES = [
@@ -244,4 +245,13 @@ export function compareGuestsBySeniorityThenSurnameStroke(
     right.name.normalize("NFKC").trim(),
   );
   return nameDifference !== 0 ? nameDifference : left.id.localeCompare(right.id);
+}
+
+/** 雙方家人各自以與新人的關係排序；未辨識稱謂沿用輩份、姓名排序。 */
+export function compareFamilyGuestsByRelationship(
+  left: SortableGuest & {details?: {relationshipLabel?: string | null} | null},
+  right: SortableGuest & {details?: {relationshipLabel?: string | null} | null},
+): number {
+  return familyRelationshipRank(left.details?.relationshipLabel) - familyRelationshipRank(right.details?.relationshipLabel)
+    || compareGuestsBySeniorityThenSurnameStroke(left, right);
 }

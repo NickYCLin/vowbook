@@ -140,6 +140,19 @@ describe("GuestList", () => {
     expect(screen.getByRole("heading",{name:"新娘爸爸"})).toBeInTheDocument();
   });
 
+  it("puts each partner's father immediately before mother regardless of surname", () => {
+    const details = (relationshipLabel: string) => ({relationshipLabel, contactPhone:null, contactEmail:null, ceremonyAttendance:null, childSeatCount:null, vegetarianCount:null, invitationDelivery:null, mailingAddress:null, guestMessage:null, attendanceReply:null, invitationReply:null});
+    const relatives = [
+      {id:"mother",name:"王媽媽",details:details("母親")},
+      {id:"aunt",name:"李阿姨",details:details("姨母")},
+      {id:"father",name:"陳爸爸",details:details("爸爸")},
+    ];
+    render(<GuestList workspaceId="workspace_1" canEdit={false} guests={(["PARTNER_A","PARTNER_B"] as const).flatMap(side => relatives.map(person => ({...guest,...person,id:side+person.id,category:"FAMILY" as const,side})))}/>);
+    for (const name of ["新郎家人","新娘家人"]) {
+      expect(within(screen.getByRole("region",{name})).getAllByRole("listitem").map(item => within(item).getByRole("heading").textContent)).toEqual(["陳爸爸","王媽媽","李阿姨"]);
+    }
+  });
+
   it("renders guest details without edit controls for VIEWER", () => {
     render(
       <GuestList

@@ -8,7 +8,7 @@ import {
   GUEST_SIDE_LABELS,
   GUEST_SENIORITY_LABELS,
   guestIdentityLabel,
-  compareGuestsBySeniorityThenSurnameStroke,
+  compareFamilyGuestsByRelationship,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
   type GuestSideValue,
@@ -526,7 +526,7 @@ export function GuestList({
   );
   const filteredCouple = filteredHosts.filter(guest => guest.category === "COUPLE");
   const filteredFamilies = filteredHosts.filter(guest => guest.category === "FAMILY")
-    .sort(compareGuestsBySeniorityThenSurnameStroke);
+    .sort(compareFamilyGuestsByRelationship);
   const hasActiveFilter =
     search.trim().length > 0 ||
     attendanceFilter !== "ALL" ||
@@ -939,7 +939,7 @@ export function GuestList({
                 {filteredHosts.length > 0 ? <section aria-label="新人與家人" className="min-w-0 space-y-4">
                   <div>
                     <h3 className="font-serif text-body font-semibold text-ink">新人與家人</h3>
-                    <p className="mt-1 text-caption leading-6 text-ink-soft">不計入一般賓客統計，仍會計入宴席人數與桌位。家人依輩份排列，同輩份依姓名筆畫排序。</p>
+                    <p className="mt-1 text-caption leading-6 text-ink-soft">不計入一般賓客統計，仍會計入宴席人數與桌位。雙方家人各依稱謂由近至遠排列，父親、母親優先；未填或自訂稱謂依輩份、姓名筆畫排序。</p>
                   </div>
                   {filteredCouple.length > 0 ? <Card as="section" aria-label="新人" className="@container">
                     <h4 className="border-b border-line bg-clay-soft/50 px-4 py-3 font-semibold sm:px-5">新人</h4>
