@@ -154,11 +154,14 @@ function successfulEditWeddingStaffSnapshot(
 
 const roleSuggestions = [
   "總招待",
+  "招待",
   "收禮金",
+  "發餅",
   "花童",
   "主持人",
   "攝影",
   "新娘秘書",
+  "拍拍印",
 ];
 
 function StaffFields({

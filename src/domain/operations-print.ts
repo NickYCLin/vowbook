@@ -1,3 +1,4 @@
+import {sortWeddingStaff} from "./wedding-staff-order";
 import {formatTwdAmount} from "./budget-item";
 import {summarizeWeddingStaffMeals,summarizeWeddingStaffRedEnvelopes} from "./wedding-staff";
 import type {WeddingStaffListItem} from "@/lib/wedding-staff-list";
@@ -10,7 +11,7 @@ export function staffPrintData(staff:readonly Staff[]):OperationsPrintData {
  return {
   summary:`${staff.length} 筆工作安排 · 便當 ${meals.mealCount} 份（葷 ${meals.nonVegetarianMealCount}／素 ${meals.vegetarianMealCount}） · 待發紅包 ${formatTwdAmount(envelopes.pendingAmount)}`,
   columns:[{label:"姓名",width:14},{label:"工作／職務",width:16},{label:"便當份數",width:20},{label:"便當發放",width:10},{label:"紅包金額",width:14},{label:"紅包發放",width:10},{label:"備註",width:16}],
-  rows:staff.map(p=>({key:p.id,cells:[p.personName,p.roleName,p.mealCount===null?"不需要便當":`${p.mealCount} 份（葷 ${p.mealCount-(p.vegetarianMealCount??0)}／素 ${p.vegetarianMealCount??0}）`,p.mealCount?{checkLabel:"便當發放勾選框"}:"—",p.redEnvelopeAmount===null?"不發紅包":formatTwdAmount(p.redEnvelopeAmount),p.redEnvelopeAmount===null?"—":p.redEnvelopeSentAt?"已發放":{checkLabel:"紅包發放勾選框"},p.notes??""]})),
+  rows:sortWeddingStaff(staff).map(p=>({key:p.id,cells:[p.personName,p.roleName,p.mealCount===null?"不需要便當":`${p.mealCount} 份（葷 ${p.mealCount-(p.vegetarianMealCount??0)}／素 ${p.vegetarianMealCount??0}）`,p.mealCount?{checkLabel:"便當發放勾選框"}:"—",p.redEnvelopeAmount===null?"不發紅包":formatTwdAmount(p.redEnvelopeAmount),p.redEnvelopeAmount===null?"—":p.redEnvelopeSentAt?"已發放":{checkLabel:"紅包發放勾選框"},p.notes??""]})),
  };
 }
 type Balance=Pick<BudgetItemListItem,"id"|"name"|"kind"|"preparationStatus"|"bookingStatus"|"paid"|"confirmedVendor"|"vendorContact"|"balanceAmount"|"dueDate"|"notes"|"additionalAmount">;

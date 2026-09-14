@@ -1,4 +1,5 @@
 import "server-only";
+import {sortWeddingStaff} from "@/domain/wedding-staff-order";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import { weddingStaffTimelineAssignmentFingerprint } from "@/domain/wedding-staff-timeline-snapshot";
@@ -107,7 +108,7 @@ export async function getWeddingStaffList(workspaceId: string) {
         return {
           role: access.role,
           workspace: { id: access.workspace.id, name: access.workspace.name },
-          staff,
+          staff: sortWeddingStaff(staff),
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

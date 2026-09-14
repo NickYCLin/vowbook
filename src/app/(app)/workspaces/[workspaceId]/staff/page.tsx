@@ -34,7 +34,7 @@ export default async function StaffPage({
         workspaceId={workspaceId}
         workspaceName={data.workspace.name}
         sectionTitle="婚禮工作人員"
-        description="依職務整理婚禮當日團隊；同一職務可有多人，同一人也能負責多個職務。"
+        description="依總招待、招待、收禮、發餅及其他協助排序，主持人、攝影、拍拍印等廠商職務列於後方。同一職務可有多人，同一人也能負責多個職務。"
         activeSection="staff"
         readOnlyNotice={
           canEdit

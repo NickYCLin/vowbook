@@ -15,3 +15,9 @@ it("prints only outstanding arranged expenses using direct recorded balances, ne
  expect(data.rows).toHaveLength(2);expect(data.summary).toContain("NT$3,000");expect(data.summary).toContain("1 筆金額待確認");
  expect(data.rows[1].cells[2]).toBe("待確認");
 });
+
+it("uses the same helper-first order in the printed staff list",()=>{
+ const base={notes:null,mealCount:null,vegetarianMealCount:null,redEnvelopeAmount:null,redEnvelopeSentAt:null};
+ const data=staffPrintData(["拍拍印","收禮","主持人","招待","總招"].map(roleName=>({...base,id:roleName,roleName,personName:roleName})));
+ expect(data.rows.map(row=>row.cells[1])).toEqual(["總招","招待","收禮","主持人","拍拍印"]);
+});
