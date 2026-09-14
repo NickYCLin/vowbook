@@ -13,3 +13,19 @@ it("marks exempt households and retains individual exemptions in a mixed househo
  expect(rows.find(row=>row.key==="guest:a")).toMatchObject({exempt:true,notes:"不收禮金、會送餅"});
  expect(rows.find(row=>row.key==="household:h")).toMatchObject({exempt:false,notes:"b：不收禮金、會送餅"});
 });
+it.each(["PARTNER_A","PARTNER_B"] as const)("excludes parents and siblings on %s, including catalog aliases",side=>{
+ const labels=["父親","爸爸","母親","媽媽","哥哥","兄長","弟弟","姊姊","姐姐","妹妹"];
+ expect(giftPrintRows(labels.map((relationshipLabel,i)=>guest(String(i),{side,relationshipLabel})))).toEqual([]);
+});
+it("retains other household members, classification and exemptions after excluding immediate family",()=>{
+ const rows=giftPrintRows([
+  guest("parent",{relationshipLabel:"父親",cakeHouseholdId:"h"}),
+  guest("relative",{relationshipLabel:"表姊",side:"PARTNER_B",cakeHouseholdId:"h",giftExemptWithCake:true}),
+  guest("sibling",{relationshipLabel:"妹妹",cakeHouseholdId:"only"}),
+  guest("cousin",{relationshipLabel:"堂兄"}),guest("inlaw",{relationshipLabel:"姊夫"}),guest("unknown"),
+ ]);
+ expect(rows).toHaveLength(4);
+ expect(rows.find(r=>r.key==="household:h")).toMatchObject({group:"SHARED",names:"relative",exempt:true,notes:"不收禮金、會送餅"});
+ expect(rows.some(r=>r.key==="household:only")).toBe(false);
+ expect(rows.map(r=>r.names)).toEqual(expect.arrayContaining(["cousin","inlaw","unknown"]));
+});
