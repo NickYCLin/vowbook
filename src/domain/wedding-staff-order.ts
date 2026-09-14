@@ -2,7 +2,7 @@
 function roleRank(roleName:string) {
  const role=roleName.normalize("NFKC").replace(/\s+/gu,"");
  if(/主持|司儀/u.test(role))return 100;
- if(/攝影|婚攝/u.test(role))return 110;
+ if(/攝影|婚攝|^平面$/u.test(role))return 110;
  if(/錄影|婚錄/u.test(role))return 120;
  if(/新娘秘書|新秘/u.test(role))return 130;
  if(/拍拍印/u.test(role))return 140;

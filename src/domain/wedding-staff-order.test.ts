@@ -12,3 +12,7 @@ it("recognizes role aliases and keeps vendor assignments after helpers",()=>{
  expect(sorted.slice(0,5)).toEqual(["總招待","婚禮總召","接待人員","收禮金","其他協助"]);
  expect(sorted.slice(5)).toEqual(["攝影","新娘秘書","廠商支援"]);
 });
+
+it("places the live flat-photography role after family helpers",()=>{
+ expect(sortWeddingStaff(["平面","花童","主持人","收禮金","拍拍印"].map(roleName=>({roleName}))).map(p=>p.roleName)).toEqual(["收禮金","花童","主持人","平面","拍拍印"]);
+});
