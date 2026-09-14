@@ -1,3 +1,4 @@
+import {HouseholdPrintSheet} from "@/components/guests/household-print-sheet";
 /**
  * RWD 稽核用的頁面樣本。
  *
@@ -372,7 +373,14 @@ const budgetSummary = {
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
-  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,category:"GUEST",seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,category:"GUEST",seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
+  { name:"gift-print", element:<AppShell><HouseholdPrintSheet workspaceName={LONG_NAME} kind="gifts" rows={[
+    {key:"a",group:"GROOM_FAMILY",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:""},
+    {key:"b",group:"GROOM_FRIENDS",names:"朋友一家",relationships:"新郎的朋友",exempt:false,notes:""},
+    {key:"c",group:"BRIDE_FAMILY",names:"阿姨一家",relationships:"新娘的姨母",exempt:true,notes:"不收禮金、會送餅"},
+    {key:"d",group:"BRIDE_FRIENDS",names:"朋友一家",relationships:"新娘的朋友",exempt:false,notes:""},
+    {key:"e",group:"SHARED",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:LONG_NAME},
+  ]}/></AppShell> },
+  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
 
   {
     name: "system-admin-users",

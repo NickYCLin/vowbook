@@ -52,6 +52,7 @@ describe("GiftsPage", () => {
     );
 
     expect(listGuestsForWorkspace).toHaveBeenCalledWith("workspace_1");
+    expect(screen.getByRole("link",{name:"列印紙本禮金簿"})).toHaveAttribute("href","/workspaces/workspace_1/gifts/print");
     expect(
       screen.getByRole("heading", { level: 1, name: "禮金簿" }),
     ).toBeInTheDocument();
@@ -76,6 +77,7 @@ describe("GiftsPage", () => {
     );
 
     expect(screen.getByTestId("gift-book")).toHaveTextContent("唯讀禮金簿");
+    expect(screen.queryByRole("link",{name:"列印紙本禮金簿"})).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "你目前是唯讀成員，可以查看禮金簿，但不能登記、修改或移除。",

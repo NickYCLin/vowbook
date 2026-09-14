@@ -1,3 +1,5 @@
+import Link from "next/link";
+import {buttonClassName} from "@/components/ui/button";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { WeddingGiftBook } from "@/components/guests/wedding-gift-book";
@@ -53,6 +55,7 @@ export default async function GiftsPage({
             : "你目前是唯讀成員，可以查看禮金簿，但不能登記、修改或移除。"
         }
       />
+      {canEdit?<div className="my-5"><Link href={`/workspaces/${workspaceId}/gifts/print`} className={buttonClassName({variant:"secondary"})}>列印紙本禮金簿</Link></div>:null}
       <WeddingGiftBook
         workspaceId={workspaceId}
         guests={data.guests}
