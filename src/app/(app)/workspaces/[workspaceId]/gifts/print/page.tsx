@@ -14,7 +14,7 @@ export default async function GiftPrintPage({params}:{params:Promise<{workspaceI
   <div className="print:hidden">
    <Link href={`/workspaces/${workspaceId}/gifts`} className="inline-flex min-h-11 items-center text-sm text-clay-strong">返回禮金簿</Link>
    <h1 className="mt-3 font-serif text-2xl font-semibold">紙本禮金簿</h1>
-   <p className="my-4 text-sm leading-6 text-ink-soft">沿用發餅名單的同一家人設定，每戶一列。包含所有受邀親友，不受出席回覆影響；新人本人、雙方父母與兄弟姊妹不列入（依已設定的關係稱謂辨識）。金額欄留白供現場手寫，不收禮金者保留標記。</p>
+   <p className="my-4 text-sm leading-6 text-ink-soft">沿用發餅名單的同一家人設定，每戶一列。包含所有受邀親友，不受出席回覆影響；新人本人、雙方父母與兄弟姊妹不列入（依已設定的關係稱謂辨識）。金額欄留白供現場手寫，已標記「不收禮金、會送餅」的親友不列入本表，仍依出席狀態列入發餅名單。</p>
    <HouseholdPrintButton label="列印禮金簿／另存 PDF"/>
   </div>
   <HouseholdPrintSheet workspaceName={data.workspace.name} rows={giftPrintRows(data.guests)} kind="gifts"/>

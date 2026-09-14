@@ -555,6 +555,7 @@ describe("guest gift exemption", () => {
     });
     expect(mocks.giftCreate).not.toHaveBeenCalled();
     expect(mocks.giftUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/workspaces/workspace_1/gifts/print");
   });
   it("rejects stale or other-workspace guests", async () => {
     mocks.guestUpdateMany.mockResolvedValue({ count: 0 });

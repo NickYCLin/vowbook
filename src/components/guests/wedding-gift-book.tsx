@@ -1000,6 +1000,7 @@ export function WeddingGiftBook({
               </h2>
               <p className="mt-1 text-caption leading-6 text-ink-soft">
                 每個邀請群組最多一筆；禮金不屬於婚宴支出，也不受出席狀態影響。
+                爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。
               </p>
               <p className="mt-0.5 text-caption leading-6 text-ink-faint">
                 新人與家人不列入「一般賓客未有紀錄」統計，但既有紀錄仍會保留並顯示。

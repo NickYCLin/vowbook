@@ -488,7 +488,7 @@ export async function setGuestGiftExemptionAction(
     return failureAfterPossibleRevalidation(workspaceId, error, "目前無法更新賓客標記，請稍後再試。");
   }
   let revalidated = await revalidateViews(workspaceId);
-  for (const view of ["guests", "tables"]) {
+  for (const view of ["guests", "tables", "gifts/print"]) {
     try {
       await revalidatePath(`/workspaces/${workspaceId}/${view}`);
     } catch {
