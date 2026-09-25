@@ -99,6 +99,39 @@ describe("SeatingFloorPlan", () => {
     expect(section).toHaveAttribute("data-fullscreen", "off");
   });
 
+  it("pops up who sits at a table without scrolling, and closes with Escape", () => {
+    render(
+      <SeatingFloorPlan workspaceId="workspace_internal" tables={tables} canEdit={false} selectedTableId={null} />,
+    );
+    const marker = screen.getByRole("button", { name: "查看 1 號桌 主桌 坐了誰" });
+    fireEvent.click(marker);
+    const card = screen.getByRole("dialog", { name: /1\s*號桌\s*主桌/ });
+    expect(card).toHaveTextContent("王小明");
+    expect(card).toHaveTextContent("3 / 10 位・空 7 位");
+    expect(card).toHaveTextContent("兒童椅 2 張");
+    expect(within(card).queryByRole("button", { name: "編輯這桌" })).toBeNull();
+    expect(marker).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 2 號桌 摯友桌 坐了誰" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("這桌還沒有安排賓客。");
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("lets editors jump from the card to the table editor", () => {
+    const onSelectTable = vi.fn();
+    render(
+      <SeatingFloorPlan workspaceId="workspace_internal" tables={tables} canEdit selectedTableId={null} onSelectTable={onSelectTable} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "選取並拖曳交換 1 號桌 主桌" }));
+    expect(onSelectTable).toHaveBeenCalledWith("table_internal_main");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "編輯這桌" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("marks vegetarian counts on the floor plan and accessible table label", () => {
     render(<SeatingFloorPlan workspaceId="workspace_internal" canEdit={false} selectedTableId={null}
       tables={[{ ...tables[0], guests: [{ ...tables[0].guests[0], vegetarianCount: 2 }] }]} />);
@@ -273,7 +306,10 @@ describe("SeatingFloorPlan", () => {
       "data-layout-source",
       "persisted",
     );
-    expect(within(board).queryByRole("button")).toBeNull();
+    // 唯讀成員只能點開看誰坐這桌，不能拖曳交換。
+    expect(
+      within(board).getAllByRole("button").map((button) => button.getAttribute("aria-label")),
+    ).toEqual(["查看 1 號桌 主桌 坐了誰", "查看 2 號桌 摯友桌 坐了誰"]);
     expect(container).not.toHaveTextContent("table_internal");
     expect(container).not.toHaveTextContent("guest_internal");
     expect(container).not.toHaveTextContent("順位");

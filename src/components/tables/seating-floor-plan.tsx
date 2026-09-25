@@ -32,6 +32,7 @@ import {
   GUEST_SIDE_SHORT_LABELS,
   type GuestSideValue,
 } from "@/domain/guest";
+import { SeatingTablePeek } from "./seating-table-peek";
 import { seatingTableLabel, seatingTableSide } from "@/domain/seating-table";
 import { cn } from "@/lib/class-names";
 
@@ -326,6 +327,17 @@ export function SeatingFloorPlan({
   // 「依桌號重新排列」會一次抹掉所有手動位置且無法復原，要先確認。
   const [isConfirmingResetAll, setIsConfirmingResetAll] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // 點圓桌浮出的桌次卡片；拖曳換桌放開時不算點擊。
+  const [peek, setPeek] = useState<{ tableId: string; anchor: HTMLElement } | null>(null);
+  const draggedRef = useRef(false);
+  const closePeek = () => setPeek(null);
+  function openPeek(tableId: string, anchor: HTMLElement) {
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    setPeek((current) => (current?.tableId === tableId ? null : { tableId, anchor }));
+  }
 
   useEffect(() => {
     // preventScroll 是必要的：這段訊息在場地圖下方，交換完桌次就聚焦會把
@@ -546,7 +558,9 @@ export function SeatingFloorPlan({
       Math.abs(event.clientY - drag.startClientY) > 3;
     dragRef.current = null;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+    draggedRef.current = moved;
     if (!moved) return;
+    setPeek(null);
     const coordinate = pointToCoordinate(
       event.clientX - drag.grabOffsetClientX,
       event.clientY - drag.grabOffsetClientY,
@@ -693,6 +707,9 @@ export function SeatingFloorPlan({
     return () => observer.disconnect();
   }, [isFullscreen, metrics.boardHeightPx, metrics.boardMinWidthPx]);
   const boardScale = isFullscreen ? fitScale : 1;
+  const peekTable = peek
+    ? (displayTables.find((table) => table.id === peek.tableId) ?? null)
+    : null;
 
   return (
     <section
@@ -902,6 +919,7 @@ export function SeatingFloorPlan({
               <article
                 key={table.id}
                 aria-label={label}
+                data-floor-table-id={table.id}
                 data-layout-source={draft.source}
                 data-layout-x={rendered.x}
                 data-layout-y={rendered.y}
@@ -953,7 +971,11 @@ export function SeatingFloorPlan({
                       "grid size-full min-h-11 min-w-11 touch-none place-content-center justify-items-center rounded-full text-center outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2",
                       isDense ? "px-0.5" : "px-2",
                     )}
-                    onClick={() => onSelectTable?.(table.id)}
+                    aria-expanded={peek?.tableId === table.id}
+                    onClick={(event) => {
+                      onSelectTable?.(table.id);
+                      openPeek(table.id, event.currentTarget);
+                    }}
                     onPointerDown={(event) => handlePointerDown(event, displayTable)}
                     onPointerMove={(event) => handlePointerMove(event, displayTable)}
                     onPointerUp={(event) => handlePointerUp(event, displayTable)}
@@ -968,10 +990,14 @@ export function SeatingFloorPlan({
                     />
                   </button>
                 ) : (
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`查看 ${seatingTableLabel(contentTable)} 坐了誰`}
+                    aria-expanded={peek?.tableId === table.id}
                     title={label}
+                    onClick={(event) => openPeek(table.id, event.currentTarget)}
                     className={cn(
-                      "grid size-full place-content-center justify-items-center text-center",
+                      "grid size-full min-h-11 min-w-11 place-content-center justify-items-center rounded-full text-center outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2",
                       isDense ? "px-0.5" : "px-2",
                     )}
                   >
@@ -982,7 +1008,7 @@ export function SeatingFloorPlan({
                       isDense={isDense}
                       isMaximumDensity={isMaximumDensity}
                     />
-                  </div>
+                  </button>
                 )}
               </article>
             );
@@ -990,6 +1016,28 @@ export function SeatingFloorPlan({
         </div>
         </div>
       </div>
+
+      {peekTable && peek ? (
+        <SeatingTablePeek
+          table={peekTable}
+          anchor={peek.anchor}
+          canEdit={canEdit}
+          onClose={closePeek}
+          onOpenDetail={
+            onSelectTable
+              ? () => {
+                  onSelectTable(peekTable.id);
+                  setPeek(null);
+                  void fullscreen.exit().then(() => {
+                    document
+                      .querySelector("[data-table-inspector]")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {canEdit && selectedTable ? (
         <div
