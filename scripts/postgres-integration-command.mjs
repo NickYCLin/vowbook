@@ -50,42 +50,45 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+// 尾款付款方式：budget_items 新增可空欄位，不回填既有花費。
+const budgetBalancePaymentMethodMigration = migrationEntries.at(-1);
 // 發餅家庭新增空表與可空關聯，不回填既有名單。
-const cakeHouseholdMigration = migrationEntries.at(-1);
-const coordinatorHandoffMigration = migrationEntries.at(-2);
-const guestGiftExemptionMigration = migrationEntries.at(-3);
-const dropVendorMigration = migrationEntries.at(-4);
-const budgetStaffRedEnvelopeMigration = migrationEntries.at(-5);
-const staffRedEnvelopeMigration = migrationEntries.at(-6);
-const giftReturnMigration = migrationEntries.at(-7);
-const staffMealMigration = migrationEntries.at(-8);
-const guestCheckInMigration = migrationEntries.at(-9);
-const planningPreferencesMigration = migrationEntries.at(-10);
-const giftMigration = migrationEntries.at(-11);
-const declinedSeatingConsistencyMigration = migrationEntries.at(-12);
-const ceremonyAttendanceMigration = migrationEntries.at(-13);
-const ceremonyMigration = migrationEntries.at(-14);
-const vendorMigration = migrationEntries.at(-15);
-const preparationStatusMigration = migrationEntries.at(-16);
-const guestSeniorityMigration = migrationEntries.at(-17);
-const familyPartySizeMigration = migrationEntries.at(-18);
-const userAccessMigration = migrationEntries.at(-19);
-const guestDetailsMigration = migrationEntries.at(-20);
-const avatarMigration = migrationEntries.at(-21);
-const taskSidesMigration = migrationEntries.at(-22);
-const rosterCategoriesMigration = migrationEntries.at(-23);
-const duplicateNamesMigration = migrationEntries.at(-24);
-const floorPlanMigration = migrationEntries.at(-25);
-const preparationSuggestionMigration = migrationEntries.at(-26);
-const engagementSuggestionMigration = migrationEntries.at(-27);
-const proposalLabelMigration = migrationEntries.at(-28);
-const repairMigration = migrationEntries.at(-29);
-const sourceHierarchyMigration = migrationEntries.at(-30);
-const relatedTaxonomyMigration = migrationEntries.at(-31);
-const fixedGroupsMigration = migrationEntries.at(-32);
-const failClosedMigration = migrationEntries.at(-33);
-const priorHeadMigration = migrationEntries.at(-34);
+const cakeHouseholdMigration = migrationEntries.at(-2);
+const coordinatorHandoffMigration = migrationEntries.at(-3);
+const guestGiftExemptionMigration = migrationEntries.at(-4);
+const dropVendorMigration = migrationEntries.at(-5);
+const budgetStaffRedEnvelopeMigration = migrationEntries.at(-6);
+const staffRedEnvelopeMigration = migrationEntries.at(-7);
+const giftReturnMigration = migrationEntries.at(-8);
+const staffMealMigration = migrationEntries.at(-9);
+const guestCheckInMigration = migrationEntries.at(-10);
+const planningPreferencesMigration = migrationEntries.at(-11);
+const giftMigration = migrationEntries.at(-12);
+const declinedSeatingConsistencyMigration = migrationEntries.at(-13);
+const ceremonyAttendanceMigration = migrationEntries.at(-14);
+const ceremonyMigration = migrationEntries.at(-15);
+const vendorMigration = migrationEntries.at(-16);
+const preparationStatusMigration = migrationEntries.at(-17);
+const guestSeniorityMigration = migrationEntries.at(-18);
+const familyPartySizeMigration = migrationEntries.at(-19);
+const userAccessMigration = migrationEntries.at(-20);
+const guestDetailsMigration = migrationEntries.at(-21);
+const avatarMigration = migrationEntries.at(-22);
+const taskSidesMigration = migrationEntries.at(-23);
+const rosterCategoriesMigration = migrationEntries.at(-24);
+const duplicateNamesMigration = migrationEntries.at(-25);
+const floorPlanMigration = migrationEntries.at(-26);
+const preparationSuggestionMigration = migrationEntries.at(-27);
+const engagementSuggestionMigration = migrationEntries.at(-28);
+const proposalLabelMigration = migrationEntries.at(-29);
+const repairMigration = migrationEntries.at(-30);
+const sourceHierarchyMigration = migrationEntries.at(-31);
+const relatedTaxonomyMigration = migrationEntries.at(-32);
+const fixedGroupsMigration = migrationEntries.at(-33);
+const failClosedMigration = migrationEntries.at(-34);
+const priorHeadMigration = migrationEntries.at(-35);
 if (
+  !budgetBalancePaymentMethodMigration ||
   !cakeHouseholdMigration ||
   !coordinatorHandoffMigration ||
   !guestGiftExemptionMigration ||
@@ -120,14 +123,16 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length !== 49
+  migrationEntries.length !== 50
 ) {
   throw new Error("Exactly forty-eight migrations are required for the upgrade gate.");
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 49 ||
+  migrationEntries.length !== 50 ||
   priorHeadPosition !== 16 ||
+  budgetBalancePaymentMethodMigration !==
+    "20260925220000_budget_balance_payment_method" ||
   cakeHouseholdMigration !== "20260914063000_wedding_cake_households" ||
   coordinatorHandoffMigration !== "20260914010000_coordinator_handoffs" ||
   guestGiftExemptionMigration !== "20260914000000_guest_gift_exemption" ||
@@ -1681,6 +1686,8 @@ async function runPriorHeadUpgrade() {
         "prior-head upgrade verification failed: drop-vendor migration missing",
       );
     }
+    // 付款方式是新欄位：升級後既有花費都應維持未設定。
+    if (await upgradedClient.budgetItem.count({where:{balancePaymentMethod:{not:null}}}) !== 0) throw new Error("prior-head upgrade verification failed: balance payment method backfilled");
     if (await upgradedClient.weddingCakeHousehold.count() !== 0 || await upgradedClient.guest.count({where:{cakeHouseholdId:{not:null}}}) !== 0) throw new Error("Unexpected cake household backfill");
     if (await upgradedClient.coordinatorHandoff.count() !== 0) throw new Error("Unexpected handoff backfill");
     const exemptionRows = await upgradedClient.guest.findMany({

@@ -329,6 +329,7 @@ const items: BudgetItemListItem[] = [
     confirmedVendor: null,
     vendorContact: null,
     primaryContact: null,
+    balancePaymentMethod: null,
     version: 1,
   },
   {
@@ -366,6 +367,7 @@ const items: BudgetItemListItem[] = [
     confirmedVendor: null,
     vendorContact: null,
     primaryContact: null,
+    balancePaymentMethod: null,
     version: 2,
   },
 ];

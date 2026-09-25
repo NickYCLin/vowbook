@@ -70,6 +70,7 @@ const item: BudgetItemListItem = {
   confirmedVendor: null,
   vendorContact: null,
   primaryContact: null,
+  balancePaymentMethod: null,
   version: 1,
 };
 

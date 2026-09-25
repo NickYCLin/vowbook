@@ -17,6 +17,17 @@ export const BUDGET_PRIMARY_CONTACT_LABELS = {
   PARTNER_B: "新娘",
 } as const;
 
+export const BUDGET_BALANCE_PAYMENT_METHOD_LABELS = {
+  BANK_TRANSFER: "匯款",
+  CASH: "現金",
+  RED_ENVELOPE: "紅包（現金）",
+  CARD: "刷卡",
+} as const;
+
+/** 這兩種要在婚禮當天準備好現金，尾款清單會特別標出來。 */
+export const DAY_OF_CASH_PAYMENT_METHODS: ReadonlySet<BudgetBalancePaymentMethod> =
+  new Set(["CASH", "RED_ENVELOPE"]);
+
 export const BUDGET_COST_CATEGORY_LABELS = {
   RINGS_KEEPSAKES: "戒指與信物",
   PHOTOGRAPHY_VIDEO: "攝影與影像",
@@ -46,6 +57,8 @@ export type BudgetBookingStatus = keyof typeof BUDGET_BOOKING_STATUS_LABELS;
 export type BudgetPreparationStatus =
   keyof typeof BUDGET_PREPARATION_STATUS_LABELS;
 export type BudgetPrimaryContact = keyof typeof BUDGET_PRIMARY_CONTACT_LABELS;
+export type BudgetBalancePaymentMethod =
+  keyof typeof BUDGET_BALANCE_PAYMENT_METHOD_LABELS;
 export type BudgetCostCategory = keyof typeof BUDGET_COST_CATEGORY_LABELS;
 export type BudgetItemKind = "GROUP" | "EXPENSE";
 
@@ -258,6 +271,7 @@ export type BudgetItemDetailsInput = {
   confirmedVendor?: unknown;
   vendorContact?: unknown;
   primaryContact?: unknown;
+  balancePaymentMethod?: unknown;
 };
 
 export type NormalizedBudgetItemDetails = {
@@ -276,6 +290,7 @@ export type NormalizedBudgetItemDetails = {
   confirmedVendor: string | null;
   vendorContact: string | null;
   primaryContact: BudgetPrimaryContact | null;
+  balancePaymentMethod: BudgetBalancePaymentMethod | null;
 };
 
 export class BudgetItemValidationError extends Error {
@@ -450,6 +465,21 @@ export function normalizeBudgetPrimaryContact(
   return value;
 }
 
+export function normalizeBudgetBalancePaymentMethod(
+  value: unknown,
+): BudgetBalancePaymentMethod | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  if (
+    typeof value !== "string" ||
+    !Object.hasOwn(BUDGET_BALANCE_PAYMENT_METHOD_LABELS, value)
+  ) {
+    throw new BudgetItemValidationError("請選擇有效的尾款付款方式。");
+  }
+  return value as BudgetBalancePaymentMethod;
+}
+
 export function normalizeBudgetCostCategory(
   value: unknown,
 ): BudgetCostCategory {
@@ -569,6 +599,9 @@ export function normalizeBudgetItemDetails(
       500,
     ),
     primaryContact: normalizeBudgetPrimaryContact(input.primaryContact),
+    balancePaymentMethod: normalizeBudgetBalancePaymentMethod(
+      input.balancePaymentMethod,
+    ),
   };
 }
 

@@ -17,6 +17,7 @@ import {
   Plus,
 } from "@phosphor-icons/react";
 import {
+  BUDGET_BALANCE_PAYMENT_METHOD_LABELS,
   BUDGET_BOOKING_STATUS_LABELS,
   BUDGET_INTERNAL_UNCLASSIFIED_ITEM_KEY,
   BUDGET_INTERNAL_UNCLASSIFIED_STAGE_KEY,
@@ -986,6 +987,12 @@ function BudgetItemRow({
     richDetails.push([
       "主要負責人",
       BUDGET_PRIMARY_CONTACT_LABELS[item.primaryContact],
+    ]);
+  }
+  if (item.balancePaymentMethod) {
+    richDetails.push([
+      "尾款付款方式",
+      BUDGET_BALANCE_PAYMENT_METHOD_LABELS[item.balancePaymentMethod],
     ]);
   }
 
@@ -1976,6 +1983,7 @@ function BudgetItemRow({
                       confirmedVendor={item.confirmedVendor}
                       vendorContact={item.vendorContact}
                       primaryContact={item.primaryContact}
+                      balancePaymentMethod={item.balancePaymentMethod}
                       notes={item.notes}
                       expectedVersion={item.version}
                       breadcrumb={breadcrumb}

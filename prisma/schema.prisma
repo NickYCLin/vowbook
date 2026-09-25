@@ -129,6 +129,13 @@ enum BudgetPrimaryContact {
   PARTNER_B
 }
 
+enum BudgetBalancePaymentMethod {
+  BANK_TRANSFER
+  CASH
+  RED_ENVELOPE
+  CARD
+}
+
 enum BudgetItemKind {
   GROUP
   EXPENSE
@@ -454,6 +461,7 @@ model BudgetItem {
   confirmedVendor   String?               @db.VarChar(300) @map("confirmed_vendor")
   vendorContact     String?               @db.VarChar(500) @map("vendor_contact")
   primaryContact    BudgetPrimaryContact? @map("primary_contact")
+  balancePaymentMethod BudgetBalancePaymentMethod? @map("balance_payment_method")
   version           Int                   @default(0)
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")

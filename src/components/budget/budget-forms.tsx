@@ -20,11 +20,13 @@ import {
   updateBudgetItemAction,
 } from "@/actions/budget-items";
 import {
+  BUDGET_BALANCE_PAYMENT_METHOD_LABELS,
   BUDGET_BOOKING_STATUS_LABELS,
   BUDGET_PRIMARY_CONTACT_LABELS,
   BUDGET_PREPARATION_STATUS_LABELS,
   BUDGET_TAXONOMY_ITEM_DEFAULT_CATEGORIES,
   BUDGET_TAXONOMY_STAGES,
+  type BudgetBalancePaymentMethod,
   type BudgetBookingStatus,
   type BudgetCostCategory,
   type BudgetPrimaryContact,
@@ -55,6 +57,7 @@ type BudgetFieldValues = {
   confirmedVendor: string;
   vendorContact: string;
   primaryContact: "" | BudgetPrimaryContact;
+  balancePaymentMethod: "" | BudgetBalancePaymentMethod;
   notes: string;
 };
 
@@ -74,6 +77,7 @@ const emptyBudgetFields: BudgetFieldValues = {
   confirmedVendor: "",
   vendorContact: "",
   primaryContact: "",
+  balancePaymentMethod: "",
   notes: "",
 };
 
@@ -124,6 +128,7 @@ function toBudgetFieldValues({
   confirmedVendor,
   vendorContact,
   primaryContact,
+  balancePaymentMethod,
   notes,
 }: {
   name: string;
@@ -141,6 +146,7 @@ function toBudgetFieldValues({
   confirmedVendor: string | null;
   vendorContact: string | null;
   primaryContact: BudgetPrimaryContact | null;
+  balancePaymentMethod?: BudgetBalancePaymentMethod | null;
   notes: string | null;
 }): BudgetFieldValues {
   return {
@@ -160,6 +166,7 @@ function toBudgetFieldValues({
     confirmedVendor: confirmedVendor ?? "",
     vendorContact: vendorContact ?? "",
     primaryContact: primaryContact ?? "",
+    balancePaymentMethod: balancePaymentMethod ?? "",
     notes: notes ?? "",
   };
 }
@@ -605,6 +612,34 @@ function BudgetFields({
 
       <div className="min-w-0">
         <label
+          htmlFor={`${idPrefix}-balance-payment-method`}
+          className="block font-medium text-ink"
+        >
+          尾款付款方式
+          <OptionalLabel />
+        </label>
+        <select
+          id={`${idPrefix}-balance-payment-method`}
+          name="balancePaymentMethod"
+          value={values.balancePaymentMethod}
+          onChange={(event) =>
+            onChange("balancePaymentMethod", event.target.value)
+          }
+          className={fieldClassName}
+        >
+          <option value="">未設定</option>
+          {Object.entries(BUDGET_BALANCE_PAYMENT_METHOD_LABELS).map(
+            ([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ),
+          )}
+        </select>
+      </div>
+
+      <div className="min-w-0">
+        <label
           htmlFor={`${idPrefix}-notes`}
           className="block font-medium text-ink"
         >
@@ -735,6 +770,7 @@ export function EditBudgetItemForm({
   confirmedVendor = null,
   vendorContact = null,
   primaryContact = null,
+  balancePaymentMethod = null,
   bookingStatus = "PLANNING",
   notes,
   expectedVersion,
@@ -761,6 +797,7 @@ export function EditBudgetItemForm({
   confirmedVendor?: string | null;
   vendorContact?: string | null;
   primaryContact?: BudgetPrimaryContact | null;
+  balancePaymentMethod?: BudgetBalancePaymentMethod | null;
   bookingStatus?: BudgetBookingStatus;
   notes: string | null;
   expectedVersion: number;
@@ -794,6 +831,7 @@ export function EditBudgetItemForm({
       confirmedVendor,
       vendorContact,
       primaryContact,
+      balancePaymentMethod,
       notes,
     }),
     expectedVersion,

@@ -246,6 +246,11 @@ describe("budget item forms", () => {
     expect(within(primaryContact).getByRole("option", { name: "未設定" })).toHaveValue("");
     expect(within(primaryContact).getByRole("option", { name: "新郎" })).toHaveValue("PARTNER_A");
     expect(within(primaryContact).getByRole("option", { name: "新娘" })).toHaveValue("PARTNER_B");
+    const paymentMethod = screen.getByLabelText(/尾款付款方式/);
+    expect(within(paymentMethod).getAllByRole("option")).toHaveLength(5);
+    expect(
+      within(paymentMethod).getByRole("option", { name: "紅包（現金）" }),
+    ).toHaveValue("RED_ENVELOPE");
     expect(screen.getByLabelText(/備註/)).not.toHaveAttribute("maxlength");
     expect(
       screen.getByText(

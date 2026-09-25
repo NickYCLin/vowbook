@@ -21,3 +21,18 @@ it("uses the same helper-first order in the printed staff list",()=>{
  const data=staffPrintData(["拍拍印","收禮","主持人","招待","總招"].map(roleName=>({...base,id:roleName,roleName,personName:roleName})));
  expect(data.rows.map(row=>row.cells[1])).toEqual(["總招","招待","收禮","主持人","拍拍印"]);
 });
+
+it("marks cash and red-envelope balances and totals the cash needed on the day",()=>{
+ const item={id:"a",name:"攝影",kind:"EXPENSE" as const,preparationStatus:"NEEDS_ACTION" as const,bookingStatus:"BOOKED_BALANCE_DUE" as const,paid:false,confirmedVendor:"攝影社",vendorContact:null,balanceAmount:3000,dueDate:null,notes:null,additionalAmount:null};
+ const data=balancePrintData([
+  {...item,balancePaymentMethod:"BANK_TRANSFER"},
+  {...item,id:"b",name:"新秘",balanceAmount:8000,balancePaymentMethod:"RED_ENVELOPE"},
+  {...item,id:"c",name:"樂團",balanceAmount:null,balancePaymentMethod:"CASH"},
+  {...item,id:"d",name:"花藝",balancePaymentMethod:null},
+ ]);
+ expect(data.columns.map(c=>c.label)).toContain("付款方式");
+ expect(data.columns.reduce((sum,c)=>sum+c.width,0)).toBe(100);
+ expect(data.rows.map(r=>r.cells[3])).toEqual(["匯款","紅包（現金）\n當天備現金","現金\n當天備現金","未設定"]);
+ expect(data.summary).toContain("當天需備現金 NT$8,000");
+ expect(data.summary).toContain("1 筆現金金額待確認");
+});

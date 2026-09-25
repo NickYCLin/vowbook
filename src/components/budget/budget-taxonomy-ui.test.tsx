@@ -97,6 +97,7 @@ const group: BudgetItemListItem = {
   confirmedVendor: null,
   vendorContact: null,
   primaryContact: null,
+  balancePaymentMethod: null,
   version: 1,
 };
 
@@ -135,6 +136,7 @@ const expense: BudgetItemListItem = {
   confirmedVendor: null,
   vendorContact: null,
   primaryContact: null,
+  balancePaymentMethod: null,
   version: 2,
 };
 

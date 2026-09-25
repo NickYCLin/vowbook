@@ -67,6 +67,7 @@ const richImportedItem: BudgetItemListItem = {
   confirmedVendor: null,
   vendorContact: "synthetic-contact@example.test",
   primaryContact: "PARTNER_A",
+  balancePaymentMethod: null,
   version: 3,
 };
 

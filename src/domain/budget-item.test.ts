@@ -61,6 +61,7 @@ describe("budget item domain contract", () => {
       confirmedVendor: null,
       vendorContact: null,
       primaryContact: null,
+      balancePaymentMethod: null,
     });
 
     expect(
@@ -225,6 +226,7 @@ describe("budget item domain contract", () => {
         confirmedVendor: "  合成確認廠商  ",
         vendorContact: "  synthetic-contact@example.test  ",
         primaryContact: "PARTNER_A",
+        balancePaymentMethod: "RED_ENVELOPE",
       }),
     ).toMatchObject({
       bookingStatus: "BOOKED_BALANCE_DUE",
@@ -238,7 +240,20 @@ describe("budget item domain contract", () => {
       confirmedVendor: "合成確認廠商",
       vendorContact: "synthetic-contact@example.test",
       primaryContact: "PARTNER_A",
+      balancePaymentMethod: "RED_ENVELOPE",
     });
+  });
+
+  it("rejects unknown balance payment methods and treats blank as unset", () => {
+    expect(
+      normalizeBudgetItemDetails({ ...validDetails(), balancePaymentMethod: "" }),
+    ).toMatchObject({ balancePaymentMethod: null });
+    expect(() =>
+      normalizeBudgetItemDetails({
+        ...validDetails(),
+        balancePaymentMethod: "BITCOIN",
+      }),
+    ).toThrow("請選擇有效的尾款付款方式。");
   });
 
   it("uses manual planned amount only when all three components are null", () => {
@@ -254,6 +269,7 @@ describe("budget item domain contract", () => {
         confirmedVendor: "",
         vendorContact: "",
         primaryContact: "",
+        balancePaymentMethod: "",
       }),
     ).toMatchObject({ plannedAmount: 456 });
 

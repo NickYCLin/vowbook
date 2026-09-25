@@ -910,6 +910,7 @@ describe("budget item server actions", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         paid: false,
         paidAt: null,
       },
@@ -1101,6 +1102,7 @@ describe("budget item server actions", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
       },
     });
     expect(revalidatePath).toHaveBeenCalledWith(budgetPath);
@@ -1387,6 +1389,7 @@ describe("budget item server actions", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         relatedTaxonomyItemKey: null,
         version: { increment: 1 },
         parentId: "fixed_ITEM_WEDDING_VENUE",
@@ -1639,6 +1642,7 @@ describe("budget item server actions", () => {
     formData.set("confirmedVendor", "  合成確認廠商  ");
     formData.set("vendorContact", "  synthetic-contact@example.test  ");
     formData.set("primaryContact", "PARTNER_B");
+    formData.set("balancePaymentMethod", "RED_ENVELOPE");
     formData.set("bookingStatus", "PAID");
     formData.set("parentId", "forged_parent");
     formData.set("source", "NOTION");
@@ -1672,6 +1676,7 @@ describe("budget item server actions", () => {
         confirmedVendor: "合成確認廠商",
         vendorContact: "synthetic-contact@example.test",
         primaryContact: "PARTNER_B",
+        balancePaymentMethod: "RED_ENVELOPE",
         version: { increment: 1 },
         parentId: "fixed_ITEM_WEDDING_VENUE",
       }),

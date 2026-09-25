@@ -176,6 +176,7 @@ export async function createWorkspaceAction(
               confirmedVendor: null,
               vendorContact: null,
               primaryContact: null,
+              balancePaymentMethod: null,
             })),
           },
         },

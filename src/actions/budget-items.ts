@@ -296,6 +296,7 @@ function detailsFromFormData(
     confirmedVendor: formData.get("confirmedVendor"),
     vendorContact: formData.get("vendorContact"),
     primaryContact: formData.get("primaryContact"),
+    balancePaymentMethod: formData.get("balancePaymentMethod"),
   });
   void bookingStatus;
   return details;
@@ -710,6 +711,7 @@ export async function addBudgetEngagementSuggestionsAction(
             confirmedVendor: null,
             vendorContact: null,
             primaryContact: null,
+            balancePaymentMethod: null,
           };
         });
 
@@ -852,6 +854,7 @@ export async function addBudgetPreparationSuggestionsAction(
             confirmedVendor: null,
             vendorContact: null,
             primaryContact: null,
+            balancePaymentMethod: null,
           };
         });
 
@@ -958,6 +961,7 @@ export async function createBudgetGroupAction(
             confirmedVendor: null,
             vendorContact: null,
             primaryContact: null,
+            balancePaymentMethod: null,
           },
         });
       },

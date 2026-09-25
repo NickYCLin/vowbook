@@ -64,6 +64,7 @@ const select = {
   confirmedVendor: true,
   vendorContact: true,
   primaryContact: true,
+  balancePaymentMethod: true,
   version: true,
   createdAt: true,
   attachments: {
@@ -120,6 +121,7 @@ function fixedTaxonomyRecords() {
     confirmedVendor: null,
     vendorContact: null,
     primaryContact: null,
+    balancePaymentMethod: null,
     version: 0,
     createdAt: new Date("2027-01-01T00:00:00.000Z"),
   }));
@@ -164,6 +166,7 @@ function taxonomyExpense({
     confirmedVendor: null,
     vendorContact: null,
     primaryContact: null,
+    balancePaymentMethod: null,
     version: 0,
     createdAt: new Date("2027-01-02T00:00:00.000Z"),
   };
@@ -456,6 +459,7 @@ describe("getBudgetPageData", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         version: 2,
         createdAt: new Date("2027-01-01T00:00:00.000Z"),
         attachments: [
@@ -493,6 +497,7 @@ describe("getBudgetPageData", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         version: 4,
         createdAt: new Date("2027-01-02T00:00:00.000Z"),
       },
@@ -540,6 +545,7 @@ describe("getBudgetPageData", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         version: 2,
         attachments: [
           {
@@ -590,6 +596,7 @@ describe("getBudgetPageData", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
+        balancePaymentMethod: null,
         version: 4,
       },
     ]);
@@ -893,6 +900,7 @@ describe("getBudgetPageData", () => {
       confirmedVendor: null,
       vendorContact: null,
       primaryContact: null,
+      balancePaymentMethod: null,
       version: 0,
       createdAt: new Date("2027-01-01T00:00:00.000Z"),
     });
@@ -960,6 +968,7 @@ describe("getBudgetPageData", () => {
       confirmedVendor: null,
       vendorContact: null,
       primaryContact: null,
+      balancePaymentMethod: null,
       version: 0,
       createdAt: new Date("2027-01-01T00:00:00.000Z"),
     });
@@ -1010,6 +1019,7 @@ describe("getBudgetPageData", () => {
       confirmedVendor: null,
       vendorContact: null,
       primaryContact: null,
+      balancePaymentMethod: null,
       version: 0,
       createdAt: new Date("2027-01-01T00:00:00.000Z"),
     });

@@ -32,6 +32,8 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-17\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-18\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-19\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-20\)/);
+    expect(runner).toContain("budgetBalancePaymentMethodMigration");
     expect(runner).toContain("familyPartySizeMigration");
     expect(runner).toContain("userAccessMigration");
     expect(runner).toContain("avatarMigration");
@@ -202,7 +204,10 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 49");
+    expect(runner).toContain("migrationEntries.length !== 50");
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: balance payment method backfilled",
+    );
     expect(runner).toContain(
       'dropVendorMigration !== "20260908000000_drop_wedding_vendors"',
     );

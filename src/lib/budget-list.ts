@@ -11,6 +11,7 @@ import type {
   BudgetItemKind,
   BudgetPreparationStatus,
   BudgetPrimaryContact,
+  BudgetBalancePaymentMethod,
   BudgetSystemNodeKey,
   BudgetTaxonomyItemKey,
 } from "@/domain/budget-item";
@@ -75,6 +76,7 @@ type BudgetItemRecord = {
   confirmedVendor: string | null;
   vendorContact: string | null;
   primaryContact: BudgetPrimaryContact | null;
+  balancePaymentMethod: BudgetBalancePaymentMethod | null;
   version: number;
   createdAt: Date;
   attachments?: Array<{
@@ -159,6 +161,7 @@ export type BudgetItemListItem = {
   confirmedVendor: string | null;
   vendorContact: string | null;
   primaryContact: BudgetPrimaryContact | null;
+  balancePaymentMethod: BudgetBalancePaymentMethod | null;
   version: number;
   attachments?: BudgetAttachmentMetadata[];
 };
@@ -213,6 +216,7 @@ const budgetItemSelect = {
   confirmedVendor: true,
   vendorContact: true,
   primaryContact: true,
+  balancePaymentMethod: true,
   version: true,
   createdAt: true,
   attachments: {
@@ -391,6 +395,7 @@ function itemViewModel(
     confirmedVendor: item.confirmedVendor,
     vendorContact: item.vendorContact,
     primaryContact: item.primaryContact,
+    balancePaymentMethod: item.balancePaymentMethod,
     version: item.version,
     ...(attachments === undefined ? {} : { attachments }),
   };
