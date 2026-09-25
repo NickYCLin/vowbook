@@ -12,6 +12,7 @@ import {
   GeneralLunchTimelineTemplateForm,
 } from "./timeline-forms";
 import { Badge } from "@/components/ui/badge";
+import { LinkifiedText } from "@/components/ui/linkified-text";
 import { cn } from "@/lib/class-names";
 
 const timelineHeadingId = "wedding-timeline-list-heading";
@@ -333,13 +334,13 @@ function TimelineRow({
                     >
                       {index + 1}
                     </span>
-                    <span className={wrapText}>{step}</span>
+                    <span className={wrapText}><LinkifiedText text={step} /></span>
                   </li>
                 ))}
               </ol>
             ) : steps.length === 1 ? (
               <p className={cn("text-sm leading-6 text-ink", wrapText)}>
-                {steps[0]}
+                <LinkifiedText text={steps[0]} />
               </p>
             ) : (
               <span className="hidden lg:block" />
@@ -352,7 +353,7 @@ function TimelineRow({
                 <ul className="mt-1.5 space-y-1 text-caption leading-5 text-clay-strong">
                   {cues.map((cue, index) => (
                     <li key={index} className={wrapText}>
-                      {cue}
+                      <LinkifiedText text={cue} />
                     </li>
                   ))}
                 </ul>
@@ -370,7 +371,7 @@ function TimelineRow({
                 wrapText,
               )}
             >
-              {item.notes}
+              <LinkifiedText text={item.notes} />
             </p>
           </div>
         )}
