@@ -32,6 +32,7 @@ import { UnassignGuestForm } from "@/components/tables/table-forms";
 import { WeddingStaffList } from "@/components/staff/staff-list";
 import { WeddingTaskList } from "@/components/tasks/task-list";
 import { ThemeMenu } from "@/components/theme/theme-menu";
+import { WeddingGameParticipantLists } from "@/components/timeline/game-participants";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WorkspaceMembersPanel } from "@/components/workspaces/workspace-members";
 import { WorkspaceSummary } from "@/components/workspaces/workspace-summary";
@@ -945,6 +946,14 @@ const surfaces: { name: string; element: ReactNode }[] = [
             ],
           }))}
         />
+        <WeddingGameParticipantLists
+          workspaceId="workspace_rwd"
+          canEdit
+          games={{
+            BOUQUET: [{ id: "long_0", name: LONG_NAME.slice(0, 60), note: LONG_URL_ISH.slice(0, 200), version: 0 }],
+            BROCCOLI: [{ id: "long_1", name: LONG_NAME.slice(0, 12), note: null, version: 0 }],
+          }}
+        />
       </WorkspacePage>
     ),
   },
@@ -1025,6 +1034,19 @@ const surfaces: { name: string; element: ReactNode }[] = [
               ],
             },
           ]}
+        />
+        <WeddingGameParticipantLists
+          workspaceId="workspace_rwd"
+          canEdit
+          games={{
+            BOUQUET: ["雅婷的大學室友 小美", "小安", "Amy", "佩佩"].map((name, index) => ({
+              id: `bouquet_${index}`,
+              name,
+              note: index === 0 ? "主持人先請她上台" : null,
+              version: 0,
+            })),
+            BROCCOLI: [],
+          }}
         />
       </WorkspacePage>
     ),

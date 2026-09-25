@@ -191,6 +191,7 @@ model UserAvatar {
 
 model WeddingWorkspace {
   cakeHouseholds WeddingCakeHousehold[]
+  gameParticipants WeddingGameParticipant[]
   coordinatorHandoffs CoordinatorHandoff[]
   id                              String                             @id @default(cuid())
   name                            String
@@ -685,4 +686,28 @@ model WeddingCakeHousehold {
   @@unique([id, workspaceId])
   @@index([workspaceId])
   @@map("wedding_cake_households")
+}
+
+// 婚宴遊戲：捧花給未婚女性、花椰菜給未婚男性。
+enum WeddingGame {
+  BOUQUET
+  BROCCOLI
+}
+
+// 遊戲上台名單，只記姓名與備註；不綁賓客，方便臨時換人。
+model WeddingGameParticipant {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  game        WeddingGame
+  name        String           @db.VarChar(60)
+  note        String?          @db.VarChar(200)
+  sortOrder   Int              @map("sort_order")
+  version     Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, game, sortOrder])
+  @@map("wedding_game_participants")
 }

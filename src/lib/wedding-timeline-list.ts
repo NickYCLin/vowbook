@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
+import type { WeddingGameKey } from "@/domain/wedding-game";
 import {
   formatWeddingTimelineMinute,
 } from "@/domain/wedding-timeline";
@@ -28,6 +29,17 @@ export type WeddingTimelineListItem = {
   version: number;
   assignedStaff: WeddingTimelineStaffOption[];
 };
+
+export type WeddingGameParticipantItem = {
+  id: string;
+  name: string;
+  note: string | null;
+  version: number;
+};
+
+export type WeddingGameLists = Record<WeddingGameKey, WeddingGameParticipantItem[]>;
+
+type GameParticipantRecord = WeddingGameParticipantItem & { game: WeddingGameKey };
 
 type TimelineRecord = {
   id: string;
@@ -57,6 +69,9 @@ type TimelineTransaction = {
   };
   weddingStaffAssignment: {
     findMany(args: unknown): Promise<WeddingTimelineStaffOption[]>;
+  };
+  weddingGameParticipant: {
+    findMany(args: unknown): Promise<GameParticipantRecord[]>;
   };
 };
 
@@ -141,7 +156,7 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
         >(workspaceId, currentUser.id, "read", transaction);
-        const [items, staff] = await Promise.all([
+        const [items, staff, participants] = await Promise.all([
           transaction.weddingTimelineItem.findMany({
             where: { workspaceId },
             orderBy: [
@@ -162,12 +177,22 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
             ],
             select: staffSelect,
           }),
+          transaction.weddingGameParticipant.findMany({
+            where: { workspaceId },
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+            select: { id: true, game: true, name: true, note: true, version: true },
+          }),
         ]);
+        const games: WeddingGameLists = { BOUQUET: [], BROCCOLI: [] };
+        for (const { game, ...participant } of participants) {
+          games[game]?.push(participant);
+        }
         return {
           role: access.role,
           workspace: { id: access.workspace.id, name: access.workspace.name },
           items: items.map(itemViewModel),
           staff,
+          games,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

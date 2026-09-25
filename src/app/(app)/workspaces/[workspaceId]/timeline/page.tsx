@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { WeddingGameParticipantLists } from "@/components/timeline/game-participants";
 import { CreateWeddingTimelineItemForm } from "@/components/timeline/timeline-forms";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
@@ -51,6 +52,11 @@ export default async function TimelinePage({
         workspaceId={workspaceId}
         items={data.items}
         staff={data.staff}
+        canEdit={canEdit}
+      />
+      <WeddingGameParticipantLists
+        workspaceId={workspaceId}
+        games={data.games}
         canEdit={canEdit}
       />
     </main>

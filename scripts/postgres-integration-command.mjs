@@ -50,44 +50,47 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+// 遊戲名單：新表，不回填既有婚宴。
+const gameParticipantMigration = migrationEntries.at(-1);
 // 尾款付款方式：budget_items 新增可空欄位，不回填既有花費。
-const budgetBalancePaymentMethodMigration = migrationEntries.at(-1);
+const budgetBalancePaymentMethodMigration = migrationEntries.at(-2);
 // 發餅家庭新增空表與可空關聯，不回填既有名單。
-const cakeHouseholdMigration = migrationEntries.at(-2);
-const coordinatorHandoffMigration = migrationEntries.at(-3);
-const guestGiftExemptionMigration = migrationEntries.at(-4);
-const dropVendorMigration = migrationEntries.at(-5);
-const budgetStaffRedEnvelopeMigration = migrationEntries.at(-6);
-const staffRedEnvelopeMigration = migrationEntries.at(-7);
-const giftReturnMigration = migrationEntries.at(-8);
-const staffMealMigration = migrationEntries.at(-9);
-const guestCheckInMigration = migrationEntries.at(-10);
-const planningPreferencesMigration = migrationEntries.at(-11);
-const giftMigration = migrationEntries.at(-12);
-const declinedSeatingConsistencyMigration = migrationEntries.at(-13);
-const ceremonyAttendanceMigration = migrationEntries.at(-14);
-const ceremonyMigration = migrationEntries.at(-15);
-const vendorMigration = migrationEntries.at(-16);
-const preparationStatusMigration = migrationEntries.at(-17);
-const guestSeniorityMigration = migrationEntries.at(-18);
-const familyPartySizeMigration = migrationEntries.at(-19);
-const userAccessMigration = migrationEntries.at(-20);
-const guestDetailsMigration = migrationEntries.at(-21);
-const avatarMigration = migrationEntries.at(-22);
-const taskSidesMigration = migrationEntries.at(-23);
-const rosterCategoriesMigration = migrationEntries.at(-24);
-const duplicateNamesMigration = migrationEntries.at(-25);
-const floorPlanMigration = migrationEntries.at(-26);
-const preparationSuggestionMigration = migrationEntries.at(-27);
-const engagementSuggestionMigration = migrationEntries.at(-28);
-const proposalLabelMigration = migrationEntries.at(-29);
-const repairMigration = migrationEntries.at(-30);
-const sourceHierarchyMigration = migrationEntries.at(-31);
-const relatedTaxonomyMigration = migrationEntries.at(-32);
-const fixedGroupsMigration = migrationEntries.at(-33);
-const failClosedMigration = migrationEntries.at(-34);
-const priorHeadMigration = migrationEntries.at(-35);
+const cakeHouseholdMigration = migrationEntries.at(-3);
+const coordinatorHandoffMigration = migrationEntries.at(-4);
+const guestGiftExemptionMigration = migrationEntries.at(-5);
+const dropVendorMigration = migrationEntries.at(-6);
+const budgetStaffRedEnvelopeMigration = migrationEntries.at(-7);
+const staffRedEnvelopeMigration = migrationEntries.at(-8);
+const giftReturnMigration = migrationEntries.at(-9);
+const staffMealMigration = migrationEntries.at(-10);
+const guestCheckInMigration = migrationEntries.at(-11);
+const planningPreferencesMigration = migrationEntries.at(-12);
+const giftMigration = migrationEntries.at(-13);
+const declinedSeatingConsistencyMigration = migrationEntries.at(-14);
+const ceremonyAttendanceMigration = migrationEntries.at(-15);
+const ceremonyMigration = migrationEntries.at(-16);
+const vendorMigration = migrationEntries.at(-17);
+const preparationStatusMigration = migrationEntries.at(-18);
+const guestSeniorityMigration = migrationEntries.at(-19);
+const familyPartySizeMigration = migrationEntries.at(-20);
+const userAccessMigration = migrationEntries.at(-21);
+const guestDetailsMigration = migrationEntries.at(-22);
+const avatarMigration = migrationEntries.at(-23);
+const taskSidesMigration = migrationEntries.at(-24);
+const rosterCategoriesMigration = migrationEntries.at(-25);
+const duplicateNamesMigration = migrationEntries.at(-26);
+const floorPlanMigration = migrationEntries.at(-27);
+const preparationSuggestionMigration = migrationEntries.at(-28);
+const engagementSuggestionMigration = migrationEntries.at(-29);
+const proposalLabelMigration = migrationEntries.at(-30);
+const repairMigration = migrationEntries.at(-31);
+const sourceHierarchyMigration = migrationEntries.at(-32);
+const relatedTaxonomyMigration = migrationEntries.at(-33);
+const fixedGroupsMigration = migrationEntries.at(-34);
+const failClosedMigration = migrationEntries.at(-35);
+const priorHeadMigration = migrationEntries.at(-36);
 if (
+  !gameParticipantMigration ||
   !budgetBalancePaymentMethodMigration ||
   !cakeHouseholdMigration ||
   !coordinatorHandoffMigration ||
@@ -123,14 +126,15 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length !== 50
+  migrationEntries.length !== 51
 ) {
   throw new Error("Exactly forty-eight migrations are required for the upgrade gate.");
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 50 ||
+  migrationEntries.length !== 51 ||
   priorHeadPosition !== 16 ||
+  gameParticipantMigration !== "20260925233000_wedding_game_participants" ||
   budgetBalancePaymentMethodMigration !==
     "20260925220000_budget_balance_payment_method" ||
   cakeHouseholdMigration !== "20260914063000_wedding_cake_households" ||
@@ -516,6 +520,7 @@ function runFreshChain() {
     "src/test/postgres-coordinator-handoffs.integration.test.ts",
     "src/test/postgres-wedding-cakes.integration.test.ts",
     "src/test/postgres-guest-check-ins.integration.test.ts",
+    "src/test/postgres-wedding-games.integration.test.ts",
   ];
   for (const integrationFile of integrationFiles) {
     const testStatus = run(
@@ -1695,6 +1700,12 @@ async function runPriorHeadUpgrade() {
     });
     if (exemptionRows.length === 0 || exemptionRows.some((guest) => guest.giftExemptWithCake !== false)) {
       throw new Error("prior-head upgrade verification failed: guest exemption default");
+    }
+    // 遊戲名單是新功能：升級不能替既有婚宴生出任何上台名單。
+    if ((await upgradedClient.weddingGameParticipant.count()) !== 0) {
+      throw new Error(
+        "prior-head upgrade verification failed: game participants backfilled",
+      );
     }
     // 廠商功能移除後，兩張表與 enum 都不該殘留；guard 只在表為空時才允許 drop。
     const [vendorRemnants] = await upgradedClient.$queryRaw`

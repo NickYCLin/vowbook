@@ -6,12 +6,14 @@ const {
   requireWorkspaceAccess,
   timelineFindMany,
   staffFindMany,
+  gameFindMany,
   transaction,
 } = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   requireWorkspaceAccess: vi.fn(),
   timelineFindMany: vi.fn(),
   staffFindMany: vi.fn(),
+  gameFindMany: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -34,12 +36,14 @@ describe("getWeddingTimelinePageData", () => {
     });
     timelineFindMany.mockResolvedValue([]);
     staffFindMany.mockResolvedValue([]);
+    gameFindMany.mockResolvedValue([]);
     transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) =>
         callback({
           membership: { findUnique: vi.fn() },
           weddingTimelineItem: { findMany: timelineFindMany },
           weddingStaffAssignment: { findMany: staffFindMany },
+          weddingGameParticipant: { findMany: gameFindMany },
         }),
     );
   });
@@ -52,6 +56,7 @@ describe("getWeddingTimelinePageData", () => {
       workspace: { id: "workspace_1", name: "合成婚宴" },
       items: [],
       staff: [],
+      games: { BOUQUET: [], BROCCOLI: [] },
     });
     expect(requireWorkspaceAccess).toHaveBeenCalledWith(
       "workspace_1",
@@ -86,6 +91,25 @@ describe("getWeddingTimelinePageData", () => {
     );
     expect(requireWorkspaceAccess.mock.invocationCallOrder[0]).toBeLessThan(
       timelineFindMany.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("groups game participants by game in stored order", async () => {
+    gameFindMany.mockResolvedValue([
+      { id: "p1", game: "BROCCOLI", name: "阿華", note: null, version: 0 },
+      { id: "p2", game: "BOUQUET", name: "小美", note: "室友", version: 1 },
+      { id: "p3", game: "BOUQUET", name: "小安", note: null, version: 0 },
+    ]);
+    const data = await getWeddingTimelinePageData("workspace_1");
+    expect(data.games).toEqual({
+      BOUQUET: [
+        { id: "p2", name: "小美", note: "室友", version: 1 },
+        { id: "p3", name: "小安", note: null, version: 0 },
+      ],
+      BROCCOLI: [{ id: "p1", name: "阿華", note: null, version: 0 }],
+    });
+    expect(gameFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId: "workspace_1" } }),
     );
   });
 

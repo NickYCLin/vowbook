@@ -14,6 +14,12 @@ vi.mock("@/components/timeline/timeline-list", () => ({
   ),
 }));
 
+vi.mock("@/components/timeline/game-participants", () => ({
+  WeddingGameParticipantLists: ({ canEdit }: { canEdit: boolean }) => (
+    <div>遊戲名單 {canEdit ? "可編輯" : "唯讀"}</div>
+  ),
+}));
+
 import TimelinePage from "./page";
 
 describe("TimelinePage", () => {
@@ -23,6 +29,7 @@ describe("TimelinePage", () => {
       workspace: { id: "workspace_1", name: "合成婚宴" },
       items: [],
       staff: [],
+      games: { BOUQUET: [], BROCCOLI: [] },
     });
     render(
       await TimelinePage({
@@ -33,5 +40,6 @@ describe("TimelinePage", () => {
       screen.getByRole("heading", { level: 1, name: "婚禮總流程" }),
     ).toBeInTheDocument();
     expect(screen.getByText("總流程清單 可編輯")).toBeInTheDocument();
+    expect(screen.getByText("遊戲名單 可編輯")).toBeInTheDocument();
   });
 });
