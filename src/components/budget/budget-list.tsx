@@ -2180,6 +2180,38 @@ function moveTargetsForItem(
     }));
 }
 
+/**
+ * 決定不準備的花費在「全部」裡不列出，只在摘要或「不準備」篩選時看得到。
+ * 底下只剩不準備項目的群組也一起收起，免得留下空殼分類；
+ * 本來就沒有下層的群組照常顯示。
+ */
+function notPlannedSubtrees(items: BudgetItemListItem[]): boolean[] {
+  const children: number[][] = items.map(() => []);
+  const ancestors: number[] = [];
+  items.forEach((item, index) => {
+    ancestors.length = Math.min(item.depth, ancestors.length);
+    const parent = ancestors[item.depth - 1];
+    if (item.depth > 0 && parent !== undefined) children[parent].push(index);
+    ancestors[item.depth] = index;
+  });
+  const hidden = items.map(() => false);
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    const childrenHidden = children[index].every((child) => hidden[child]);
+    hidden[index] =
+      item.kind === "EXPENSE"
+        ? preparationStatusOfItem(item) === "NOT_PLANNED" && childrenHidden
+        : children[index].length > 0 && childrenHidden;
+  }
+  // 不準備的花費底下若還有要處理的項目，它會以上層脈絡的身分出現。
+  return items.map(
+    (item, index) =>
+      hidden[index] ||
+      (item.kind === "EXPENSE" &&
+        preparationStatusOfItem(item) === "NOT_PLANNED"),
+  );
+}
+
 function filterBudgetItems(
   items: BudgetItemListItem[],
   search: string,
@@ -2194,8 +2226,13 @@ function filterBudgetItems(
   matchCounts: BudgetKindCounts;
   contextCounts: BudgetKindCounts;
 } {
+  const hiddenAsNotPlanned =
+    statusFilter === "ALL" && search.trim().length === 0
+      ? notPlannedSubtrees(items)
+      : null;
   const directMatches = items.map(
-    (item) =>
+    (item, index) =>
+      !(hiddenAsNotPlanned?.[index] ?? false) &&
       matchesSearch(item, search) &&
       (statusFilter === "ALL" ||
         (item.kind === "EXPENSE" &&
@@ -2657,6 +2694,7 @@ export function BudgetList({
     displayItems,
     (item, itemIndex) =>
       Boolean(selectionForcedExpansion || allVisibility[itemIndex]) &&
+      filteredItems.entries[itemIndex].isVisible &&
       (selectedTaxonomyItemIds === null ||
         selectedTaxonomyItemIds.has(item.id)),
   );

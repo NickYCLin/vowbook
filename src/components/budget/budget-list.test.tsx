@@ -522,7 +522,17 @@ describe("BudgetList", () => {
     expect(screen.getByText("已有／自備 1 筆")).toBeVisible();
     expect(screen.getByText("不打算準備 1 筆")).toBeVisible();
     expect(within(ledgerListItem("budget_owned")).getByText("已有／自備")).toBeVisible();
+    // 不準備的項目在「全部」裡不列出，點摘要才看得到。
+    expect(ledgerListItem("budget_skipped")).toHaveAttribute("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "不打算準備 1 筆" }));
+    expect(ledgerListItem("budget_skipped")).not.toHaveAttribute("hidden");
     expect(within(ledgerListItem("budget_skipped")).getByText("不打算準備")).toBeVisible();
+    expect(ledgerListItem("budget_active")).toHaveAttribute("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "全部" }));
+    expect(ledgerListItem("budget_skipped")).toHaveAttribute("hidden");
+    fireEvent.change(screen.getByLabelText("搜尋花費項目"), { target: { value: "皮鞋" } });
+    expect(ledgerListItem("budget_skipped")).not.toHaveAttribute("hidden");
+    fireEvent.change(screen.getByLabelText("搜尋花費項目"), { target: { value: "" } });
     expect(ledgerListItem("budget_owned")).toHaveTextContent(
       "不計入預算；原有金額仍保留",
     );
