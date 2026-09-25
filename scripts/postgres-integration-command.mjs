@@ -1994,6 +1994,7 @@ async function snapshotProductionDriftChildren(client) {
             - 'system_taxonomy_key'
             - 'suggestion_key'
             - 'preparation_status'
+            - 'balance_payment_method'
           )::TEXT,
           E'\\x1e' ORDER BY "child"."id"
         )),
@@ -2021,6 +2022,7 @@ async function snapshotProductionDriftOrdinaryRows(client) {
             - 'system_taxonomy_key'
             - 'suggestion_key'
             - 'preparation_status'
+            - 'balance_payment_method'
           )::TEXT,
           E'\\x1e' ORDER BY "item"."id"
         )),
