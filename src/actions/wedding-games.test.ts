@@ -89,8 +89,8 @@ describe("wedding game actions", () => {
     });
     expect(createMany).toHaveBeenCalledWith({
       data: [
-        { workspaceId: "workspace_1", game: "BOUQUET", name: "小美", sortOrder: 5 },
-        { workspaceId: "workspace_1", game: "BOUQUET", name: "阿華", sortOrder: 6 },
+        { workspaceId: "workspace_1", game: "BOUQUET", name: "小美", note: null, sortOrder: 5 },
+        { workspaceId: "workspace_1", game: "BOUQUET", name: "阿華", note: null, sortOrder: 6 },
       ],
     });
     expect(revalidatePath).toHaveBeenCalledWith("/workspaces/workspace_1/timeline");

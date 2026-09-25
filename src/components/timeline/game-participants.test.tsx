@@ -28,7 +28,7 @@ describe("WeddingGameParticipantLists", () => {
       within(bouquet).getByRole("list", { name: "新娘捧花遊戲名單" }),
     ).getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
-      "1小美大學室友",
+      "1小美「大學室友」",
       "2小安",
     ]);
     expect(within(bouquet).getByRole("button", { name: "編輯 小美" })).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("WeddingGameParticipantLists", () => {
     fireEvent.click(screen.getByRole("button", { name: "編輯 小美" }));
     const editor = screen.getByRole("form", { name: "編輯 小美" });
     expect(within(editor).getByRole("textbox", { name: "姓名" })).toHaveValue("小美");
-    expect(within(editor).getByRole("textbox", { name: "備註" })).toHaveValue("大學室友");
+    expect(within(editor).getByRole("textbox", { name: "介紹詞" })).toHaveValue("大學室友");
     fireEvent.click(within(editor).getByRole("button", { name: "取消編輯" }));
     expect(screen.queryByRole("form", { name: "編輯 小美" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "編輯 小美" })).toBeInTheDocument();

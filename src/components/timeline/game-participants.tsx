@@ -17,7 +17,7 @@ import {
   type WeddingGameMutationState,
 } from "@/actions/wedding-games";
 import { ActionFeedback } from "@/components/ui/action-feedback";
-import { Input } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/field";
 import {
   WEDDING_GAME_LABELS,
   WEDDING_GAME_NAME_MAX,
@@ -211,7 +211,7 @@ function ParticipantRow({
           </p>
           {participant.note ? (
             <p className={cn("text-caption leading-5 text-ink-soft", wrapText)}>
-              {participant.note}
+              「{participant.note}」
             </p>
           ) : null}
         </div>
@@ -293,8 +293,8 @@ function EditParticipantForm({
         />
         <Input
           name="note"
-          aria-label="備註"
-          placeholder="備註"
+          aria-label="介紹詞"
+          placeholder="介紹詞，主持人會照念"
           defaultValue={participant.note ?? ""}
           maxLength={WEDDING_GAME_NOTE_MAX}
         />
@@ -357,15 +357,17 @@ function AddParticipantsForm({
       className="mt-auto min-w-0 space-y-2 border-t border-line bg-surface-sunken/60 px-4 py-3"
     >
       <input type="hidden" name="game" value={game} />
-      <div className="flex min-w-0 gap-2">
-        <Input
+      <div className="flex min-w-0 items-start gap-2">
+        <Textarea
+          key={state.draft ?? ""}
           name="names"
           aria-label={`${label}姓名`}
-          placeholder="姓名，多位用頓號分隔"
+          placeholder={"姓名，多位用頓號分隔\n或一行一位：姓名：介紹詞"}
           defaultValue={state.draft ?? ""}
           autoComplete="off"
           required
-          className="flex-1"
+          rows={2}
+          className="min-h-11 flex-1 resize-y"
         />
         <button
           type="submit"

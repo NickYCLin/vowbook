@@ -72,8 +72,47 @@ export function normalizeWeddingGameNote(value: unknown): string | null {
   const normalized = typeof value === "string" ? value.trim() : "";
   if (characterCount(normalized) > WEDDING_GAME_NOTE_MAX) {
     throw new WeddingGameValidationError(
-      `備註最多 ${WEDDING_GAME_NOTE_MAX} 個字元。`,
+      `介紹詞最多 ${WEDDING_GAME_NOTE_MAX} 個字元。`,
     );
   }
   return normalized === "" ? null : normalized;
+}
+
+export type WeddingGameEntry = { name: string; note: string | null };
+
+/**
+ * 同 normalizeWeddingGameNames，但一行可以寫成「姓名：介紹詞」，
+ * 方便把寫好的介紹一次貼進來。沒有冒號的行照舊用頓號、逗號分隔多位。
+ */
+export function normalizeWeddingGameEntries(value: unknown): WeddingGameEntry[] {
+  const raw = typeof value === "string" ? value : "";
+  const entries: WeddingGameEntry[] = [];
+  const push = (entry: WeddingGameEntry) => {
+    const existing = entries.find((item) => item.name === entry.name);
+    if (!existing) entries.push(entry);
+    else if (entry.note && !existing.note) existing.note = entry.note;
+  };
+  for (const line of raw.split(/[\n\r]+/u)) {
+    const match = /^([^:：]*)[:：](.*)$/u.exec(line);
+    if (match) {
+      push({
+        name: normalizeWeddingGameName(match[1]),
+        note: normalizeWeddingGameNote(match[2]),
+      });
+      continue;
+    }
+    for (const part of line.split(/[、，,；;]+/u)) {
+      if (part.trim() === "") continue;
+      push({ name: normalizeWeddingGameName(part), note: null });
+    }
+  }
+  if (entries.length === 0) {
+    throw new WeddingGameValidationError("請輸入至少一位姓名。");
+  }
+  if (entries.length > WEDDING_GAME_MAX_PARTICIPANTS) {
+    throw new WeddingGameValidationError(
+      `每個遊戲最多 ${WEDDING_GAME_MAX_PARTICIPANTS} 位。`,
+    );
+  }
+  return entries;
 }

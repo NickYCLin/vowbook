@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeWeddingGameName,
+  normalizeWeddingGameEntries,
   normalizeWeddingGameNames,
   normalizeWeddingGameNote,
   parseWeddingGame,
@@ -36,7 +37,19 @@ describe("wedding game domain", () => {
     expect(normalizeWeddingGameNote("   ")).toBeNull();
     expect(normalizeWeddingGameNote(" 大學室友 ")).toBe("大學室友");
     expect(() => normalizeWeddingGameNote("字".repeat(201))).toThrow(
-      "備註最多 200 個字元。",
+      "介紹詞最多 200 個字元。",
     );
+  });
+
+  it("reads 姓名：介紹詞 lines and still splits plain names", () => {
+    expect(
+      normalizeWeddingGameEntries("王大明：大學同學\n李小華: 也是同學\n小美、阿華\n王大明"),
+    ).toEqual([
+      { name: "王大明", note: "大學同學" },
+      { name: "李小華", note: "也是同學" },
+      { name: "小美", note: null },
+      { name: "阿華", note: null },
+    ]);
+    expect(() => normalizeWeddingGameEntries("：沒有名字")).toThrow("姓名需為 1 到 60 個字元。");
   });
 });

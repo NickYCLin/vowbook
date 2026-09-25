@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   normalizeWeddingGameName,
-  normalizeWeddingGameNames,
+  normalizeWeddingGameEntries,
   normalizeWeddingGameNote,
   parseWeddingGame,
   WEDDING_GAME_LABELS,
@@ -94,10 +94,10 @@ export async function addWeddingGameParticipantsAction(
   if (typeof authorization !== "string") return authorization;
 
   let game: ReturnType<typeof parseWeddingGame>;
-  let names: string[];
+  let names: ReturnType<typeof normalizeWeddingGameEntries>;
   try {
     game = parseWeddingGame(formData.get("game"));
-    names = normalizeWeddingGameNames(formData.get("names"));
+    names = normalizeWeddingGameEntries(formData.get("names"));
   } catch (error) {
     return failure(error, "輸入內容有誤，請重新確認。");
   }
@@ -122,10 +122,11 @@ export async function addWeddingGameParticipantsAction(
       const start =
         existing.reduce((max, row) => Math.max(max, row.sortOrder), -1) + 1;
       await transaction.weddingGameParticipant.createMany({
-        data: names.map((name, index) => ({
+        data: names.map(({ name, note }, index) => ({
           workspaceId,
           game,
           name,
+          note,
           sortOrder: start + index,
         })),
       });
