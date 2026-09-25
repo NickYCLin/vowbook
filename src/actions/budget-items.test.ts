@@ -1676,7 +1676,7 @@ describe("budget item server actions", () => {
         confirmedVendor: "合成確認廠商",
         vendorContact: "synthetic-contact@example.test",
         primaryContact: "PARTNER_B",
-        balancePaymentMethod: "RED_ENVELOPE",
+        balancePaymentMethod: "CASH",
         version: { increment: 1 },
         parentId: "fixed_ITEM_WEDDING_VENUE",
       }),

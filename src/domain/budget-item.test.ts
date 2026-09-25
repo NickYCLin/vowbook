@@ -240,8 +240,14 @@ describe("budget item domain contract", () => {
       confirmedVendor: "合成確認廠商",
       vendorContact: "synthetic-contact@example.test",
       primaryContact: "PARTNER_A",
-      balancePaymentMethod: "RED_ENVELOPE",
+      balancePaymentMethod: "CASH",
     });
+  });
+
+  it("folds the legacy red-envelope method into cash", () => {
+    expect(
+      normalizeBudgetItemDetails({ ...validDetails(), balancePaymentMethod: "RED_ENVELOPE" }),
+    ).toMatchObject({ balancePaymentMethod: "CASH" });
   });
 
   it("rejects unknown balance payment methods and treats blank as unset", () => {

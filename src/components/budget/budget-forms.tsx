@@ -21,6 +21,7 @@ import {
 } from "@/actions/budget-items";
 import {
   BUDGET_BALANCE_PAYMENT_METHOD_LABELS,
+  BUDGET_BALANCE_PAYMENT_METHOD_OPTIONS,
   BUDGET_BOOKING_STATUS_LABELS,
   BUDGET_PRIMARY_CONTACT_LABELS,
   BUDGET_PREPARATION_STATUS_LABELS,
@@ -166,7 +167,10 @@ function toBudgetFieldValues({
     confirmedVendor: confirmedVendor ?? "",
     vendorContact: vendorContact ?? "",
     primaryContact: primaryContact ?? "",
-    balancePaymentMethod: balancePaymentMethod ?? "",
+    balancePaymentMethod:
+      balancePaymentMethod === "RED_ENVELOPE"
+        ? "CASH"
+        : (balancePaymentMethod ?? ""),
     notes: notes ?? "",
   };
 }
@@ -628,13 +632,11 @@ function BudgetFields({
           className={fieldClassName}
         >
           <option value="">未設定</option>
-          {Object.entries(BUDGET_BALANCE_PAYMENT_METHOD_LABELS).map(
-            ([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ),
-          )}
+          {BUDGET_BALANCE_PAYMENT_METHOD_OPTIONS.map((value) => (
+            <option key={value} value={value}>
+              {BUDGET_BALANCE_PAYMENT_METHOD_LABELS[value]}
+            </option>
+          ))}
         </select>
       </div>
 

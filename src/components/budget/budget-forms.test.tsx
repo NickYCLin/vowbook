@@ -247,10 +247,10 @@ describe("budget item forms", () => {
     expect(within(primaryContact).getByRole("option", { name: "新郎" })).toHaveValue("PARTNER_A");
     expect(within(primaryContact).getByRole("option", { name: "新娘" })).toHaveValue("PARTNER_B");
     const paymentMethod = screen.getByLabelText(/尾款付款方式/);
-    expect(within(paymentMethod).getAllByRole("option")).toHaveLength(5);
+    expect(within(paymentMethod).getAllByRole("option")).toHaveLength(4);
     expect(
-      within(paymentMethod).getByRole("option", { name: "紅包（現金）" }),
-    ).toHaveValue("RED_ENVELOPE");
+      within(paymentMethod).getByRole("option", { name: "現金紅包" }),
+    ).toHaveValue("CASH");
     expect(screen.getByLabelText(/備註/)).not.toHaveAttribute("maxlength");
     expect(
       screen.getByText(

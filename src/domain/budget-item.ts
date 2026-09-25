@@ -19,12 +19,20 @@ export const BUDGET_PRIMARY_CONTACT_LABELS = {
 
 export const BUDGET_BALANCE_PAYMENT_METHOD_LABELS = {
   BANK_TRANSFER: "匯款",
-  CASH: "現金",
-  RED_ENVELOPE: "紅包（現金）",
+  CASH: "現金紅包",
+  // 舊資料相容：現金就是包紅包，不再分兩種，存檔時會轉成 CASH。
+  RED_ENVELOPE: "現金紅包",
   CARD: "刷卡",
 } as const;
 
-/** 這兩種要在婚禮當天準備好現金，尾款清單會特別標出來。 */
+/** 表單上可選的付款方式；RED_ENVELOPE 已併入 CASH。 */
+export const BUDGET_BALANCE_PAYMENT_METHOD_OPTIONS = [
+  "BANK_TRANSFER",
+  "CASH",
+  "CARD",
+] as const satisfies readonly BudgetBalancePaymentMethod[];
+
+/** 當天要準備好現金的付款方式，尾款清單會特別標出來。 */
 export const DAY_OF_CASH_PAYMENT_METHODS: ReadonlySet<BudgetBalancePaymentMethod> =
   new Set(["CASH", "RED_ENVELOPE"]);
 
@@ -477,7 +485,7 @@ export function normalizeBudgetBalancePaymentMethod(
   ) {
     throw new BudgetItemValidationError("請選擇有效的尾款付款方式。");
   }
-  return value as BudgetBalancePaymentMethod;
+  return value === "RED_ENVELOPE" ? "CASH" : (value as BudgetBalancePaymentMethod);
 }
 
 export function normalizeBudgetCostCategory(

@@ -32,7 +32,7 @@ it("marks cash and red-envelope balances and totals the cash needed on the day",
  ]);
  expect(data.columns.map(c=>c.label)).toContain("付款方式");
  expect(data.columns.reduce((sum,c)=>sum+c.width,0)).toBe(100);
- expect(data.rows.map(r=>r.cells[3])).toEqual(["匯款","紅包（現金）\n當天備現金","現金\n當天備現金","未設定"]);
+ expect(data.rows.map(r=>r.cells[3])).toEqual(["匯款","現金紅包\n當天備現金","現金紅包\n當天備現金","未設定"]);
  expect(data.summary).toContain("當天需備現金 NT$8,000");
  expect(data.summary).toContain("1 筆現金金額待確認");
 });
