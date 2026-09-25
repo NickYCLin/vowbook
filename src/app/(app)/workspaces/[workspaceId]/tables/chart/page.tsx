@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SeatingChart } from "@/components/tables/seating-chart";
+import { SeatingChartStage } from "@/components/tables/seating-chart-stage";
 import { SeatingChartPrintButton } from "@/components/tables/seating-chart-print-button";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
@@ -72,15 +73,29 @@ export default async function TablesChartPage({ params }: TablesChartPageProps) 
         />
       </div>
 
-      <SeatingChart
-        workspaceId={workspaceId}
-        workspaceName={data.workspace.name}
-        weddingDateLabel={formatWeddingDate(
-          data.workspace.weddingDate,
-          data.workspace.timezone,
-        )}
-        tables={data.tables}
-      />
+      {data.tables.length > 0 ? (
+        <SeatingChartStage>
+          <SeatingChart
+            workspaceId={workspaceId}
+            workspaceName={data.workspace.name}
+            weddingDateLabel={formatWeddingDate(
+              data.workspace.weddingDate,
+              data.workspace.timezone,
+            )}
+            tables={data.tables}
+          />
+        </SeatingChartStage>
+      ) : (
+        <SeatingChart
+          workspaceId={workspaceId}
+          workspaceName={data.workspace.name}
+          weddingDateLabel={formatWeddingDate(
+            data.workspace.weddingDate,
+            data.workspace.timezone,
+          )}
+          tables={data.tables}
+        />
+      )}
     </main>
   );
 }

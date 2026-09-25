@@ -383,3 +383,13 @@ html {
     animation: none;
   }
 }
+
+/*
+ * 桌圖全螢幕：海報是 @container（inline-size），寬度沒辦法從高度反推，
+ * 所以直接用「可用寬度」與「畫面高度 × 9/16」取小的那一個。
+ */
+[data-seating-chart-fullscreen="true"] [data-testid="seating-chart-poster"] {
+  margin-top: 0;
+  width: min(100%, calc((100dvh - 1.5rem) * 9 / 16));
+  max-width: none;
+}

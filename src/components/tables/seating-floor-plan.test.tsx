@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { refresh, updateLayout, swapContents, resetLayouts } = vi.hoisted(() => ({
@@ -69,6 +69,34 @@ describe("SeatingFloorPlan", () => {
       status: "success",
       message: "已將 1 桌還原自動排列。",
     });
+  });
+
+  it("opens the floor plan full screen for viewers and editors alike", async () => {
+    render(
+      <SeatingFloorPlan
+        workspaceId="workspace_internal"
+        tables={tables}
+        canEdit={false}
+        selectedTableId={null}
+      />,
+    );
+
+    const board = screen.getByTestId("seating-floor-plan-board");
+    const section = board.closest("section");
+    expect(section).toHaveAttribute("data-fullscreen", "off");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "全螢幕檢視場地配置" }),
+      );
+    });
+    expect(section).not.toHaveAttribute("data-fullscreen", "off");
+    expect(section?.className).toContain("fixed");
+    expect(
+      screen.getByRole("button", { name: "離開全螢幕" }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(section).toHaveAttribute("data-fullscreen", "off");
   });
 
   it("marks vegetarian counts on the floor plan and accessible table label", () => {

@@ -10,6 +10,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import { FullscreenButton } from "@/components/ui/fullscreen-button";
+import { useFullscreen } from "@/lib/use-fullscreen";
 import {
   resetSeatingTableLayoutsAction,
   swapSeatingTableContentsAction,
@@ -282,6 +284,10 @@ export function SeatingFloorPlan({
   const router = useRouter();
   const swapSelectId = useId();
   const boardRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useFullscreen(sectionRef);
+  const [fitScale, setFitScale] = useState(1);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const dragRef = useRef<DragState>(null);
   const metrics = useMemo(
@@ -665,10 +671,42 @@ export function SeatingFloorPlan({
     });
   }
 
+  const isFullscreen = fullscreen.isFullscreen;
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!isFullscreen || !scroller) return;
+    function measure() {
+      if (!scroller) return;
+      // 扣掉底部 padding 的 8px，避免剛好差一點又冒出捲軸。
+      const heightScale = (scroller.clientHeight - 8) / metrics.boardHeightPx;
+      const widthScale = scroller.clientWidth / metrics.boardMinWidthPx;
+      // 手機直式寬度太窄，只照寬度縮會讓圓桌小到看不清楚；
+      // 縮到一半就停，剩下的用左右捲動。
+      const next = Math.min(1, Math.max(0.5, Math.min(heightScale, widthScale)));
+      setFitScale((current) => (Math.abs(current - next) < 0.005 ? current : next));
+    }
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [isFullscreen, metrics.boardHeightPx, metrics.boardMinWidthPx]);
+  const boardScale = isFullscreen ? fitScale : 1;
+
   return (
-    <section aria-labelledby="floor-plan-heading" className="min-w-0">
-      <div className="flex min-h-11 flex-wrap items-baseline justify-between gap-3">
-        <div>
+    <section
+      ref={sectionRef}
+      aria-labelledby="floor-plan-heading"
+      data-fullscreen={fullscreen.mode}
+      className={cn(
+        "min-w-0",
+        isFullscreen &&
+          "fixed inset-0 z-50 flex flex-col overflow-hidden bg-paper px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6",
+      )}
+    >
+      <div className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-eyebrow font-semibold text-clay uppercase">
             宴會場地
           </p>
@@ -679,7 +717,18 @@ export function SeatingFloorPlan({
             場地配置
           </h2>
         </div>
-        <p className="text-caption leading-6 text-ink-soft">
+        <FullscreenButton
+          isFullscreen={isFullscreen}
+          onToggle={fullscreen.toggle}
+          enterLabel="全螢幕檢視場地配置"
+          exitLabel="離開全螢幕"
+        />
+        <p
+          className={cn(
+            "basis-full text-caption leading-6 text-ink-soft",
+            isFullscreen && "max-sm:hidden",
+          )}
+        >
           {canEdit
             ? "桌號與位置固定；拖曳一桌至另一桌，或從下方選擇桌次，只交換桌名與入座賓客。"
             : "桌名與入席人數依目前配置顯示。"}
@@ -687,7 +736,7 @@ export function SeatingFloorPlan({
       </div>
 
       {canEdit ? (
-        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
+        <div className="mt-3 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
           {isConfirmingResetAll ? (
             <>
               <p className="min-w-0 text-caption font-semibold text-ink">
@@ -724,10 +773,25 @@ export function SeatingFloorPlan({
       ) : null}
 
       <div
+        ref={scrollRef}
         data-floor-plan-scroll
         // 手機把場地板限制在七成畫面高度內雙向捲動，不然一張 1500px 高的場地會佔掉整頁。
-        className="mt-4 max-w-full overflow-x-auto pb-2 max-md:max-h-[70dvh] max-md:overflow-y-auto"
+        // 全螢幕時改成吃滿剩下的空間，場地板等比縮小到放得進畫面。
+        className={cn(
+          "mt-4 max-w-full overflow-x-auto pb-2",
+          isFullscreen
+            ? "min-h-0 flex-1 overflow-y-auto"
+            : "max-md:max-h-[70dvh] max-md:overflow-y-auto",
+        )}
       >
+        <div
+          data-floor-plan-sizer
+          style={
+            boardScale < 1
+              ? { height: `${metrics.boardHeightPx * boardScale}px` }
+              : undefined
+          }
+        >
         <div
           ref={boardRef}
           data-testid="seating-floor-plan-board"
@@ -744,6 +808,14 @@ export function SeatingFloorPlan({
             boxSizing: "border-box",
             minWidth: `${metrics.boardMinWidthPx}px`,
             height: `${metrics.boardHeightPx}px`,
+            // 縮放不影響拖曳：座標是用 getBoundingClientRect 的實際大小換算。
+            ...(boardScale < 1
+              ? {
+                  width: `${100 / boardScale}%`,
+                  transform: `scale(${boardScale})`,
+                  transformOrigin: "top left",
+                }
+              : null),
           }}
         >
           {/*
@@ -916,13 +988,14 @@ export function SeatingFloorPlan({
             );
           })}
         </div>
+        </div>
       </div>
 
       {canEdit && selectedTable ? (
         <div
           role="group"
           aria-label={`${seatingTableLabel(selectedTable)}內容交換`}
-          className="mt-4 flex min-w-0 flex-wrap items-center gap-2 rounded-card border border-line bg-surface px-4 py-3"
+          className="mt-4 flex shrink-0 min-w-0 flex-wrap items-center gap-2 rounded-card border border-line bg-surface px-4 py-3"
         >
           <p className="mr-1 min-w-0 flex-1 text-caption font-semibold break-words text-ink">
             已選取：{seatingTableLabel(selectedTable)}

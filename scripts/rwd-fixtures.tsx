@@ -26,6 +26,7 @@ import { GuestCheckInBoard } from "@/components/check-in/guest-check-in-board";
 import { GuestList } from "@/components/guests/guest-list";
 import { WeddingGiftBook } from "@/components/guests/wedding-gift-book";
 import { SeatingChart } from "@/components/tables/seating-chart";
+import { SeatingChartStage } from "@/components/tables/seating-chart-stage";
 import { SeatingPlan } from "@/components/tables/seating-plan";
 import { UnassignGuestForm } from "@/components/tables/table-forms";
 import { WeddingStaffList } from "@/components/staff/staff-list";
@@ -1303,37 +1304,39 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
         description="9:16 直式桌圖，和場地圖用同一份配置；列印或另存 PDF 後即可交給婚宴會館輸出。"
         activeSection="tables"
       >
-        <SeatingChart
-          workspaceId="workspace_rwd"
-          workspaceName={`${LONG_NAME.slice(0, 12)}的世紀婚宴`}
-          weddingDateLabel="2026年11月8日"
-          tables={Array.from({ length: 15 }, (_, index) => ({
-            id: `chart_table_${index}`,
-            number: seatingTableNumber(index + 1),
-            position: index + 1,
-            name:
-              index === 0
-                ? "主桌"
-                : index % 2 === 0
-                  ? "男方同事"
-                  : "女方同學",
-            layoutX: null,
-            layoutY: null,
-            guests:
-              index % 3 === 0
-                ? [
-                    {
-                      side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[
-                        (index / 3) % 3
-                      ],
-                      notes: null,
-                      childSeatCount: index === 0 ? 2 : null,
-                vegetarianCount: index === 0 ? 3 : null,
-                    },
-                  ]
-                : [],
-          }))}
-        />
+        <SeatingChartStage>
+          <SeatingChart
+            workspaceId="workspace_rwd"
+            workspaceName={`${LONG_NAME.slice(0, 12)}的世紀婚宴`}
+            weddingDateLabel="2026年11月8日"
+            tables={Array.from({ length: 15 }, (_, index) => ({
+              id: `chart_table_${index}`,
+              number: seatingTableNumber(index + 1),
+              position: index + 1,
+              name:
+                index === 0
+                  ? "主桌"
+                  : index % 2 === 0
+                    ? "男方同事"
+                    : "女方同學",
+              layoutX: null,
+              layoutY: null,
+              guests:
+                index % 3 === 0
+                  ? [
+                      {
+                        side: (["PARTNER_A", "PARTNER_B", "SHARED"] as const)[
+                          (index / 3) % 3
+                        ],
+                        notes: null,
+                        childSeatCount: index === 0 ? 2 : null,
+                  vegetarianCount: index === 0 ? 3 : null,
+                      },
+                    ]
+                  : [],
+            }))}
+          />
+        </SeatingChartStage>
       </WorkspacePage>
     ),
   },
