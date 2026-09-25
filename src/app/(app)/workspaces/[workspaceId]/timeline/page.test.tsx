@@ -29,7 +29,7 @@ describe("TimelinePage", () => {
       workspace: { id: "workspace_1", name: "合成婚宴" },
       items: [],
       staff: [],
-      games: { BOUQUET: [], BROCCOLI: [] },
+      games: { BOUQUET: [{ id: "p1" }, { id: "p2" }], BROCCOLI: [] },
     });
     render(
       await TimelinePage({
@@ -41,5 +41,9 @@ describe("TimelinePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("總流程清單 可編輯")).toBeInTheDocument();
     expect(screen.getByText("遊戲名單 可編輯")).toBeInTheDocument();
+    // 名單在長長的流程下面，頁首要能一鍵跳過去並看到目前人數。
+    const jump = screen.getByRole("link", { name: /遊戲名單/ });
+    expect(jump).toHaveAttribute("href", "#wedding-games");
+    expect(jump).toHaveTextContent("捧花 2・花椰菜 0");
   });
 });

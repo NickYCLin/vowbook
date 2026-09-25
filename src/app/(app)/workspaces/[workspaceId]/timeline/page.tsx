@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { FlowerTulip } from "@phosphor-icons/react/dist/ssr";
+import { buttonClassName } from "@/components/ui/button";
 import { WeddingGameParticipantLists } from "@/components/timeline/game-participants";
 import { CreateWeddingTimelineItemForm } from "@/components/timeline/timeline-forms";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
@@ -40,12 +42,24 @@ export default async function TimelinePage({
             : "你目前是唯讀成員，可以查看總流程，但不能新增、編輯或刪除。"
         }
         actions={
-          canEdit && data.items.length > 0 ? (
-            <CreateWeddingTimelineItemForm
-              workspaceId={workspaceId}
-              staff={data.staff}
-            />
-          ) : null
+          <>
+            <a
+              href="#wedding-games"
+              className={buttonClassName({ variant: "secondary" })}
+            >
+              <FlowerTulip aria-hidden="true" className="size-5" />
+              遊戲名單
+              <span className="font-normal text-ink-soft">
+                捧花 {data.games.BOUQUET.length}・花椰菜 {data.games.BROCCOLI.length}
+              </span>
+            </a>
+            {canEdit && data.items.length > 0 ? (
+              <CreateWeddingTimelineItemForm
+                workspaceId={workspaceId}
+                staff={data.staff}
+              />
+            ) : null}
+          </>
         }
       />
       <WeddingTimelineList
