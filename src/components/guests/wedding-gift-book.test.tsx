@@ -114,6 +114,20 @@ describe("WeddingGiftBook", () => {
       .toBeInTheDocument();
   });
 
+  it("keeps the missing-record filter consistent with gift exclusions and allows absent guests", () => {
+    render(<WeddingGiftBook workspaceId="workspace_1" canEdit guests={[
+      { ...guests[1], id: "father", name: "父親", relationshipLabel: "父親" },
+      { ...guests[1], id: "exempt", name: "免禮友人", giftExemptWithCake: true },
+      guests[1],
+    ]} />);
+    expect(screen.getByText("一般賓客未有紀錄").nextSibling).toHaveTextContent("1");
+    expandBook();
+    fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "UNRECORDED_GENERAL" } });
+    expect(screen.queryByRole("heading", { name: "父親" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "免禮友人" })).toBeNull();
+    expect(screen.getByRole("button", { name: "登記 林小美 的禮金" })).toBeVisible();
+  });
+
   const returnGuests = [
     {
       id: "guest_attended",

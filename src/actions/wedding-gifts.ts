@@ -1,6 +1,8 @@
 "use server";
 
 import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
+import type { Prisma } from "@prisma/client";
+import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { revalidatePath } from "next/cache";
 import {
   normalizeWeddingGiftDetails,
@@ -52,9 +54,19 @@ export type WeddingGiftMutationState =
 
 type CountResult = { count: number };
 
+const giftPolicyGuestSelect = {
+  id: true,
+  giftExemptWithCake: true,
+  category: true,
+  importRecords: {
+    orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+    select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
+  },
+} satisfies Prisma.GuestSelect;
+
 type WeddingGiftMutationClient = {
   guest: {
-    findFirst(args: unknown): Promise<{ id: string; giftExemptWithCake: boolean; category: string; relationshipLabel: string | null } | null>;
+    findFirst(args: unknown): Promise<Prisma.GuestGetPayload<{ select: typeof giftPolicyGuestSelect }> | null>;
     updateMany(args: unknown): Promise<CountResult>;
   };
   weddingGift: {
@@ -189,6 +201,11 @@ async function revalidateViews(workspaceId: string): Promise<boolean> {
   } catch {
     revalidated = false;
   }
+  try {
+    await revalidatePath(`/workspaces/${workspaceId}/guests`);
+  } catch {
+    revalidated = false;
+  }
   return revalidated;
 }
 
@@ -246,10 +263,11 @@ export async function createWeddingGiftAction(
       const client = transaction as unknown as WeddingGiftMutationClient;
       const guest = await client.guest.findFirst({
         where: { id: guestId, workspaceId },
-        select: { id: true, giftExemptWithCake: true, category: true, relationshipLabel: true },
+        select: giftPolicyGuestSelect,
       });
       if (!guest) throw new WeddingGiftStaleError();
-      if (isGiftCollectionExcluded(guest)) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。");
+      const relationshipLabel = effectiveGuestDetailValue(guest.importRecords, record => record.relationshipLabel);
+      if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。");
 
       return client.weddingGift.create({
         data: { workspaceId, guestId, ...details },
@@ -495,7 +513,7 @@ export async function setGuestGiftExemptionAction(
     return failureAfterPossibleRevalidation(workspaceId, error, "目前無法更新賓客標記，請稍後再試。");
   }
   let revalidated = await revalidateViews(workspaceId);
-  for (const view of ["guests", "tables"]) {
+  for (const view of ["guests", "tables", "guests/cakes"]) {
     try {
       await revalidatePath(`/workspaces/${workspaceId}/${view}`);
     } catch {

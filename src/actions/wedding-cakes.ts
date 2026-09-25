@@ -43,7 +43,7 @@ async function mutate(workspaceId:string,id:string|null,data:FormData,remove:boo
   if(error instanceof StaleCakeError||error instanceof SerializationConflictError || (typeof error==="object"&&error!==null&&"code" in error&&error.code==="P2003"))return {status:"error",code:"STALE",message:"名單或家庭已被修改，請重新整理後再試；尚未覆寫你的設定。"};
   return {status:"error",code:"UNAVAILABLE",message:"目前無法儲存發餅設定，請稍後再試。"};
  }
- try{revalidatePath(`/workspaces/${workspaceId}/guests`);revalidatePath(`/workspaces/${workspaceId}/guests/cakes`);}catch{return {status:"success",message:"已儲存，請重新整理以取得最新名單。"};}
+ try{for(const view of ["guests", "guests/cakes", "gifts", "gifts/print"])revalidatePath(`/workspaces/${workspaceId}/${view}`);}catch{return {status:"success",message:"已儲存，請重新整理以取得最新名單。"};}
  return {status:"success",message:remove?"已解散家庭，成員恢復每筆名單一盒。":"已儲存家庭發餅設定。"};
 }
 export async function saveCakeHouseholdAction(workspaceId:string,id:string|null,_state:CakeMutationState,data:FormData){return mutate(workspaceId,id,data,false);}

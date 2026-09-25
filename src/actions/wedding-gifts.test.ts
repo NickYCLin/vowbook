@@ -76,7 +76,7 @@ describe("wedding gift actions", () => {
       workspace: { id: "workspace_1" },
     });
     mocks.requireLockedWorkspaceAccess.mockResolvedValue("PLANNER");
-    mocks.guestFindFirst.mockResolvedValue({ id: "guest_1" });
+    mocks.guestFindFirst.mockResolvedValue({ id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [] });
     mocks.giftCreate.mockResolvedValue({
       id: "gift_1",
       amount: 12_000,
@@ -242,15 +242,38 @@ describe("wedding gift actions", () => {
   });
 
   it("rejects registration for a currently exempt guest even from a stale client", async () => {
-    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",giftExemptWithCake:true});
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",giftExemptWithCake:true,importRecords:[]});
     await expect(createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).resolves.toMatchObject({status:"error",code:"VALIDATION",message:"此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。"});
     expect(mocks.giftCreate).not.toHaveBeenCalled();
   });
 
   it.each(["父親","母親","哥哥","弟弟","姊姊","妹妹"])("rejects direct registration for %s", async relationshipLabel => {
-    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",relationshipLabel,giftExemptWithCake:false,category:"FAMILY"});
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",importRecords:[{source:"MANUAL",sourceInstance:"guest-details",sourceManaged:false,relationshipLabel}],giftExemptWithCake:false,category:"FAMILY"});
     expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"error",code:"VALIDATION"});
     expect(mocks.giftCreate).not.toHaveBeenCalled();
+  });
+
+  it("uses imported relationship labels when no manual details exist", async () => {
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "FAMILY", giftExemptWithCake: false,
+      importRecords: [{ source: "LINEIN", sourceInstance: "rsvp", sourceManaged: true, relationshipLabel: "父親" }],
+    });
+    expect(await createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()))
+      .toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(mocks.giftCreate).not.toHaveBeenCalled();
+  });
+
+  it("respects manually cleared relationship labels over old imports", async () => {
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "GUEST", giftExemptWithCake: false,
+      importRecords: [
+        { source: "LINEIN", sourceInstance: "rsvp", sourceManaged: true, relationshipLabel: "父親" },
+        { source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false, relationshipLabel: null },
+      ],
+    });
+    expect(await createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()))
+      .toMatchObject({ status: "success" });
+    expect(mocks.giftCreate).toHaveBeenCalledOnce();
   });
 
   it("authorizes before validation and refuses a viewer without opening a transaction", async () => {
@@ -322,7 +345,10 @@ describe("wedding gift actions", () => {
 
     expect(mocks.guestFindFirst).toHaveBeenCalledWith({
       where: { id: "guest_1", workspaceId: "workspace_1" },
-      select: { id: true, giftExemptWithCake: true, category: true, relationshipLabel: true },
+      select: { id: true, giftExemptWithCake: true, category: true, importRecords: {
+        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+        select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
+      } },
     });
     expect(mocks.giftCreate).toHaveBeenCalledWith({
       data: {
@@ -354,7 +380,7 @@ describe("wedding gift actions", () => {
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
     expect(mocks.giftCreate).not.toHaveBeenCalled();
 
-    mocks.guestFindFirst.mockResolvedValueOnce({ id: "guest_1" });
+    mocks.guestFindFirst.mockResolvedValueOnce({ id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [] });
     mocks.giftCreate.mockRejectedValueOnce({ code: "P2002" });
     await expect(
       createWeddingGiftAction(
@@ -365,7 +391,7 @@ describe("wedding gift actions", () => {
       ),
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
 
-    mocks.guestFindFirst.mockResolvedValueOnce({ id: "guest_1" });
+    mocks.guestFindFirst.mockResolvedValueOnce({ id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [] });
     mocks.giftCreate.mockRejectedValueOnce({ code: "P2003" });
     await expect(
       createWeddingGiftAction(
@@ -496,7 +522,8 @@ describe("wedding gift actions", () => {
       gift: { id: "gift_1", amount: 3600, notes: "更新", version: 5 },
     });
     expect(mocks.giftUpdateMany).toHaveBeenCalledOnce();
-    expect(mocks.revalidatePath).toHaveBeenCalledTimes(3);
+    expect(mocks.revalidatePath).toHaveBeenCalledTimes(4);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/workspaces/workspace_1/guests");
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/overview",
     );

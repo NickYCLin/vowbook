@@ -106,6 +106,7 @@ describe("getWeddingOverview", () => {
     const guestSelect = guestFindMany.mock.calls[0][0].select;
     expect(guestSelect).not.toHaveProperty("name");
     expect(guestSelect.importRecords.select).toEqual({
+      relationshipLabel: true,
       source: true,
       sourceInstance: true,
       sourceManaged: true,
@@ -122,6 +123,18 @@ describe("getWeddingOverview", () => {
       preparationStatus: true,
       dueDate: true,
     });
+  });
+
+  it("excludes gift-exempt guests from missing-record counts while preserving actual gifts", async () => {
+    const base = { category: "GUEST", side: "SHARED", attendanceStatus: "DECLINED", partySize: 1, seatingTableId: null, importRecords: [], weddingGift: null };
+    guestFindMany.mockResolvedValue([
+      { ...base, giftExemptWithCake: true },
+      { ...base, importRecords: [{ source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false, relationshipLabel: "父親" }] },
+      { ...base },
+      { ...base, giftExemptWithCake: true, weddingGift: { amount: 1200 } },
+    ]);
+    const data = await getWeddingOverview("workspace_1");
+    expect(data.guests.gifts).toEqual({ recordedCount: 1, unrecordedGeneralGroupCount: 1, totalAmount: "1200" });
   });
 
   it("returns precise guest, seating, task, budget, and operations summaries", async () => {

@@ -165,7 +165,7 @@ function giftSummary(guests: readonly WeddingGiftBookGuest[]) {
     if (guest.weddingGift) {
       totalAmount += BigInt(guest.weddingGift.amount);
       registeredGroups += 1;
-    } else if (guest.category === "GUEST" && !guest.giftExemptWithCake) {
+    } else if (guest.category === "GUEST" && !isGiftCollectionExcluded(guest)) {
       unregisteredGeneralGroups += 1;
     }
   }
@@ -910,7 +910,7 @@ export function WeddingGiftBook({
           checkIn: guest.checkIn ?? null,
         });
       }
-      return guest.category === "GUEST" && !guest.giftExemptWithCake && guest.weddingGift === null;
+      return guest.category === "GUEST" && !isGiftCollectionExcluded(guest) && guest.weddingGift === null;
     });
     return sortWeddingGiftEntries(matched, sort);
   }, [filter, ledgerGuests, search, sort]);

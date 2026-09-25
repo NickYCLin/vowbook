@@ -1,4 +1,5 @@
 import "server-only";
+import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
@@ -15,12 +16,14 @@ type OverviewGuestImportRecord = {
   source: string;
   sourceInstance: string;
   sourceManaged: boolean;
+  relationshipLabel: string | null;
   childSeatCount: number | null;
   vegetarianCount: number | null;
   invitationDelivery: InvitationDeliveryValue | null;
 };
 
 type OverviewGuestRecord = {
+  giftExemptWithCake: boolean;
   category: "GUEST" | "COUPLE" | "FAMILY";
   side: GuestSideValue;
   attendanceStatus: "UNDECIDED" | "ATTENDING" | "DECLINED";
@@ -141,6 +144,7 @@ export class WeddingOverviewDataError extends Error {
 }
 
 const guestSelect = {
+  giftExemptWithCake: true,
   category: true,
   side: true,
   attendanceStatus: true,
@@ -152,6 +156,7 @@ const guestSelect = {
       source: true,
       sourceInstance: true,
       sourceManaged: true,
+      relationshipLabel: true,
       childSeatCount: true,
       vegetarianCount: true,
       invitationDelivery: true,
@@ -189,6 +194,7 @@ function sumTwdAmounts(values: Iterable<number>): string {
   }
   return total.toString();
 }
+
 
 function dateKeyInTimezone(value: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en", {
@@ -237,7 +243,7 @@ function summarizeGuests(guests: OverviewGuestRecord[]) {
     if (guest.weddingGift) {
       recordedGiftCount += 1;
       giftAmounts.push(guest.weddingGift.amount);
-    } else if (guest.category === "GUEST") {
+    } else if (guest.category === "GUEST" && !isGiftCollectionExcluded({ ...guest, relationshipLabel: effectiveGuestDetailValue(guest.importRecords, record => record.relationshipLabel) })) {
       unrecordedGeneralGiftGroupCount += 1;
     }
 
