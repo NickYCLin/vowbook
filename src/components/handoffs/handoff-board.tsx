@@ -135,7 +135,7 @@ export function HandoffBoard({ workspaceId, data, canEdit, defaultCreateOpen = f
             </div>
             <p className="mt-2 break-words text-caption text-ink-soft">{person ? person.roleName + "・" + person.personName : "總召（人選待定）"} ／ {HANDOFF_PHASE_LABELS[item.phase as HandoffPhase]}{item.dueAt ? " ／ " + handoffLocalTime(item.dueAt).replace("T", " ") + "（台灣時間）" : ""}</p>
             <p className="mt-3 whitespace-pre-wrap break-words">{item.details}</p>
-            {flow ? <p className="mt-3"><Link className="inline-flex min-h-11 items-center break-words text-clay-strong underline md:hidden" href={`/workspaces/${workspaceId}/timeline#timeline-mobile-${flow.id}`}>關聯流程：{flow.title}</Link><Link className="hidden min-h-11 items-center break-words text-clay-strong underline md:inline-flex" href={`/workspaces/${workspaceId}/timeline#timeline-desktop-${flow.id}`}>關聯流程：{flow.title}</Link></p> : null}
+            {flow ? <p className="mt-3"><Link className="inline-flex min-h-11 items-center break-words text-clay-strong underline" href={`/workspaces/${workspaceId}/timeline#timeline-item-${flow.id}`}>關聯流程：{flow.title}</Link></p> : null}
             {canEdit ? <HandoffActions key={item.id + ":" + item.version} workspaceId={workspaceId} item={item} editing={editor !== null} onEdit={() => setEditor({ item })} onSaved={saved} /> : null}
           </li>;
         })}

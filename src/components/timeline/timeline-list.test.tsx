@@ -37,32 +37,63 @@ const staff = [
 ];
 
 describe("WeddingTimelineList", () => {
-  it("renders media cues inside the existing content area on desktop and mobile", () => {
+  it("renders one responsive timeline with summary, staff chips, steps, cues and notes", () => {
     const { container } = render(
       <WeddingTimelineList
         workspaceId="workspace_internal"
-        items={items}
+        items={[
+          ...items,
+          {
+            ...items[0],
+            id: "item_2",
+            startTime: "12:00",
+            endTime: "12:20",
+            title: "第一次進場",
+            details: "小花童進場\n新人進場\n\n舉杯",
+            mediaCue: null,
+            notes: null,
+            assignedStaff: [],
+          },
+        ]}
         staff={staff}
         canEdit={false}
       />,
     );
-    const desktop = container.querySelector('[data-timeline-layout="desktop"]');
-    const mobile = container.querySelector('[data-timeline-layout="mobile"]');
-    expect(desktop).toHaveClass("hidden", "md:block");
-    expect(mobile).toHaveClass("md:hidden");
-    for (const surface of [desktop, mobile]) {
-      expect(surface).toHaveTextContent("11:30–12:00");
-      expect(surface).toHaveTextContent("迎賓");
-      expect(surface).toHaveTextContent("宴會廳外");
-      expect(surface).toHaveTextContent("音樂／影片：迎賓音樂 開場影片");
-      expect(surface).toHaveTextContent("招待・小安");
-      expect(surface).toHaveTextContent("留意長輩");
-    }
-    expect(desktop?.querySelector(".grid")?.children).toHaveLength(4);
+    const timeline = container.querySelector<HTMLElement>(
+      '[data-timeline-layout="timeline"]',
+    )!;
+    expect(container.querySelectorAll("[data-timeline-layout]")).toHaveLength(1);
+    expect(timeline.querySelectorAll("[data-timeline-item]")).toHaveLength(2);
+
+    const summary = container.querySelector<HTMLElement>("[data-timeline-summary]")!;
+    expect(summary).toHaveTextContent("11:30–12:20");
+    expect(summary).toHaveTextContent("2 段");
+    expect(summary).toHaveTextContent("1 段");
+
+    const [first, second] = Array.from(
+      timeline.querySelectorAll<HTMLElement>("[data-timeline-item]"),
+    );
+    expect(first).toHaveTextContent("11:30–12:00");
+    expect(first).toHaveTextContent("迎賓");
+    expect(first).toHaveTextContent("宴會廳外");
+    expect(within(first).getByText("迎賓音樂")).toBeInTheDocument();
+    expect(within(first).getByText("開場影片")).toBeInTheDocument();
+    expect(first.querySelector("[data-staff-chip]")).toHaveTextContent("招待・小安");
+    expect(first).toHaveTextContent("備註留意長輩");
+
+    expect(second).toHaveTextContent("尚未指派負責人");
+    const steps = within(second).getAllByRole("listitem");
+    expect(steps.map((step) => step.textContent)).toEqual([
+      "1小花童進場",
+      "2新人進場",
+      "3舉杯",
+    ]);
+    expect(second).not.toHaveTextContent("音樂／影片");
+    expect(second).not.toHaveTextContent("備註");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("wraps every unbroken timeline field on desktop and mobile", () => {
+  it("wraps every unbroken timeline field", () => {
     const phase = "P".repeat(60);
     const title = "T".repeat(120);
     const location = "L".repeat(200);
@@ -97,20 +128,16 @@ describe("WeddingTimelineList", () => {
         "[overflow-wrap:anywhere]",
       );
 
-    for (const layout of ["desktop", "mobile"]) {
-      const surface = container.querySelector<HTMLElement>(
-        `[data-timeline-layout="${layout}"]`,
-      )!;
-      expectWrapped(within(surface).getByText(phase));
-      expectWrapped(within(surface).getByRole("heading", { name: title }));
-      expectWrapped(within(surface).getByText(location));
-      expectWrapped(within(surface).getByText(details));
-      expectWrapped(within(surface).getByText(`音樂／影片：${mediaCue}`));
-      expectWrapped(within(surface).getByText(`備註：${notes}`));
-      expectWrapped(
-        within(surface).getByText(new RegExp(personName)).closest("p"),
-      );
-    }
+    const surface = container.querySelector<HTMLElement>(
+      '[data-timeline-layout="timeline"]',
+    )!;
+    expectWrapped(within(surface).getByText(phase));
+    expectWrapped(within(surface).getByRole("heading", { name: title }));
+    expectWrapped(within(surface).getByText(location));
+    expectWrapped(within(surface).getByText(details));
+    expectWrapped(within(surface).getByText(mediaCue));
+    expectWrapped(within(surface).getByText(notes));
+    expectWrapped(surface.querySelector("[data-staff-chip]"));
   });
 
   it("shows editor CRUD for populated data and only the general template for an empty list", () => {
@@ -122,17 +149,16 @@ describe("WeddingTimelineList", () => {
         canEdit
       />,
     );
-    // 有資料時新增入口在頁面標題列；編輯與刪除改為掛在每一列上，
-    // 桌面與手機兩種排版各渲染一次。
+    // 有資料時新增入口在頁面標題列；編輯與刪除掛在每一列標題旁。
     expect(
       screen.queryByRole("button", { name: "新增流程項目" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "編輯 賓客入場" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(
       screen.getAllByRole("button", { name: "刪除 賓客入場" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
 
     rerender(
       <WeddingTimelineList

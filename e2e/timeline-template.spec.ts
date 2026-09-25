@@ -82,16 +82,12 @@ test("午宴範本只在本次明確選擇時加入西式證婚", async ({
   await submit.click();
   expect((await actionResponse).ok()).toBe(true);
 
-  const activeLayout = page.locator(
-    isMobile
-      ? '[data-timeline-layout="mobile"]'
-      : '[data-timeline-layout="desktop"]',
-  );
+  const activeLayout = page.locator('[data-timeline-layout="timeline"]');
   // Server Action 的 HTTP response 可能早於 RSC payload 套用完成；直接等待
   // 使用者真正需要的流程清單，避免把 Tailwind 的 disabled:cursor-wait
   // class 字串誤當成 transition 已結束的訊號。手機模擬下整份 RSC payload
   // 套用得比桌機慢得多，所以這裡的預算要比一般 action timeout 寬。
-  await expect(activeLayout.locator("li")).toHaveCount(isMobile ? 8 : 9, {
+  await expect(activeLayout.locator("[data-timeline-item]")).toHaveCount(isMobile ? 8 : 9, {
     timeout: 30_000,
   });
   const westernHeading = activeLayout.getByRole("heading", {

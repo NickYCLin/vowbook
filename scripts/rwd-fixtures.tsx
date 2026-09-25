@@ -947,6 +947,87 @@ const surfaces: { name: string; element: ReactNode }[] = [
     ),
   },
   {
+    name: "timeline-day",
+    element: (
+      <WorkspacePage
+        sectionTitle="婚禮總流程"
+        description="安排當天每個環節的時間、地點與負責人。"
+        activeSection="timeline"
+      >
+        <WeddingTimelineList
+          workspaceId="workspace_rwd"
+          canEdit
+          staff={[
+            { id: "host", roleName: "主持人", personName: "婚禮主持" },
+            { id: "av", roleName: "會館", personName: "影音" },
+            { id: "makeup", roleName: "新秘", personName: "新娘秘書" },
+          ]}
+          items={[
+            {
+              id: "rehearsal",
+              startTime: "09:40",
+              endTime: "10:10",
+              phase: "彩排",
+              title: "宴會廳彩排",
+              location: "1F 宴會廳",
+              details: "確認音樂及硬體、軟體設備\n主持人、新人、雙方主婚人、小花童正式走位\n彩排完新人於宴會廳內拍攝＆休息",
+              mediaCue: null,
+              notes: "彩排需穿著禮服＆高跟鞋",
+              version: 1,
+              assignedStaff: [
+                { id: "av", roleName: "會館", personName: "影音" },
+                { id: "host", roleName: "主持人", personName: "婚禮主持" },
+              ],
+            },
+            {
+              id: "ceremony",
+              startTime: "10:30",
+              endTime: "11:20",
+              phase: "證婚",
+              title: "證婚儀式",
+              location: "2F 儀式堂",
+              details: "主持人開場\n新郎進場 → 證婚台定點\n新娘持捧花進場 → 證婚台定點\n趣味宣誓\n交換戒指（新郎先）\n謝親恩\n合照時間",
+              mediaCue: "01 新人進場\n02 宣誓－交換戒指\n03 謝親恩",
+              notes: "新人自備：捧花、戒指＆戒盒、感謝花束 x2\n大合照順序待確認",
+              version: 1,
+              assignedStaff: [
+                { id: "host", roleName: "主持人", personName: "婚禮主持" },
+              ],
+            },
+            {
+              id: "welcome",
+              startTime: "11:30",
+              endTime: "12:00",
+              phase: "迎賓",
+              title: "迎賓",
+              location: "1F 宴會廳",
+              details: "收禮、發喜糖、帶位",
+              mediaCue: "迎賓音樂\nLED 主視覺",
+              notes: null,
+              version: 1,
+              assignedStaff: [],
+            },
+            {
+              id: "change",
+              startTime: "12:20",
+              endTime: "13:15",
+              phase: "宴席",
+              title: "賓客用餐・第一次換裝",
+              location: null,
+              details: null,
+              mediaCue: null,
+              notes: null,
+              version: 1,
+              assignedStaff: [
+                { id: "makeup", roleName: "新秘", personName: "新娘秘書" },
+              ],
+            },
+          ]}
+        />
+      </WorkspacePage>
+    ),
+  },
+  {
     name: "budget",
     element: (
       <WorkspacePage

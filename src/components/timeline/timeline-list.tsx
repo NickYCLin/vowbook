@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   WeddingTimelineListItem,
   WeddingTimelineStaffOption,
@@ -12,26 +12,12 @@ import {
   GeneralLunchTimelineTemplateForm,
 } from "./timeline-forms";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/class-names";
 
 const timelineHeadingId = "wedding-timeline-list-heading";
 
 function timelineEditTriggerId(itemId: string) {
   return `wedding-timeline-edit-${itemId}`;
-}
-
-function timeLabel(item: WeddingTimelineListItem) {
-  return item.endTime
-    ? `${item.startTime}–${item.endTime}`
-    : `${item.startTime} 起`;
-}
-
-function StaffNames({ staff }: { staff: WeddingTimelineStaffOption[] }) {
-  return staff.length === 0 ? (
-    <span className="text-ink-faint">尚未指派</span>
-  ) : (
-    <span>{staff.map((person) => `${person.roleName}・${person.personName}`).join("、")}</span>
-  );
 }
 
 export function WeddingTimelineList({
@@ -76,7 +62,7 @@ export function WeddingTimelineList({
 
     if (focusTargetId) {
       queueMicrotask(() => {
-        (document.getElementById(focusTargetId) ?? headingRef.current)?.focus();
+        (document.getElementById(focusTargetId) ?? headingRef.current)?.focus({ preventScroll: true });
       });
     }
   }, [canEdit, items]);
@@ -119,35 +105,17 @@ export function WeddingTimelineList({
     );
   }
 
-  // 桌機與手機是同一份資料的兩種排版；只有桌機那份掛 triggerId，
-  // 避免同一個 id 出現兩次，刪除後的焦點還原才找得到唯一目標。
-  const rowActions = (item: WeddingTimelineListItem, withTriggerId: boolean) =>
-    canEdit ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-1 border-t border-line pt-3">
-        <EditWeddingTimelineItemForm
-          workspaceId={workspaceId}
-          itemId={item.id}
-          staff={staff}
-          assignedStaff={item.assignedStaff}
-          expectedVersion={item.version}
-          triggerId={withTriggerId ? timelineEditTriggerId(item.id) : undefined}
-          startTime={item.startTime}
-          endTime={item.endTime}
-          phase={item.phase}
-          title={item.title}
-          location={item.location}
-          details={item.details}
-          mediaCue={item.mediaCue}
-          notes={item.notes}
-        />
-        <DeleteWeddingTimelineItemForm
-          workspaceId={workspaceId}
-          itemId={item.id}
-          title={item.title}
-          expectedVersion={item.version}
-        />
-      </div>
-    ) : null;
+  const firstStart = items[0].startTime;
+  const lastEnd = items.reduce<string>(
+    (latest, item) => {
+      const candidate = item.endTime ?? item.startTime;
+      return candidate > latest ? candidate : latest;
+    },
+    items[0].endTime ?? items[0].startTime,
+  );
+  const unassignedCount = items.filter(
+    (item) => item.assignedStaff.length === 0,
+  ).length;
 
   return (
     <div className="mt-6 min-w-0 space-y-5">
@@ -168,109 +136,245 @@ export function WeddingTimelineList({
         </p>
       ) : null}
 
-      <Card data-timeline-layout="desktop" className="hidden min-w-0 md:block">
-        <h2 className="sr-only">婚禮總流程桌面清單</h2>
-        <div className="grid grid-cols-[7rem_minmax(0,0.7fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-4 border-b border-line bg-surface-sunken/60 px-5 py-3 text-eyebrow font-semibold text-ink-soft">
-          <span>時間</span>
-          <span>階段</span>
-          <span>流程與地點</span>
-          <span>負責人</span>
-        </div>
-        <ul className="min-w-0 divide-y divide-line">
-          {items.map((item) => (
-            <li key={item.id} id={`timeline-desktop-${item.id}`} className="min-w-0 scroll-mt-24 px-5 py-4">
-              <div className="grid min-w-0 grid-cols-[7rem_minmax(0,0.7fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
-                <time className="font-semibold text-clay-strong tabular-nums">
-                  {timeLabel(item)}
-                </time>
-                <p className="min-w-0 text-caption font-semibold break-words text-ink [overflow-wrap:anywhere]">
-                  {item.phase}
-                </p>
-                <div className="min-w-0">
-                  <h3 className="min-w-0 font-serif text-base font-semibold break-words text-ink [overflow-wrap:anywhere]">
-                    {item.title}
-                  </h3>
-                  {item.location && (
-                    <p className="mt-1 min-w-0 text-caption break-words text-ink-soft [overflow-wrap:anywhere]">
-                      {item.location}
-                    </p>
-                  )}
-                  {item.details && (
-                    <p className="mt-2 min-w-0 text-caption leading-6 break-words whitespace-pre-wrap text-ink-soft [overflow-wrap:anywhere]">
-                      {item.details}
-                    </p>
-                  )}
-                  {item.mediaCue && (
-                    <p className="mt-2 min-w-0 text-caption leading-6 break-words whitespace-pre-wrap text-clay-strong [overflow-wrap:anywhere]">
-                      音樂／影片：{item.mediaCue}
-                    </p>
-                  )}
-                  {item.notes && (
-                    <p className="mt-2 min-w-0 text-caption break-words whitespace-pre-wrap text-ink-faint [overflow-wrap:anywhere]">
-                      備註：{item.notes}
-                    </p>
-                  )}
-                </div>
-                <p className="min-w-0 text-caption leading-6 break-words text-ink [overflow-wrap:anywhere]">
-                  <StaffNames staff={item.assignedStaff} />
-                </p>
-              </div>
-              {canEdit && <div className="mt-3">{rowActions(item, true)}</div>}
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <dl
+        data-timeline-summary
+        className="grid min-w-0 grid-cols-3 divide-x divide-line overflow-hidden rounded-card border border-line bg-surface"
+      >
+        <SummaryCell
+          label="全天時段"
+          value={
+            <>
+              <span className="inline-block">{firstStart}</span>
+              <span className="inline-block">–{lastEnd}</span>
+            </>
+          }
+        />
+        <SummaryCell label="流程段落" value={`${items.length} 段`} />
+        <SummaryCell
+          label="待指派"
+          value={unassignedCount === 0 ? "全部已指派" : `${unassignedCount} 段`}
+          tone={unassignedCount === 0 ? "positive" : "caution"}
+        />
+      </dl>
 
-      <section data-timeline-layout="mobile" className="min-w-0 md:hidden">
-        <h2 className="sr-only">婚禮總流程手機清單</h2>
-        <ul className="min-w-0 space-y-3">
-          {items.map((item) => (
-            <Card as="li" key={item.id} id={`timeline-mobile-${item.id}`} className="scroll-mt-24 list-none">
-              <div className="min-w-0 px-5 py-4">
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <time className="font-semibold text-clay-strong tabular-nums">
-                    {timeLabel(item)}
-                  </time>
-                  <Badge tone="brand">
-                    <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">
-                      {item.phase}
-                    </span>
-                  </Badge>
-                </div>
-                <h3 className="mt-2 min-w-0 font-serif text-title font-semibold break-words text-ink [overflow-wrap:anywhere]">
-                  {item.title}
-                </h3>
-                {item.location && (
-                  <p className="mt-1 min-w-0 text-caption break-words text-ink-soft [overflow-wrap:anywhere]">
-                    {item.location}
-                  </p>
-                )}
-                {item.details && (
-                  <p className="mt-2 min-w-0 text-caption leading-6 break-words whitespace-pre-wrap text-ink-soft [overflow-wrap:anywhere]">
-                    {item.details}
-                  </p>
-                )}
-                {item.mediaCue && (
-                  <p className="mt-2 min-w-0 text-caption leading-6 break-words whitespace-pre-wrap text-clay-strong [overflow-wrap:anywhere]">
-                    音樂／影片：{item.mediaCue}
-                  </p>
-                )}
-                <p className="mt-2 min-w-0 text-caption break-words text-ink [overflow-wrap:anywhere]">
-                  負責人：<StaffNames staff={item.assignedStaff} />
-                </p>
-                {item.notes && (
-                  <p className="mt-2 min-w-0 text-caption break-words whitespace-pre-wrap text-ink-faint [overflow-wrap:anywhere]">
-                    備註：{item.notes}
-                  </p>
-                )}
-                {canEdit && (
-                  <div className="mt-3">{rowActions(item, false)}</div>
-                )}
-              </div>
-            </Card>
-          ))}
-        </ul>
-      </section>
+      <ol
+        data-timeline-layout="timeline"
+        aria-label="婚禮總流程時間軸"
+        className="min-w-0 border-y border-line"
+      >
+        {items.map((item) => (
+          <TimelineRow
+            key={item.id}
+            item={item}
+            actions={
+              canEdit ? (
+                <>
+                  <EditWeddingTimelineItemForm
+                    workspaceId={workspaceId}
+                    itemId={item.id}
+                    staff={staff}
+                    assignedStaff={item.assignedStaff}
+                    expectedVersion={item.version}
+                    triggerId={timelineEditTriggerId(item.id)}
+                    startTime={item.startTime}
+                    endTime={item.endTime}
+                    phase={item.phase}
+                    title={item.title}
+                    location={item.location}
+                    details={item.details}
+                    mediaCue={item.mediaCue}
+                    notes={item.notes}
+                  />
+                  <DeleteWeddingTimelineItemForm
+                    workspaceId={workspaceId}
+                    itemId={item.id}
+                    title={item.title}
+                    expectedVersion={item.version}
+                  />
+                </>
+              ) : null
+            }
+          />
+        ))}
+      </ol>
     </div>
+  );
+}
+
+const wrapText = "min-w-0 break-words [overflow-wrap:anywhere]";
+
+function splitLines(text: string | null): string[] {
+  if (!text) return [];
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function SummaryCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "positive" | "caution";
+}) {
+  return (
+    <div className="min-w-0 px-3 py-3 sm:px-4">
+      <dt className="text-eyebrow font-semibold text-ink-faint">{label}</dt>
+      <dd
+        className={cn(
+          "mt-0.5 text-sm font-semibold tabular-nums sm:text-base",
+          wrapText,
+          tone === "positive"
+            ? "text-positive"
+            : tone === "caution"
+              ? "text-caution"
+              : "text-ink",
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function TimelineRow({
+  item,
+  actions,
+}: {
+  item: WeddingTimelineListItem;
+  actions: ReactNode;
+}) {
+  const steps = splitLines(item.details);
+  const cues = splitLines(item.mediaCue);
+  const hasSide = cues.length > 0;
+
+  return (
+    <li
+      id={`timeline-item-${item.id}`}
+      data-timeline-item
+      className="grid min-w-0 scroll-mt-24 border-b border-line last:border-b-0 md:grid-cols-[8.5rem_minmax(0,1fr)]"
+    >
+      <div className="relative flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 pt-4 md:flex-col md:items-start md:border-r md:border-line md:py-5 md:pr-4">
+        <span
+          aria-hidden="true"
+          className="absolute top-6 -right-[5px] hidden size-2.5 rounded-full border-2 border-surface bg-clay md:block"
+        />
+        <time className="text-base font-semibold text-clay-strong tabular-nums">
+          {item.startTime}
+          <span className="font-normal text-ink-faint">
+            {item.endTime ? `–${item.endTime}` : " 起"}
+          </span>
+        </time>
+        <Badge tone="brand">
+          <span className={cn("max-w-full", wrapText)}>{item.phase}</span>
+        </Badge>
+      </div>
+
+      <div className="min-w-0 pt-2 pb-5 md:py-5 md:pl-6">
+        <div className="flex min-w-0 items-start gap-x-3">
+          <div className="min-w-0 flex-1 basis-0">
+            <h3 className={cn("font-serif text-title font-semibold text-ink", wrapText)}>
+              {item.title}
+            </h3>
+            {item.location && (
+              <p className={cn("mt-0.5 text-caption text-ink-faint", wrapText)}>
+                {item.location}
+              </p>
+            )}
+          </div>
+          {actions ? (
+            <div className="-my-1 flex shrink-0 items-center gap-0.5">{actions}</div>
+          ) : null}
+        </div>
+
+        <div
+          aria-label="負責人"
+          role="group"
+          className="mt-3 flex min-w-0 flex-wrap gap-1.5"
+        >
+          {item.assignedStaff.length === 0 ? (
+            <span className="rounded-control border border-dashed border-line-strong px-2 py-0.5 text-caption text-ink-faint">
+              尚未指派負責人
+            </span>
+          ) : (
+            item.assignedStaff.map((person) => (
+              <span
+                key={person.id}
+                data-staff-chip
+                className={cn(
+                  "max-w-full rounded-control border border-sage/25 bg-sage-soft px-2 py-0.5 text-caption text-sage",
+                  wrapText,
+                )}
+              >
+                <span className="font-semibold">{person.roleName}</span>
+                ・{person.personName}
+              </span>
+            ))
+          )}
+        </div>
+
+        {(steps.length > 0 || hasSide) && (
+          <div
+            className={cn(
+              "mt-4 grid min-w-0 gap-x-8 gap-y-4",
+              hasSide && "lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]",
+            )}
+          >
+            {steps.length > 1 ? (
+              <ol className="min-w-0 space-y-1.5 text-sm leading-6 text-ink">
+                {steps.map((step, index) => (
+                  <li key={index} className="flex min-w-0 gap-2.5">
+                    <span
+                      aria-hidden="true"
+                      className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-sunken text-[0.7rem] font-semibold text-ink-soft tabular-nums"
+                    >
+                      {index + 1}
+                    </span>
+                    <span className={wrapText}>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : steps.length === 1 ? (
+              <p className={cn("text-sm leading-6 text-ink", wrapText)}>
+                {steps[0]}
+              </p>
+            ) : (
+              <span className="hidden lg:block" />
+            )}
+            {hasSide && (
+              <div className="min-w-0 border-l-2 border-clay/30 pl-4">
+                <h4 className="text-eyebrow font-semibold text-ink-faint">
+                  音樂／影片
+                </h4>
+                <ul className="mt-1.5 space-y-1 text-caption leading-5 text-clay-strong">
+                  {cues.map((cue, index) => (
+                    <li key={index} className={wrapText}>
+                      {cue}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {item.notes && (
+          <div className="mt-4 min-w-0 rounded-control border-l-[3px] border-caution bg-caution-soft px-3 py-2">
+            <p className="text-eyebrow font-semibold text-caution">備註</p>
+            <p
+              className={cn(
+                "mt-0.5 text-caption leading-6 whitespace-pre-wrap text-ink",
+                wrapText,
+              )}
+            >
+              {item.notes}
+            </p>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
