@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FlowerTulip } from "@phosphor-icons/react/dist/ssr";
+import { FlowerTulip, HandHeart, Printer } from "@phosphor-icons/react/dist/ssr";
 import { buttonClassName } from "@/components/ui/button";
 import { WeddingGameParticipantLists } from "@/components/timeline/game-participants";
 import { CreateWeddingTimelineItemForm } from "@/components/timeline/timeline-forms";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
+import { WeddingSpeechCards } from "@/components/timeline/wedding-speeches";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
 import {
   getWorkspacePermissions,
@@ -53,6 +55,20 @@ export default async function TimelinePage({
                 捧花 {data.games.BOUQUET.length}・花椰菜 {data.games.BROCCOLI.length}
               </span>
             </a>
+            <a
+              href="#wedding-speeches"
+              className={buttonClassName({ variant: "secondary" })}
+            >
+              <HandHeart aria-hidden="true" className="size-5" />
+              謝親恩
+            </a>
+            <Link
+              href={`/workspaces/${workspaceId}/timeline/print`}
+              className={buttonClassName({ variant: "secondary" })}
+            >
+              <Printer aria-hidden="true" className="size-5" />
+              主持人流程
+            </Link>
             {canEdit && data.items.length > 0 ? (
               <CreateWeddingTimelineItemForm
                 workspaceId={workspaceId}
@@ -66,6 +82,11 @@ export default async function TimelinePage({
         workspaceId={workspaceId}
         items={data.items}
         staff={data.staff}
+        canEdit={canEdit}
+      />
+      <WeddingSpeechCards
+        workspaceId={workspaceId}
+        speeches={data.speeches}
         canEdit={canEdit}
       />
       <WeddingGameParticipantLists

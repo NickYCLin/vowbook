@@ -50,46 +50,49 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+// 謝親恩致詞稿：新表，不回填既有婚宴。
+const speechMigration = migrationEntries.at(-1);
 // 遊戲名單：新表，不回填既有婚宴。
-const gameParticipantMigration = migrationEntries.at(-1);
+const gameParticipantMigration = migrationEntries.at(-2);
 // 尾款付款方式：budget_items 新增可空欄位，不回填既有花費。
-const budgetBalancePaymentMethodMigration = migrationEntries.at(-2);
+const budgetBalancePaymentMethodMigration = migrationEntries.at(-3);
 // 發餅家庭新增空表與可空關聯，不回填既有名單。
-const cakeHouseholdMigration = migrationEntries.at(-3);
-const coordinatorHandoffMigration = migrationEntries.at(-4);
-const guestGiftExemptionMigration = migrationEntries.at(-5);
-const dropVendorMigration = migrationEntries.at(-6);
-const budgetStaffRedEnvelopeMigration = migrationEntries.at(-7);
-const staffRedEnvelopeMigration = migrationEntries.at(-8);
-const giftReturnMigration = migrationEntries.at(-9);
-const staffMealMigration = migrationEntries.at(-10);
-const guestCheckInMigration = migrationEntries.at(-11);
-const planningPreferencesMigration = migrationEntries.at(-12);
-const giftMigration = migrationEntries.at(-13);
-const declinedSeatingConsistencyMigration = migrationEntries.at(-14);
-const ceremonyAttendanceMigration = migrationEntries.at(-15);
-const ceremonyMigration = migrationEntries.at(-16);
-const vendorMigration = migrationEntries.at(-17);
-const preparationStatusMigration = migrationEntries.at(-18);
-const guestSeniorityMigration = migrationEntries.at(-19);
-const familyPartySizeMigration = migrationEntries.at(-20);
-const userAccessMigration = migrationEntries.at(-21);
-const guestDetailsMigration = migrationEntries.at(-22);
-const avatarMigration = migrationEntries.at(-23);
-const taskSidesMigration = migrationEntries.at(-24);
-const rosterCategoriesMigration = migrationEntries.at(-25);
-const duplicateNamesMigration = migrationEntries.at(-26);
-const floorPlanMigration = migrationEntries.at(-27);
-const preparationSuggestionMigration = migrationEntries.at(-28);
-const engagementSuggestionMigration = migrationEntries.at(-29);
-const proposalLabelMigration = migrationEntries.at(-30);
-const repairMigration = migrationEntries.at(-31);
-const sourceHierarchyMigration = migrationEntries.at(-32);
-const relatedTaxonomyMigration = migrationEntries.at(-33);
-const fixedGroupsMigration = migrationEntries.at(-34);
-const failClosedMigration = migrationEntries.at(-35);
-const priorHeadMigration = migrationEntries.at(-36);
+const cakeHouseholdMigration = migrationEntries.at(-4);
+const coordinatorHandoffMigration = migrationEntries.at(-5);
+const guestGiftExemptionMigration = migrationEntries.at(-6);
+const dropVendorMigration = migrationEntries.at(-7);
+const budgetStaffRedEnvelopeMigration = migrationEntries.at(-8);
+const staffRedEnvelopeMigration = migrationEntries.at(-9);
+const giftReturnMigration = migrationEntries.at(-10);
+const staffMealMigration = migrationEntries.at(-11);
+const guestCheckInMigration = migrationEntries.at(-12);
+const planningPreferencesMigration = migrationEntries.at(-13);
+const giftMigration = migrationEntries.at(-14);
+const declinedSeatingConsistencyMigration = migrationEntries.at(-15);
+const ceremonyAttendanceMigration = migrationEntries.at(-16);
+const ceremonyMigration = migrationEntries.at(-17);
+const vendorMigration = migrationEntries.at(-18);
+const preparationStatusMigration = migrationEntries.at(-19);
+const guestSeniorityMigration = migrationEntries.at(-20);
+const familyPartySizeMigration = migrationEntries.at(-21);
+const userAccessMigration = migrationEntries.at(-22);
+const guestDetailsMigration = migrationEntries.at(-23);
+const avatarMigration = migrationEntries.at(-24);
+const taskSidesMigration = migrationEntries.at(-25);
+const rosterCategoriesMigration = migrationEntries.at(-26);
+const duplicateNamesMigration = migrationEntries.at(-27);
+const floorPlanMigration = migrationEntries.at(-28);
+const preparationSuggestionMigration = migrationEntries.at(-29);
+const engagementSuggestionMigration = migrationEntries.at(-30);
+const proposalLabelMigration = migrationEntries.at(-31);
+const repairMigration = migrationEntries.at(-32);
+const sourceHierarchyMigration = migrationEntries.at(-33);
+const relatedTaxonomyMigration = migrationEntries.at(-34);
+const fixedGroupsMigration = migrationEntries.at(-35);
+const failClosedMigration = migrationEntries.at(-36);
+const priorHeadMigration = migrationEntries.at(-37);
 if (
+  !speechMigration ||
   !gameParticipantMigration ||
   !budgetBalancePaymentMethodMigration ||
   !cakeHouseholdMigration ||
@@ -126,14 +129,15 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length !== 51
+  migrationEntries.length !== 52
 ) {
-  throw new Error("Exactly forty-eight migrations are required for the upgrade gate.");
+  throw new Error("Exactly fifty-two migrations are required for the upgrade gate.");
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 51 ||
+  migrationEntries.length !== 52 ||
   priorHeadPosition !== 16 ||
+  speechMigration !== "20260926010000_wedding_speeches" ||
   gameParticipantMigration !== "20260925233000_wedding_game_participants" ||
   budgetBalancePaymentMethodMigration !==
     "20260925220000_budget_balance_payment_method" ||
@@ -184,7 +188,7 @@ if (
   priorHeadMigration !== "20260802151000_linein_party_size_ownership"
 ) {
   throw new Error(
-    "Upgrade gate requires prior head 16 through migrations 17 to 45.",
+    "Upgrade gate requires prior head 16 through migrations 17 to 52.",
   );
 }
 
@@ -521,6 +525,7 @@ function runFreshChain() {
     "src/test/postgres-wedding-cakes.integration.test.ts",
     "src/test/postgres-guest-check-ins.integration.test.ts",
     "src/test/postgres-wedding-games.integration.test.ts",
+    "src/test/postgres-wedding-speeches.integration.test.ts",
   ];
   for (const integrationFile of integrationFiles) {
     const testStatus = run(
@@ -1705,6 +1710,11 @@ async function runPriorHeadUpgrade() {
     if ((await upgradedClient.weddingGameParticipant.count()) !== 0) {
       throw new Error(
         "prior-head upgrade verification failed: game participants backfilled",
+      );
+    }
+    if ((await upgradedClient.weddingSpeech.count()) !== 0) {
+      throw new Error(
+        "prior-head upgrade verification failed: wedding speeches backfilled",
       );
     }
     // 廠商功能移除後，兩張表與 enum 都不該殘留；guard 只在表為空時才允許 drop。

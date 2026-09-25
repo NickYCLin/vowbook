@@ -204,7 +204,16 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 51");
+    expect(runner).toContain("migrationEntries.length !== 52");
+    expect(runner).toContain(
+      'speechMigration !== "20260926010000_wedding_speeches"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: wedding speeches backfilled",
+    );
+    expect(runner).toContain(
+      "src/test/postgres-wedding-speeches.integration.test.ts",
+    );
     expect(runner).toContain(
       'gameParticipantMigration !== "20260925233000_wedding_game_participants"',
     );

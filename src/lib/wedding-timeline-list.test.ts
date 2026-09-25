@@ -7,6 +7,7 @@ const {
   timelineFindMany,
   staffFindMany,
   gameFindMany,
+  speechFindMany,
   transaction,
 } = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
@@ -14,6 +15,7 @@ const {
   timelineFindMany: vi.fn(),
   staffFindMany: vi.fn(),
   gameFindMany: vi.fn(),
+  speechFindMany: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -37,6 +39,7 @@ describe("getWeddingTimelinePageData", () => {
     timelineFindMany.mockResolvedValue([]);
     staffFindMany.mockResolvedValue([]);
     gameFindMany.mockResolvedValue([]);
+    speechFindMany.mockResolvedValue([]);
     transaction.mockImplementation(
       async (callback: (client: unknown) => Promise<unknown>) =>
         callback({
@@ -44,6 +47,7 @@ describe("getWeddingTimelinePageData", () => {
           weddingTimelineItem: { findMany: timelineFindMany },
           weddingStaffAssignment: { findMany: staffFindMany },
           weddingGameParticipant: { findMany: gameFindMany },
+          weddingSpeech: { findMany: speechFindMany },
         }),
     );
   });
@@ -57,6 +61,7 @@ describe("getWeddingTimelinePageData", () => {
       items: [],
       staff: [],
       games: { BOUQUET: [], BROCCOLI: [] },
+      speeches: { GROOM_PARENTS: null, BRIDE_PARENTS: null },
     });
     expect(requireWorkspaceAccess).toHaveBeenCalledWith(
       "workspace_1",
@@ -109,6 +114,20 @@ describe("getWeddingTimelinePageData", () => {
       BROCCOLI: [{ id: "p1", name: "阿華", note: null, version: 0 }],
     });
     expect(gameFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { workspaceId: "workspace_1" } }),
+    );
+  });
+
+  it("returns each speech by kind and leaves missing ones empty", async () => {
+    speechFindMany.mockResolvedValue([
+      { kind: "BRIDE_PARENTS", content: "爸、媽", version: 3 },
+    ]);
+    const data = await getWeddingTimelinePageData("workspace_1");
+    expect(data.speeches).toEqual({
+      GROOM_PARENTS: null,
+      BRIDE_PARENTS: { content: "爸、媽", version: 3 },
+    });
+    expect(speechFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { workspaceId: "workspace_1" } }),
     );
   });

@@ -192,6 +192,7 @@ model UserAvatar {
 model WeddingWorkspace {
   cakeHouseholds WeddingCakeHousehold[]
   gameParticipants WeddingGameParticipant[]
+  speeches WeddingSpeech[]
   coordinatorHandoffs CoordinatorHandoff[]
   id                              String                             @id @default(cuid())
   name                            String
@@ -711,3 +712,26 @@ model WeddingGameParticipant {
   @@index([workspaceId, game, sortOrder])
   @@map("wedding_game_participants")
 }
+
+// 證婚時新人對雙方父母說的謝親恩。
+enum WeddingSpeechKind {
+  GROOM_PARENTS
+  BRIDE_PARENTS
+}
+
+// 每場婚宴每種致詞只有一份稿，清空內容就刪掉整列。
+model WeddingSpeech {
+  id          String            @id @default(cuid())
+  workspaceId String            @map("workspace_id")
+  kind        WeddingSpeechKind
+  content     String            @db.VarChar(3000)
+  version     Int               @default(0)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, kind])
+  @@unique([id, workspaceId])
+  @@map("wedding_speeches")
+}
+

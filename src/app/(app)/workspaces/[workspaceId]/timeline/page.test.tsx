@@ -20,6 +20,10 @@ vi.mock("@/components/timeline/game-participants", () => ({
   ),
 }));
 
+vi.mock("@/components/timeline/wedding-speeches", () => ({
+  WeddingSpeechCards: () => <div>謝親恩區</div>,
+}));
+
 import TimelinePage from "./page";
 
 describe("TimelinePage", () => {
@@ -30,6 +34,7 @@ describe("TimelinePage", () => {
       items: [],
       staff: [],
       games: { BOUQUET: [{ id: "p1" }, { id: "p2" }], BROCCOLI: [] },
+      speeches: { GROOM_PARENTS: null, BRIDE_PARENTS: null },
     });
     render(
       await TimelinePage({
@@ -45,5 +50,14 @@ describe("TimelinePage", () => {
     const jump = screen.getByRole("link", { name: /遊戲名單/ });
     expect(jump).toHaveAttribute("href", "#wedding-games");
     expect(jump).toHaveTextContent("捧花 2・花椰菜 0");
+    expect(screen.getByText("謝親恩區")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /謝親恩/ })).toHaveAttribute(
+      "href",
+      "#wedding-speeches",
+    );
+    expect(screen.getByRole("link", { name: "主持人流程" })).toHaveAttribute(
+      "href",
+      "/workspaces/workspace_1/timeline/print",
+    );
   });
 });

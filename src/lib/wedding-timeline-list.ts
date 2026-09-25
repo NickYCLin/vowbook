@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import type { WeddingGameKey } from "@/domain/wedding-game";
+import type { WeddingSpeechKey } from "@/domain/wedding-speech";
 import {
   formatWeddingTimelineMinute,
 } from "@/domain/wedding-timeline";
@@ -39,6 +40,10 @@ export type WeddingGameParticipantItem = {
 
 export type WeddingGameLists = Record<WeddingGameKey, WeddingGameParticipantItem[]>;
 
+export type WeddingSpeechItem = { content: string; version: number };
+
+export type WeddingSpeeches = Record<WeddingSpeechKey, WeddingSpeechItem | null>;
+
 type GameParticipantRecord = WeddingGameParticipantItem & { game: WeddingGameKey };
 
 type TimelineRecord = {
@@ -72,6 +77,11 @@ type TimelineTransaction = {
   };
   weddingGameParticipant: {
     findMany(args: unknown): Promise<GameParticipantRecord[]>;
+  };
+  weddingSpeech: {
+    findMany(
+      args: unknown,
+    ): Promise<Array<WeddingSpeechItem & { kind: WeddingSpeechKey }>>;
   };
 };
 
@@ -156,7 +166,7 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
         >(workspaceId, currentUser.id, "read", transaction);
-        const [items, staff, participants] = await Promise.all([
+        const [items, staff, participants, speechRows] = await Promise.all([
           transaction.weddingTimelineItem.findMany({
             where: { workspaceId },
             orderBy: [
@@ -182,7 +192,15 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
             select: { id: true, game: true, name: true, note: true, version: true },
           }),
+          transaction.weddingSpeech.findMany({
+            where: { workspaceId },
+            select: { kind: true, content: true, version: true },
+          }),
         ]);
+        const speeches: WeddingSpeeches = { GROOM_PARENTS: null, BRIDE_PARENTS: null };
+        for (const { kind, ...speech } of speechRows) {
+          if (kind in speeches) speeches[kind] = speech;
+        }
         const games: WeddingGameLists = { BOUQUET: [], BROCCOLI: [] };
         for (const { game, ...participant } of participants) {
           games[game]?.push(participant);
@@ -193,6 +211,7 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
           items: items.map(itemViewModel),
           staff,
           games,
+          speeches,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
