@@ -32,7 +32,7 @@ export default function GuestRouteError({ reset }: GuestRouteErrorProps) {
             href="/dashboard"
             className="inline-flex min-h-11 items-center text-ink-soft underline decoration-line-strong underline-offset-4"
           >
-            回到我的婚宴
+            回到所有婚宴
           </Link>
         </div>
       </section>

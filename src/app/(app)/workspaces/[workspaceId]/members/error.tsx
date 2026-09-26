@@ -23,7 +23,7 @@ export default function MembersError({ reset }: { reset: () => void }) {
           href="/dashboard"
           className="inline-flex min-h-11 items-center font-semibold text-clay-strong underline decoration-line-strong underline-offset-4"
         >
-          返回我的婚宴
+          返回所有婚宴
         </Link>
       </div>
     </main>

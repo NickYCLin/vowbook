@@ -43,7 +43,7 @@ export type WorkspaceSectionDefinition = {
 };
 
 /**
- * 工作區的十一個功能頁，桌機頁籤、手機底部功能列與「我的婚宴」卡片的
+ * 工作區的十一個功能頁，桌機頁籤、手機底部功能列與「所有婚宴」卡片的
  * 快速入口都從這一份定義讀，避免三處各自維護順序與圖示。
  */
 export const workspaceSections: readonly WorkspaceSectionDefinition[] = [

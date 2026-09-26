@@ -64,7 +64,7 @@ describe("BudgetPage", () => {
       screen.getByRole("heading", { level: 1, name: "婚禮花費" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯花費")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "返回我的婚宴" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "返回所有婚宴" })).toHaveAttribute(
       "href",
       "/dashboard",
     );

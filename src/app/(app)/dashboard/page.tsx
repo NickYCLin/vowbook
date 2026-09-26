@@ -9,7 +9,7 @@ import { requireCurrentUserContext } from "@/lib/current-user";
 import { listWorkspaceOverviewsForUser } from "@/lib/workspace-overview";
 
 export const metadata: Metadata = {
-  title: "我的婚宴",
+  title: "所有婚宴",
 };
 
 type DashboardPageProps = {
@@ -41,10 +41,10 @@ export default async function DashboardPage({
             共同籌備空間
           </p>
           <h1 className="mt-2 font-serif text-display font-semibold text-ink">
-            我的婚宴
+            所有婚宴
           </h1>
           <p className="mt-3 text-caption leading-7 text-ink-soft sm:text-base">
-            這裡只會列出你已加入的婚宴工作區。每個工作區的資料與成員權限彼此獨立。
+            這裡放著你參與的每一場，自己辦的和幫別人籌備的都在一起。每個工作區的資料與成員權限彼此獨立。
           </p>
         </div>
         <div className="shrink-0">

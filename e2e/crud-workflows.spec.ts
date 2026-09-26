@@ -226,7 +226,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
 
   await test.step("建立、修改並永久刪除第二個工作區", async () => {
     await page.goto("./dashboard");
-    await expect(page.getByRole("heading", { name: "我的婚宴" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "所有婚宴" })).toBeVisible();
     await page.getByRole("button", { name: "新增婚宴" }).click();
     const createWorkspaceDialog = page.getByRole("dialog", {
       name: "建立另一個婚宴工作區",

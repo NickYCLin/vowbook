@@ -36,7 +36,7 @@ describe("WorkspacePageHeader", () => {
     expect(screen.getByText("合成婚宴")).toHaveClass("truncate");
     expect(screen.getByText("合成頁面說明")).toHaveClass("text-ink-soft");
     expect(screen.getByText("這是合成唯讀提示。")).toHaveClass("text-ink-soft");
-    expect(screen.getByRole("link", { name: "返回我的婚宴" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "返回所有婚宴" })).toHaveAttribute(
       "href",
       "/dashboard",
     );

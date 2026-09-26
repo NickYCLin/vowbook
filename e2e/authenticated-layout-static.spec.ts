@@ -86,7 +86,7 @@ async function loadAuthenticatedLayoutFixture(page: Page) {
           </div>
         </header>
         <main data-content-frame class="mx-auto w-full max-w-6xl min-w-0 px-5 py-6 sm:px-8 sm:py-12">
-          <p data-route-title class="font-serif text-3xl">我的婚宴</p>
+          <p data-route-title class="font-serif text-3xl">所有婚宴</p>
           <nav data-workspace-nav aria-label="工作區功能" class="mt-3 min-w-0 overflow-x-auto border-y border-stone-300 [scrollbar-width:thin]">
             <div class="flex w-max min-w-full flex-nowrap gap-x-1">
               ${[

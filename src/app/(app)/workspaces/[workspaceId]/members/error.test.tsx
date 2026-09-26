@@ -12,7 +12,7 @@ describe("MembersError", () => {
     fireEvent.click(retry);
     expect(reset).toHaveBeenCalledOnce();
     expect(
-      screen.getByRole("link", { name: "返回我的婚宴" }),
+      screen.getByRole("link", { name: "返回所有婚宴" }),
     ).toHaveAttribute("href", "/dashboard");
   });
 });

@@ -22,7 +22,7 @@ describe("GuestRouteError", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "再試一次" }));
     expect(reset).toHaveBeenCalledOnce();
-    expect(screen.getByRole("link", { name: "回到我的婚宴" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "回到所有婚宴" })).toHaveAttribute(
       "href",
       "/dashboard",
     );

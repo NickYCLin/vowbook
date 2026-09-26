@@ -7,10 +7,10 @@ describe("Wordmark", () => {
     render(<Wordmark href="/dashboard" />);
 
     expect(
-      screen.getByRole("link", { name: "誓約簿 VowBook 我的婚宴" }),
+      screen.getByRole("link", { name: "誓約簿 VowBook 所有婚宴" }),
     ).toHaveClass("min-h-11");
     expect(
-      screen.getByRole("link", { name: "誓約簿 VowBook 我的婚宴" }),
+      screen.getByRole("link", { name: "誓約簿 VowBook 所有婚宴" }),
     ).toHaveAttribute("href", "/dashboard");
   });
 

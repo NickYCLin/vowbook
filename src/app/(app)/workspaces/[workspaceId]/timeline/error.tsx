@@ -10,7 +10,7 @@ export default function TimelineRouteError({ reset }: { reset: () => void }) {
         <p className="mt-4 text-ink-soft">請稍後再試；若問題持續發生，可以先回到婚宴首頁。</p>
         <div className="mt-7 flex gap-4">
           <button type="button" onClick={reset} className="min-h-11 rounded-full border border-clay px-5 font-semibold text-clay-strong">再試一次</button>
-          <Link href="/dashboard" className="inline-flex min-h-11 items-center font-semibold text-ink-soft underline">回到我的婚宴</Link>
+          <Link href="/dashboard" className="inline-flex min-h-11 items-center font-semibold text-ink-soft underline">回到所有婚宴</Link>
         </div>
       </section>
     </main>

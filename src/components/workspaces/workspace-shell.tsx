@@ -291,7 +291,7 @@ export function WorkspacePageHeader({
         className="-ml-1.5 inline-flex min-h-11 items-center gap-1 rounded-control px-1.5 text-caption font-semibold text-ink-soft transition hover:text-clay-strong"
       >
         <CaretLeft aria-hidden="true" weight="bold" className="size-3.5" />
-        返回我的婚宴
+        返回所有婚宴
       </Link>
 
       <WorkspaceNavigation

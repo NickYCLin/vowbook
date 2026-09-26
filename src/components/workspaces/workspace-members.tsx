@@ -112,7 +112,7 @@ function PendingInvitationsPanel({
         等待接受的邀請
       </h2>
       <p className="mt-2 text-sm leading-6 text-ink-soft">
-        邀請在七天內有效；接受後，婚宴會出現在對方的「我的婚宴」。等待期間不能直接修改角色。
+        邀請在七天內有效；接受後，婚宴會出現在對方的「所有婚宴」。等待期間不能直接修改角色。
       </p>
       <div className="mt-4 min-w-0">
         <Feedback state={state} />

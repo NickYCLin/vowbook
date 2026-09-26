@@ -4,7 +4,7 @@ import { withBasePath } from "@/lib/base-path";
 
 /**
  * Web App Manifest：讓 iPhone「加入主畫面」與未來的 App 外殼拿到名稱、
- * 圖示與起始頁。start_url 直接進「我的婚宴」，未登入會被導向登入頁。
+ * 圖示與起始頁。start_url 直接進「所有婚宴」，未登入會被導向登入頁。
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

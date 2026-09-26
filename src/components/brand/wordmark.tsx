@@ -7,7 +7,7 @@ type WordmarkProps = {
 
 export function Wordmark({ compact = false, href = "/" }: WordmarkProps) {
   const ariaLabel =
-    href === "/dashboard" ? "誓約簿 VowBook 我的婚宴" : "誓約簿 VowBook 首頁";
+    href === "/dashboard" ? "誓約簿 VowBook 所有婚宴" : "誓約簿 VowBook 首頁";
 
   return (
     <Link

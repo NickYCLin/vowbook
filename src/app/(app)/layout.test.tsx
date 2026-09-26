@@ -60,7 +60,7 @@ describe("AppLayout", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "誓約簿 VowBook 我的婚宴" }),
+      screen.getByRole("link", { name: "誓約簿 VowBook 所有婚宴" }),
     ).toHaveAttribute("href", "/dashboard");
     expect(container.querySelector("header > div")).toHaveClass(
       "max-w-6xl",
