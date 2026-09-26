@@ -594,7 +594,7 @@ export function GuestCheckInBoard({
 
       <Card>
         <div className="px-5 py-5 sm:px-6">
-          <StatRow className="sm:grid-cols-4">
+          <StatRow className="md:grid-cols-4">
             <Stat
               label="實到人數"
               value={summary.arrivedHeadcount}

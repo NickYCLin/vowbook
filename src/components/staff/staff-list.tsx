@@ -195,7 +195,7 @@ export function WeddingStaffList({
         <>
           <Card>
             <div className="px-5 py-5 sm:px-6">
-              <StatRow className="sm:grid-cols-3">
+              <StatRow className="md:grid-cols-3">
                 <Stat label="工作人員" value={staff.length} unit="位" />
                 <Stat label="職務分組" value={groups.length} unit="組" />
                 <Stat
@@ -212,7 +212,7 @@ export function WeddingStaffList({
                   hint="素食份數含在便當份數內"
                 />
               </StatRow>
-              <StatRow className="mt-5 sm:grid-cols-3">
+              <StatRow className="mt-5 md:grid-cols-3">
                 <Stat
                   label="紅包總額"
                   value={formatTwd(redEnvelopeSummary.plannedAmount)}

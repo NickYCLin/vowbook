@@ -37,8 +37,9 @@ export function Stat({
           tones[tone],
         )}
       >
-        {/* 金額寧可換行也不截斷：「NT$ 6,44…」在手機兩欄裡會讓人看錯數字。 */}
-        <span className="min-w-0 break-words [overflow-wrap:anywhere]">{value}</span>
+        {/* 金額不截斷，也不逐字拆行：六位數以上被拆成兩段會讓人看錯數字，
+            真的塞不下時才由 break-words 換行。 */}
+        <span className="min-w-0 break-words">{value}</span>
         {unit && (
           <span className="text-caption font-sans font-medium text-ink-faint">
             {unit}
@@ -50,7 +51,7 @@ export function Stat({
   );
 }
 
-/** 統計磚的排列容器：手機兩欄、桌機平均分配。 */
+/** 統計磚的排列容器：手機與平板直向兩欄，桌機才攤成四欄。 */
 export function StatRow({
   className,
   children,
@@ -61,7 +62,7 @@ export function StatRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4",
+        "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4",
         className,
       )}
     >
