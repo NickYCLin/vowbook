@@ -14,6 +14,7 @@ export function LinkifiedText({ text }: { text: string }) {
             href={part}
             target="_blank"
             rel="noopener noreferrer"
+            data-inline-link="true"
             className="font-semibold text-clay-strong underline underline-offset-2 [overflow-wrap:anywhere]"
           >
             {part}

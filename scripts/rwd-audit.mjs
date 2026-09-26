@@ -239,7 +239,7 @@ async function main() {
       await page.goto(fileUrl, { waitUntil: "load" });
       if (mode.css) await page.addStyleTag({ content: mode.css });
       if (mode.mobileOnly) {
-        // 桌機沒有「更多」面板；沒有工作區導覽的頁面（首頁、登入、我的婚宴）也沒有。
+        // 桌機沒有「更多」面板；沒有工作區導覽的頁面（首頁、登入、所有婚宴）也沒有。
         const hasPanel =
           (await page.locator("[data-workspace-more-panel]").count()) > 0;
         if (width >= 768 || !hasPanel) {
@@ -330,6 +330,9 @@ async function main() {
           ) {
             continue;
           }
+          // 內文裡的網址是整段文字的一部分，會隨字級換行，
+          // 不能為了湊觸控高度而把它撐成獨立按鈕。
+          if (element.hasAttribute("data-inline-link")) continue;
           const rect = element.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) continue;
           if (rect.height >= 43.5) continue;
