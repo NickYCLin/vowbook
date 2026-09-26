@@ -1,6 +1,7 @@
 "use server";
 
 import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
+import { MAX_GUEST_CHECK_IN_HEADCOUNT } from "@/domain/guest-check-in";
 import type { Prisma } from "@prisma/client";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { revalidatePath } from "next/cache";
@@ -58,6 +59,9 @@ const giftPolicyGuestSelect = {
   id: true,
   giftExemptWithCake: true,
   category: true,
+  attendanceStatus: true,
+  partySize: true,
+  checkIn: { select: { id: true } },
   importRecords: {
     orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
     select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
@@ -68,6 +72,9 @@ type WeddingGiftMutationClient = {
   guest: {
     findFirst(args: unknown): Promise<Prisma.GuestGetPayload<{ select: typeof giftPolicyGuestSelect }> | null>;
     updateMany(args: unknown): Promise<CountResult>;
+  };
+  guestCheckIn: {
+    create(args: unknown): Promise<{ id: string }>;
   };
   weddingGift: {
     create(args: unknown): Promise<WeddingGiftMutationSnapshot>;
@@ -251,9 +258,9 @@ export async function createWeddingGiftAction(
     return validationState(error);
   }
 
-  let gift: WeddingGiftMutationSnapshot;
+  let result: { gift: WeddingGiftMutationSnapshot; checkedInNow: boolean };
   try {
-    gift = await runSerializableTransaction(async (transaction) => {
+    result = await runSerializableTransaction(async (transaction) => {
       await requireLockedWorkspaceAccess(
         workspaceId,
         authorization,
@@ -269,10 +276,27 @@ export async function createWeddingGiftAction(
       const relationshipLabel = effectiveGuestDetailValue(guest.importRecords, record => record.relationshipLabel);
       if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。");
 
-      return client.weddingGift.create({
+      const created = await client.weddingGift.create({
         data: { workspaceId, guestId, ...details },
         select: giftSnapshotSelect,
       });
+
+      // 收到禮金等於人已經到了。只補還沒報到、而且確認出席的人；
+      // 回覆不出席的仍然維持「禮到人不到」。
+      const checkedInNow =
+        guest.checkIn === null && guest.attendanceStatus === "ATTENDING";
+      if (checkedInNow) {
+        await client.guestCheckIn.create({
+          data: {
+            workspaceId,
+            guestId,
+            headcount: Math.min(guest.partySize, MAX_GUEST_CHECK_IN_HEADCOUNT),
+          },
+          select: { id: true },
+        });
+      }
+
+      return { gift: created, checkedInNow };
     });
   } catch (error) {
     return failureAfterPossibleRevalidation(
@@ -283,9 +307,9 @@ export async function createWeddingGiftAction(
   }
 
   return successAfterRevalidation(
-    "已登記禮金。",
+    result.checkedInNow ? "已登記禮金，並一併完成報到。" : "已登記禮金。",
     await revalidateViews(workspaceId),
-    gift,
+    result.gift,
   );
 }
 

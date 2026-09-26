@@ -79,8 +79,16 @@ const guests = [
   },
 ];
 
+/** 禮金簿預設只列尚未登記的人；多數案例要看整份名單，所以順手切成全部。 */
 function expandBook() {
   fireEvent.click(screen.getByRole("button", { name: "展開禮金簿" }));
+  showAllGroups();
+}
+
+function showAllGroups() {
+  fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), {
+    target: { value: "ALL" },
+  });
 }
 
 describe("WeddingGiftBook", () => {
@@ -122,7 +130,7 @@ describe("WeddingGiftBook", () => {
     ]} />);
     expect(screen.getByText("一般賓客未有紀錄").nextSibling).toHaveTextContent("1");
     expandBook();
-    fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "UNRECORDED_GENERAL" } });
+    fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "UNRECORDED" } });
     expect(screen.queryByRole("heading", { name: "父親" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "免禮友人" })).toBeNull();
     expect(screen.getByRole("button", { name: "登記 林小美 的禮金" })).toBeVisible();
@@ -206,6 +214,7 @@ describe("WeddingGiftBook", () => {
         collapsible={false}
       />,
     );
+    showAllGroups();
 
     expect(ledgerNames()).toEqual(["王小明", "林小美", "陳大同", "張三"]);
 
@@ -248,6 +257,7 @@ describe("WeddingGiftBook", () => {
         collapsible={false}
       />,
     );
+    showAllGroups();
 
     // 陳大同 已回禮，所以待回禮只剩 林小美。
     expect(screen.getByText("待回禮").nextSibling).toHaveTextContent("1");
@@ -285,6 +295,7 @@ describe("WeddingGiftBook", () => {
         collapsible={false}
       />,
     );
+    showAllGroups();
 
     fireEvent.submit(
       screen.getByRole("form", { name: "標記 林小美 已回禮表單" }),
@@ -327,6 +338,7 @@ describe("WeddingGiftBook", () => {
         collapsible={false}
       />,
     );
+    showAllGroups();
 
     fireEvent.submit(
       screen.getByRole("form", { name: "改回 陳大同 尚未回禮表單" }),
@@ -353,6 +365,7 @@ describe("WeddingGiftBook", () => {
         collapsible={false}
       />,
     );
+    showAllGroups();
 
     expect(screen.queryByRole("button", { name: "標記已回禮" })).toBeNull();
     expect(screen.queryByRole("button", { name: "改回未回禮" })).toBeNull();
@@ -415,7 +428,7 @@ describe("WeddingGiftBook", () => {
     const missing = screen.getByText("一般賓客未有紀錄").closest("div");
     expect(missing).not.toBeNull();
     expect(within(missing as HTMLElement).getByText("1")).toBeInTheDocument();
-    expect(screen.getByText(/新人與家人不列入「一般賓客未有紀錄」統計/u))
+    expect(screen.getByText(/標記不收禮金的親友不會出現在名單上/u))
       .toBeInTheDocument();
     expect(screen.getByText("僅表示目前沒有紀錄，不代表應送禮。"))
       .toBeInTheDocument();
@@ -432,7 +445,8 @@ describe("WeddingGiftBook", () => {
     );
     expandBook();
 
-    expect(screen.getByText("顯示 4 / 4 組")).toBeInTheDocument();
+    // 陳新郎是新人，不收禮金也沒有紀錄，全部名單同樣不列他。
+    expect(screen.getByText("符合 3 / 4 組")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), {
       target: { value: "RECORDED" },
     });
@@ -444,7 +458,7 @@ describe("WeddingGiftBook", () => {
       .not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), {
-      target: { value: "UNRECORDED_GENERAL" },
+      target: { value: "UNRECORDED" },
     });
     expect(screen.getByRole("heading", { name: "林小美" }))
       .toBeInTheDocument();
@@ -456,7 +470,7 @@ describe("WeddingGiftBook", () => {
     });
     expect(screen.getByText("找不到符合條件的邀請群組。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "清除禮金簿篩選" }));
-    expect(screen.getByText("顯示 4 / 4 組")).toBeInTheDocument();
+    expect(screen.getByText("顯示 1 / 4 組")).toBeInTheDocument();
   });
 
   it("allows a declined general guest to receive a gift entry", () => {
@@ -1137,18 +1151,32 @@ describe("WeddingGiftBook", () => {
   });
 });
 
-it("shows exempt guests without a gift and excludes them from missing gifts", () => {
+it("keeps exempt guests out of the ledger and reachable from the exemption filter", () => {
   render(<WeddingGiftBook workspaceId="workspace_1" canEdit={false} defaultExpanded guests={[{
     id: "exempt", name: "長輩朋友", category: "GUEST", side: "PARTNER_A",
     attendanceStatus: "ATTENDING", weddingGift: null, giftExemptWithCake: true,
   }]} />);
+  expect(screen.getByText("沒有等著登記的親友。")).toBeInTheDocument();
+  expect(screen.queryByText("不收禮金・會送餅")).not.toBeInTheDocument();
+  showAllGroups();
+  expect(screen.queryByText("不收禮金・會送餅")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "EXEMPT_WITH_CAKE" } });
+  expect(screen.getByText("長輩朋友")).toBeInTheDocument();
   expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
   expect(screen.queryByText("未有禮金紀錄")).not.toBeInTheDocument();
   expect(screen.queryByText("禮到人不到・待回禮回喜餅")).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "UNRECORDED_GENERAL" } });
-  expect(screen.getByText("找不到符合條件的邀請群組。")).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "EXEMPT_WITH_CAKE" } });
-  expect(screen.getByText("長輩朋友")).toBeInTheDocument();
+});
+
+it("keeps a recorded gift visible even after the guest is marked as exempt", () => {
+  render(<WeddingGiftBook workspaceId="workspace_1" canEdit={false} defaultExpanded guests={[{
+    id: "exempt_recorded", name: "舊識", category: "GUEST" as const, side: "PARTNER_A" as const,
+    attendanceStatus: "ATTENDING" as const, giftExemptWithCake: true,
+    weddingGift: { id: "gift_exempt", amount: 3_600, notes: null, createdAt: new Date("2026-08-30T02:00:00.000Z"), returnGiftSentAt: null, returnGiftNote: null, version: 1 },
+  }]} />);
+  showAllGroups();
+  const row = screen.getByRole("heading", { name: "舊識" }).closest("article");
+  expect(row).not.toBeNull();
+  expect(within(row as HTMLElement).getByText(/3,600/u)).toBeInTheDocument();
 });
 
 it("saves and cancels the exemption and adopts newer server versions", async () => {
@@ -1164,14 +1192,17 @@ it("saves and cancels the exemption and adopts newer server versions", async () 
     weddingGift: null, version: 0, giftExemptWithCake: false };
   const { rerender } = render(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={[guest]} />);
   fireEvent.click(screen.getByRole("button", { name: "標記 長輩朋友 不收禮金、會送餅" }));
-  await waitFor(() => expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument());
+  // 標記完就離開待登記名單，改到「不收禮金、會送餅」那個篩選才找得到。
+  await waitFor(() => expect(screen.getByText("沒有等著登記的親友。")).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "EXEMPT_WITH_CAKE" } });
+  expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "登記 長輩朋友 的禮金" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "取消 長輩朋友 的不收禮金、會送餅標記" }));
   await waitFor(() => expect(screen.queryByText("不收禮金・會送餅")).not.toBeInTheDocument());
+  showAllGroups();
   expect(screen.getByRole("button", { name: "登記 長輩朋友 的禮金" })).toBeInTheDocument();
   expect(setGuestGiftExemptionAction.mock.calls.at(-1)?.[3].get("expectedVersion")).toBe("1");
   rerender(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={[{ ...guest, version: 3, giftExemptWithCake: true }]} />);
-  expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "登記 長輩朋友 的禮金" })).not.toBeInTheDocument();
 });
 

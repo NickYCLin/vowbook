@@ -11,12 +11,14 @@ const mocks = vi.hoisted(() => ({
   giftFindFirst: vi.fn(),
   giftUpdateMany: vi.fn(),
   giftDeleteMany: vi.fn(),
+  checkInCreate: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 const transactionClient = {
   guest: { findFirst: mocks.guestFindFirst, updateMany: mocks.guestUpdateMany },
+  guestCheckIn: { create: mocks.checkInCreate },
   weddingGift: {
     create: mocks.giftCreate,
     findFirst: mocks.giftFindFirst,
@@ -241,6 +243,53 @@ describe("wedding gift actions", () => {
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
+  it("checks the guest in when a gift is registered for someone who has not arrived yet", async () => {
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [],
+      attendanceStatus: "ATTENDING", partySize: 4, checkIn: null,
+    });
+    mocks.checkInCreate.mockResolvedValue({ id: "check_in_1" });
+
+    await expect(
+      createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()),
+    ).resolves.toMatchObject({ status: "success", message: "已登記禮金，並一併完成報到。" });
+    expect(mocks.checkInCreate).toHaveBeenCalledWith({
+      data: { workspaceId: "workspace_1", guestId: "guest_1", headcount: 4 },
+      select: { id: true },
+    });
+  });
+
+  it("caps the derived check-in headcount at the board limit", async () => {
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [],
+      attendanceStatus: "ATTENDING", partySize: 40, checkIn: null,
+    });
+    mocks.checkInCreate.mockResolvedValue({ id: "check_in_1" });
+
+    await createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm());
+    expect(mocks.checkInCreate.mock.calls[0]?.[0].data.headcount).toBe(20);
+  });
+
+  it("leaves an existing check-in and a declined guest alone", async () => {
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [],
+      attendanceStatus: "ATTENDING", partySize: 2, checkIn: { id: "check_in_1" },
+    });
+    await expect(
+      createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()),
+    ).resolves.toMatchObject({ status: "success", message: "已登記禮金。" });
+
+    // 不出席者仍然是「禮到人不到」，不能因為收到禮金就變成報到。
+    mocks.guestFindFirst.mockResolvedValue({
+      id: "guest_1", category: "GUEST", giftExemptWithCake: false, importRecords: [],
+      attendanceStatus: "DECLINED", partySize: 2, checkIn: null,
+    });
+    await expect(
+      createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()),
+    ).resolves.toMatchObject({ status: "success", message: "已登記禮金。" });
+    expect(mocks.checkInCreate).not.toHaveBeenCalled();
+  });
+
   it("rejects registration for a currently exempt guest even from a stale client", async () => {
     mocks.guestFindFirst.mockResolvedValue({id:"guest_1",giftExemptWithCake:true,importRecords:[]});
     await expect(createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).resolves.toMatchObject({status:"error",code:"VALIDATION",message:"此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。"});
@@ -345,10 +394,14 @@ describe("wedding gift actions", () => {
 
     expect(mocks.guestFindFirst).toHaveBeenCalledWith({
       where: { id: "guest_1", workspaceId: "workspace_1" },
-      select: { id: true, giftExemptWithCake: true, category: true, importRecords: {
-        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-        select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
-      } },
+      select: {
+        id: true, giftExemptWithCake: true, category: true,
+        attendanceStatus: true, partySize: true, checkIn: { select: { id: true } },
+        importRecords: {
+          orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+          select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
+        },
+      },
     });
     expect(mocks.giftCreate).toHaveBeenCalledWith({
       data: {

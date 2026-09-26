@@ -79,8 +79,11 @@ type GiftFilter =
   | "EXEMPT_WITH_CAKE"
   | "ALL"
   | "RECORDED"
-  | "UNRECORDED_GENERAL"
+  | "UNRECORDED"
   | "WITHOUT_ATTENDANCE";
+
+/** 開頁先看還沒登記的一般賓客，當天最常做的就是補登記。 */
+const DEFAULT_GIFT_FILTER: GiftFilter = "UNRECORDED";
 
 type PendingGiftMutation =
   | { kind: "CREATE" | "UPDATE"; gift: WeddingGiftMutationSnapshot }
@@ -746,7 +749,7 @@ export function WeddingGiftBook({
   const contentId = useId();
   const [expanded, setExpanded] = useState(defaultExpanded || !collapsible);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<GiftFilter>("ALL");
+  const [filter, setFilter] = useState<GiftFilter>(DEFAULT_GIFT_FILTER);
   const [sort, setSort] = useState<WeddingGiftSort>("ROSTER");
   const [feedback, setFeedback] = useState<GiftFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
@@ -900,8 +903,11 @@ export function WeddingGiftBook({
         normalizedSearch.length === 0 ||
         guest.name.toLocaleLowerCase("zh-TW").includes(normalizedSearch);
       if (!matchesSearch) return false;
-      if (filter === "ALL") return true;
       if (filter === "EXEMPT_WITH_CAKE") return !!guest.giftExemptWithCake;
+      // 不收禮金的人不該佔著禮金簿；但已經登記過的紀錄仍要看得到，
+      // 想改回收禮金就切到「不收禮金、會送餅」那個篩選。
+      if (isGiftCollectionExcluded(guest) && guest.weddingGift === null) return false;
+      if (filter === "ALL") return true;
       if (filter === "RECORDED") return guest.weddingGift !== null;
       if (filter === "WITHOUT_ATTENDANCE") {
         return isWeddingGiftWithoutAttendance({
@@ -910,12 +916,15 @@ export function WeddingGiftBook({
           checkIn: guest.checkIn ?? null,
         });
       }
-      return guest.category === "GUEST" && !isGiftCollectionExcluded(guest) && guest.weddingGift === null;
+      // 走到這裡已經濾掉不收禮金的人，剩下就是還能登記卻還沒登記的。
+      return guest.weddingGift === null;
     });
     return sortWeddingGiftEntries(matched, sort);
   }, [filter, ledgerGuests, search, sort]);
   const hasActiveFilter =
-    search.trim().length > 0 || filter !== "ALL" || sort !== "ROSTER";
+    search.trim().length > 0 ||
+    filter !== DEFAULT_GIFT_FILTER ||
+    sort !== "ROSTER";
   const resultLabel = hasActiveFilter
     ? `符合 ${filteredGuests.length} / ${ledgerGuests.length} 組`
     : `顯示 ${filteredGuests.length} / ${ledgerGuests.length} 組`;
@@ -928,9 +937,14 @@ export function WeddingGiftBook({
     deleteSelection !== null &&
     !guests.some((guest) => guest.id === deleteSelection.guestId);
 
-  function clearFilters() {
+  function showAllGroups() {
     setSearch("");
     setFilter("ALL");
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setFilter(DEFAULT_GIFT_FILTER);
     setSort("ROSTER");
   }
 
@@ -1001,11 +1015,11 @@ export function WeddingGiftBook({
                 禮金簿
               </h2>
               <p className="mt-1 text-caption leading-6 text-ink-soft">
-                每個邀請群組最多一筆；禮金不屬於婚宴支出，也不受出席狀態影響。
+                預設只列出還沒登記的一般賓客。每個邀請群組最多一筆；禮金不屬於婚宴支出，也不受出席狀態影響。
                 爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。新人、雙方父母與親兄弟姊妹也不開放新增禮金登記。
               </p>
               <p className="mt-0.5 text-caption leading-6 text-ink-faint">
-                新人與家人不列入「一般賓客未有紀錄」統計，但既有紀錄仍會保留並顯示。
+                新人、雙方父母、親兄弟姊妹與標記不收禮金的親友不會出現在名單上，但既有紀錄仍會保留並顯示；要取消標記請切到「不收禮金、會送餅」。
               </p>
             </div>
             {collapsible ? (
@@ -1021,7 +1035,7 @@ export function WeddingGiftBook({
             ) : null}
           </div>
 
-          <StatRow className="mt-5 sm:grid-cols-4">
+          <StatRow className="mt-5 md:grid-cols-4">
             <Stat
               label="禮金總額"
               value={
@@ -1074,11 +1088,11 @@ export function WeddingGiftBook({
                 onChange={(event) => setFilter(event.target.value as GiftFilter)}
                 className="sm:w-auto"
               >
-                <option value="ALL">全部邀請群組</option>
-                <option value="EXEMPT_WITH_CAKE">不收禮金、會送餅</option>
+                <option value="UNRECORDED">尚未登記</option>
                 <option value="RECORDED">已登記</option>
-                <option value="UNRECORDED_GENERAL">未有紀錄的一般賓客</option>
                 <option value="WITHOUT_ATTENDANCE">禮到人不到</option>
+                <option value="EXEMPT_WITH_CAKE">不收禮金、會送餅</option>
+                <option value="ALL">全部（不含不收禮金）</option>
               </Select>
               <Select
                 aria-label="禮金簿排序"
@@ -1119,13 +1133,23 @@ export function WeddingGiftBook({
                 description="先新增名單後即可登記禮金。"
               />
             ) : filteredGuests.length === 0 ? (
-              <EmptyState
-                title="找不到符合條件的邀請群組。"
-                description="調整搜尋關鍵字、登記狀態或排序，就能找回其他名單。"
-                action={
-                  <Button onClick={clearFilters}>清除禮金簿篩選</Button>
-                }
-              />
+              hasActiveFilter ? (
+                <EmptyState
+                  title="找不到符合條件的邀請群組。"
+                  description="調整搜尋關鍵字、登記狀態或排序，就能找回其他名單。"
+                  action={
+                    <Button onClick={clearFilters}>清除禮金簿篩選</Button>
+                  }
+                />
+              ) : (
+                <EmptyState
+                  title="沒有等著登記的親友。"
+                  description="要查已登記的紀錄，切換上方的登記狀態即可。"
+                  action={
+                    <Button onClick={showAllGroups}>查看全部名單</Button>
+                  }
+                />
+              )
             ) : (
               <div className="overflow-hidden rounded-card border border-line">
                 <ul className="min-w-0 divide-y divide-line bg-surface">
