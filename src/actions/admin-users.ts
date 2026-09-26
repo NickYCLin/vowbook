@@ -4,9 +4,11 @@ import type { UserAccessStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { runSerializableTransaction } from "@/lib/serializable-transaction";
 import {
+  deleteSystemUser,
   requireSystemAdmin,
   SystemAdminAccessDeniedError,
   SystemAdminConfigurationError,
+  SystemAdminDeleteConfirmationError,
   SystemAdminProtectedUserError,
   SystemAdminStaleWriteError,
   updateSystemUserAccessStatus,
@@ -17,6 +19,7 @@ export type SystemUserMutationCode =
   | "FORBIDDEN"
   | "PROTECTED"
   | "STALE"
+  | "CONFIRMATION"
   | "UNAVAILABLE";
 
 export type SystemUserMutationState = {
@@ -137,4 +140,105 @@ export async function updateSystemUserAccessAction(
     console.error("系統使用者列表重新驗證失敗。");
   }
   return { status: "success", message: successMessage(mutation.accessStatus) };
+}
+
+function parseDeletion(formData: FormData): {
+  targetUserId: string;
+  expectedVersion: number;
+  confirmationEmail: string;
+} | null {
+  const targetUserId = formData.get("targetUserId");
+  const rawVersion = formData.get("expectedVersion");
+  const confirmationEmail = formData.get("confirmationEmail");
+  if (
+    typeof targetUserId !== "string" ||
+    !USER_ID_PATTERN.test(targetUserId) ||
+    typeof rawVersion !== "string" ||
+    !/^\d+$/u.test(rawVersion) ||
+    typeof confirmationEmail !== "string" ||
+    confirmationEmail.trim() === "" ||
+    confirmationEmail.length > 320
+  ) {
+    return null;
+  }
+
+  const expectedVersion = Number(rawVersion);
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0) return null;
+  return { targetUserId, expectedVersion, confirmationEmail };
+}
+
+export async function deleteSystemUserAction(
+  _previousState: SystemUserMutationState,
+  formData: FormData,
+): Promise<SystemUserMutationState> {
+  let admin;
+  try {
+    admin = await requireSystemAdmin();
+  } catch (error) {
+    if (error instanceof SystemAdminAccessDeniedError) {
+      return {
+        status: "error",
+        code: "FORBIDDEN",
+        message: "無法執行系統管理操作。",
+      };
+    }
+    return {
+      status: "error",
+      code: "UNAVAILABLE",
+      message: "目前無法確認系統管理權限，請稍後再試。",
+    };
+  }
+
+  const deletion = parseDeletion(formData);
+  if (!deletion) {
+    return {
+      status: "error",
+      code: "VALIDATION",
+      message: "操作資料無效，請重新整理後再試。",
+    };
+  }
+
+  try {
+    await runSerializableTransaction(async (transaction) => {
+      await deleteSystemUser(
+        admin,
+        deletion.targetUserId,
+        deletion.expectedVersion,
+        deletion.confirmationEmail,
+        transaction,
+      );
+    });
+  } catch (error) {
+    if (error instanceof SystemAdminDeleteConfirmationError) {
+      return { status: "error", code: "CONFIRMATION", message: error.message };
+    }
+    if (error instanceof SystemAdminProtectedUserError) {
+      return { status: "error", code: "PROTECTED", message: error.message };
+    }
+    if (error instanceof SystemAdminStaleWriteError) {
+      return { status: "error", code: "STALE", message: error.message };
+    }
+    if (
+      error instanceof SystemAdminAccessDeniedError ||
+      error instanceof SystemAdminConfigurationError
+    ) {
+      return {
+        status: "error",
+        code: "FORBIDDEN",
+        message: "無法執行系統管理操作。",
+      };
+    }
+    return {
+      status: "error",
+      code: "UNAVAILABLE",
+      message: "目前無法刪除這個帳號，請稍後再試。",
+    };
+  }
+
+  try {
+    revalidatePath("/admin/users");
+  } catch {
+    console.error("系統使用者列表重新驗證失敗。");
+  }
+  return { status: "success", message: "已刪除這個帳號與相關資料。" };
 }

@@ -32,6 +32,7 @@ beforeEach(() => {
       createdAt: new Date("2026-08-01T01:00:00.000Z"),
       systemAdmin: true,
       memberships: [],
+      createdWorkspaces: [],
     },
     {
       id: "user_2",
@@ -45,6 +46,7 @@ beforeEach(() => {
       createdAt: new Date("2026-08-20T01:00:00.000Z"),
       systemAdmin: false,
       memberships: [],
+      createdWorkspaces: [],
     },
   ]);
 });

@@ -34,6 +34,13 @@ export class SystemAdminProtectedUserError extends Error {
   }
 }
 
+export class SystemAdminDeleteConfirmationError extends Error {
+  constructor() {
+    super("請輸入完全相同的 Email 以確認刪除。");
+    this.name = "SystemAdminDeleteConfirmationError";
+  }
+}
+
 export class SystemAdminStaleWriteError extends Error {
   constructor() {
     super("使用者狀態已更新，請重新整理後再試。");
@@ -99,6 +106,13 @@ export type SystemUserSummary = {
     role: MembershipRole;
     workspace: { id: string; name: string };
   }>;
+  /** 由這個帳號建立的婚宴；刪除帳號會連同整場婚宴一起刪掉，所以先讓管理者看見。 */
+  createdWorkspaces: Array<{
+    id: string;
+    name: string;
+    memberCount: number;
+    guestCount: number;
+  }>;
   systemAdmin: boolean;
 };
 
@@ -123,11 +137,25 @@ export async function listSystemUsers(): Promise<SystemUserSummary[]> {
           workspace: { select: { id: true, name: true } },
         },
       },
+      createdWorkspaces: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { memberships: true, guests: true } },
+        },
+      },
     },
   });
 
-  return users.map((user) => ({
+  return users.map(({ createdWorkspaces, ...user }) => ({
     ...user,
+    createdWorkspaces: createdWorkspaces.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      memberCount: workspace._count.memberships,
+      guestCount: workspace._count.guests,
+    })),
     systemAdmin: isSystemAdmin(user),
   }));
 }
@@ -175,6 +203,78 @@ export async function updateSystemUserAccessStatus(
     },
   });
   if (result.count !== 1) {
+    throw new SystemAdminStaleWriteError();
+  }
+}
+
+type SystemUserDeleteClient = {
+  user: {
+    findUnique(args: unknown): Promise<
+      | Pick<User, "id" | "email" | "accessStatus" | "version">
+      | null
+    >;
+    deleteMany(args: unknown): Promise<{ count: number }>;
+  };
+  weddingWorkspace: { deleteMany(args: unknown): Promise<{ count: number }> };
+  budgetAttachment: { deleteMany(args: unknown): Promise<{ count: number }> };
+  workspaceInvitation: {
+    deleteMany(args: unknown): Promise<{ count: number }>;
+    updateMany(args: unknown): Promise<{ count: number }>;
+  };
+};
+
+/**
+ * 徹底刪除一個帳號。這是不可回復的操作，所以要求輸入相同的 Email 再確認一次。
+ *
+ * 由這個帳號建立的婚宴會一起刪除，裡面的名單、桌次、花費、附件都跟著走；
+ * 他在別人婚宴裡的成員身分、上傳的收據與送出的邀請也會一併清掉。
+ * 這些關聯在資料庫上是 Restrict，本來就不允許留著孤兒資料。
+ */
+export async function deleteSystemUser(
+  actor: Pick<User, "id" | "email" | "accessStatus">,
+  targetUserId: string,
+  expectedVersion: number,
+  confirmationEmail: string,
+  client: SystemUserDeleteClient,
+): Promise<void> {
+  const target = await client.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, email: true, accessStatus: true, version: true },
+  });
+
+  if (!target || target.version !== expectedVersion) {
+    throw new SystemAdminStaleWriteError();
+  }
+  if (target.id === actor.id || isSystemAdmin(target)) {
+    throw new SystemAdminProtectedUserError();
+  }
+  if (
+    normalizeInvitationEmail(confirmationEmail) !==
+    normalizeInvitationEmail(target.email)
+  ) {
+    throw new SystemAdminDeleteConfirmationError();
+  }
+
+  // 先送走他建立的婚宴，裡面的資料由 workspace 的 cascade 帶走。
+  await client.weddingWorkspace.deleteMany({
+    where: { createdById: target.id },
+  });
+  // 留在別人婚宴裡的上傳檔案與邀請紀錄沒有 cascade，要自己清。
+  await client.budgetAttachment.deleteMany({
+    where: { uploadedByUserId: target.id },
+  });
+  await client.workspaceInvitation.updateMany({
+    where: { acceptedByUserId: target.id },
+    data: { acceptedByUserId: null },
+  });
+  await client.workspaceInvitation.deleteMany({
+    where: { invitedByUserId: target.id },
+  });
+
+  const removed = await client.user.deleteMany({
+    where: { id: target.id, version: expectedVersion },
+  });
+  if (removed.count !== 1) {
     throw new SystemAdminStaleWriteError();
   }
 }

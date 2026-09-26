@@ -3,6 +3,7 @@
 import type { MembershipRole, UserAccessStatus } from "@prisma/client";
 import { useActionState, useMemo, useState } from "react";
 import {
+  deleteSystemUserAction,
   type SystemUserMutationState,
   updateSystemUserAccessAction,
 } from "@/actions/admin-users";
@@ -22,6 +23,12 @@ export type SystemUserRow = {
   memberships: Array<{
     role: MembershipRole;
     workspace: { id: string; name: string };
+  }>;
+  createdWorkspaces: Array<{
+    id: string;
+    name: string;
+    memberCount: number;
+    guestCount: number;
   }>;
 };
 
@@ -130,6 +137,89 @@ function UserAccessControls({ user }: { user: SystemUserRow }) {
   );
 }
 
+/**
+ * 刪除帳號是不可回復的，所以要把「會一起消失的東西」攤開來寫清楚，
+ * 並且要求打一次完整 Email 才放行。
+ */
+function UserDeletionControls({ user }: { user: SystemUserRow }) {
+  const initialState: SystemUserMutationState = { status: "idle" };
+  const [state, formAction, pending] = useActionState(
+    deleteSystemUserAction,
+    initialState,
+  );
+  const [confirmation, setConfirmation] = useState("");
+  const matches =
+    confirmation.trim().toLocaleLowerCase("zh-TW") ===
+    user.email.trim().toLocaleLowerCase("zh-TW");
+
+  if (user.systemAdmin) return null;
+
+  return (
+    <details className="mt-3 rounded-control border border-danger/30 bg-danger-soft px-3.5 py-3 text-danger">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center text-sm font-semibold [&::-webkit-details-marker]:hidden">
+        永久刪除帳號
+      </summary>
+      <p className="mt-1 text-sm leading-6">
+        刪掉之後救不回來。這個帳號、他在別人婚宴裡的成員身分、上傳過的收據與送出的邀請都會一起消失。
+      </p>
+      {user.createdWorkspaces.length > 0 ? (
+        <div className="mt-3">
+          <p className="text-sm font-semibold">連同以下婚宴整場刪除：</p>
+          <ul className="mt-2 space-y-1.5">
+            {user.createdWorkspaces.map((workspace) => (
+              <li
+                key={workspace.id}
+                className="min-w-0 rounded-control bg-surface px-3 py-2 text-sm"
+              >
+                <span className="block break-words font-semibold">
+                  {workspace.name}
+                </span>
+                <span className="text-ink-soft">
+                  賓客 {workspace.guestCount} 組 · 成員 {workspace.memberCount} 位
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="mt-3 text-sm leading-6">這個帳號沒有自己建立的婚宴。</p>
+      )}
+      <form action={formAction} className="mt-3 space-y-3">
+        <input type="hidden" name="targetUserId" value={user.id} />
+        <input type="hidden" name="expectedVersion" value={user.version} />
+        <label className="block text-sm font-semibold">
+          輸入 {user.email} 以確認
+          <input
+            type="text"
+            name="confirmationEmail"
+            value={confirmation}
+            onChange={(event) => setConfirmation(event.currentTarget.value)}
+            autoComplete="off"
+            spellCheck={false}
+            className="mt-1 min-h-11 w-full min-w-0 rounded-control border border-danger/40 bg-surface px-3 text-ink outline-none focus:border-danger"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending || !matches}
+          className="min-h-11 rounded-full border border-danger px-4 py-2 text-sm font-semibold transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          永久刪除這個帳號
+        </button>
+        <p
+          aria-live="polite"
+          className={cn(
+            "min-h-5 text-sm",
+            state.status === "error" ? "text-danger" : "text-ink-soft",
+          )}
+        >
+          {pending ? "正在刪除…" : state.message ?? ""}
+        </p>
+      </form>
+    </details>
+  );
+}
+
 function UserCard({ user }: { user: SystemUserRow }) {
   const displayName = user.name?.trim() || "未設定姓名";
 
@@ -200,6 +290,7 @@ function UserCard({ user }: { user: SystemUserRow }) {
         <section className="min-w-0 border-t border-line pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
           <h3 className="mb-2 text-sm font-semibold text-ink">帳號權限</h3>
           <UserAccessControls user={user} />
+          <UserDeletionControls user={user} />
         </section>
       </div>
     </article>

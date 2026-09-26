@@ -10,11 +10,13 @@ vi.mock("@/lib/prisma", () => ({ prisma: { user: { findMany } } }));
 
 import {
   configuredSystemAdminEmailHashes,
+  deleteSystemUser,
   isSystemAdmin,
   listSystemUsers,
   requireSystemAdmin,
   SystemAdminAccessDeniedError,
   SystemAdminConfigurationError,
+  SystemAdminDeleteConfirmationError,
   SystemAdminProtectedUserError,
   SystemAdminStaleWriteError,
   systemAdminEmailHash,
@@ -91,10 +93,23 @@ describe("system admin allowlist", () => {
             workspace: { id: "workspace_1", name: "我們的婚宴" },
           },
         ],
+        createdWorkspaces: [
+          {
+            id: "workspace_2",
+            name: "自己開的婚宴",
+            _count: { memberships: 2, guests: 74 },
+          },
+        ],
       },
     ]);
 
-    await expect(listSystemUsers()).resolves.toHaveLength(1);
+    await expect(listSystemUsers()).resolves.toMatchObject([
+      {
+        createdWorkspaces: [
+          { id: "workspace_2", name: "自己開的婚宴", memberCount: 2, guestCount: 74 },
+        ],
+      },
+    ]);
     expect(requireCurrentUser).toHaveBeenCalledOnce();
     const query = findMany.mock.calls[0]?.[0];
     expect(query.select).not.toHaveProperty("googleSubject");
@@ -197,6 +212,97 @@ describe("system admin user access updates", () => {
         "ACTIVE",
         client,
       ),
+    ).rejects.toBeInstanceOf(SystemAdminStaleWriteError);
+  });
+});
+
+describe("system admin user deletion", () => {
+  function deleteClientFor(target: typeof owner | null, count = 1) {
+    return {
+      user: {
+        findUnique: vi.fn().mockResolvedValue(target),
+        deleteMany: vi.fn().mockResolvedValue({ count }),
+      },
+      weddingWorkspace: { deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      budgetAttachment: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      workspaceInvitation: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+  }
+
+  const target = {
+    ...owner,
+    id: "user_2",
+    email: "Guest@Example.com",
+    version: 5,
+  };
+
+  it("刪掉他建立的婚宴、別處的上傳與邀請，最後才刪帳號", async () => {
+    const client = deleteClientFor(target);
+
+    await expect(
+      deleteSystemUser(owner, target.id, 5, "guest@example.com", client),
+    ).resolves.toBeUndefined();
+
+    expect(client.weddingWorkspace.deleteMany).toHaveBeenCalledWith({
+      where: { createdById: "user_2" },
+    });
+    expect(client.budgetAttachment.deleteMany).toHaveBeenCalledWith({
+      where: { uploadedByUserId: "user_2" },
+    });
+    expect(client.workspaceInvitation.updateMany).toHaveBeenCalledWith({
+      where: { acceptedByUserId: "user_2" },
+      data: { acceptedByUserId: null },
+    });
+    expect(client.workspaceInvitation.deleteMany).toHaveBeenCalledWith({
+      where: { invitedByUserId: "user_2" },
+    });
+    expect(client.user.deleteMany).toHaveBeenCalledWith({
+      where: { id: "user_2", version: 5 },
+    });
+  });
+
+  it("確認 Email 不一致就完全不動任何資料", async () => {
+    const client = deleteClientFor(target);
+
+    await expect(
+      deleteSystemUser(owner, target.id, 5, "someone-else@example.com", client),
+    ).rejects.toBeInstanceOf(SystemAdminDeleteConfirmationError);
+    expect(client.weddingWorkspace.deleteMany).not.toHaveBeenCalled();
+    expect(client.user.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("管理者不能刪自己，也不能刪其他管理者", async () => {
+    const own = deleteClientFor(owner);
+    await expect(
+      deleteSystemUser(owner, owner.id, 0, owner.email, own),
+    ).rejects.toBeInstanceOf(SystemAdminProtectedUserError);
+    expect(own.user.deleteMany).not.toHaveBeenCalled();
+
+    const otherAdmin = deleteClientFor({ ...owner, id: "user_admin_2" });
+    await expect(
+      deleteSystemUser(owner, "user_admin_2", 0, owner.email, otherAdmin),
+    ).rejects.toBeInstanceOf(SystemAdminProtectedUserError);
+    expect(otherAdmin.user.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("版本對不上就當成別人剛改過，不刪", async () => {
+    const stale = deleteClientFor(target);
+    await expect(
+      deleteSystemUser(owner, target.id, 4, "guest@example.com", stale),
+    ).rejects.toBeInstanceOf(SystemAdminStaleWriteError);
+    expect(stale.weddingWorkspace.deleteMany).not.toHaveBeenCalled();
+
+    const missing = deleteClientFor(null);
+    await expect(
+      deleteSystemUser(owner, target.id, 5, "guest@example.com", missing),
+    ).rejects.toBeInstanceOf(SystemAdminStaleWriteError);
+
+    const raced = deleteClientFor(target, 0);
+    await expect(
+      deleteSystemUser(owner, target.id, 5, "guest@example.com", raced),
     ).rejects.toBeInstanceOf(SystemAdminStaleWriteError);
   });
 });

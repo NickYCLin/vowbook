@@ -433,6 +433,17 @@ const surfaces: { name: string; element: ReactNode }[] = [
                         },
                       },
                     ],
+              createdWorkspaces:
+                index === 2
+                  ? []
+                  : [
+                      {
+                        id: `rwd_admin_created_${index}`,
+                        name: `${LONG_NAME.slice(0, 42)}的婚宴工作區`,
+                        memberCount: 3,
+                        guestCount: 128,
+                      },
+                    ],
             }))}
           />
         </main>
@@ -446,7 +457,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
         <main className="mx-auto w-full max-w-6xl min-w-0 px-5 py-6 sm:px-8 sm:py-12">
           <header className="min-w-0">
             <h1 className="font-serif text-2xl font-semibold text-ink sm:text-3xl">
-              我的婚宴
+              所有婚宴
             </h1>
             <p className="mt-2 max-w-2xl text-caption leading-6 text-ink-soft sm:text-base">
               選擇一場婚宴繼續籌備，或建立新的工作區。

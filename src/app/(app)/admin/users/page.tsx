@@ -37,7 +37,7 @@ export default async function AdminUsersPage() {
             使用者管理
           </h1>
           <p className="mt-3 text-caption leading-7 text-ink-soft sm:text-base">
-            查看目前使用這個 VowBook 環境的帳號、最近登入與婚宴成員關係。停權或移除只會撤銷登入權限，會保留婚宴資料與成員紀錄，之後可以恢復。
+            查看目前使用這個 VowBook 環境的帳號、最近登入與婚宴成員關係。停權或移除只會撤銷登入權限，會保留婚宴資料與成員紀錄，之後可以恢復；要連同資料一起清掉，請用帳號卡片裡的永久刪除。
           </p>
         </div>
         <span className="w-fit rounded-full border border-clay/30 bg-clay-soft px-3 py-1.5 text-sm font-semibold text-clay-strong">
