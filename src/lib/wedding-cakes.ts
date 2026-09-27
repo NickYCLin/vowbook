@@ -7,6 +7,11 @@ import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { compareGuestsBySeniorityThenSurnameStroke } from "@/domain/guest";
 export async function getWeddingCakes(workspaceId: string) {
   const user = await requireCurrentUser();
+  return readWeddingCakesForUser(workspaceId, user.id);
+}
+/** App 沒有網站 session，由呼叫端傳入已驗證的使用者。 */
+export async function readWeddingCakesForUser(workspaceId: string, userId: string) {
+  const user = {id: userId};
   return prisma.$transaction(async tx => {
     // 稱謂沿用賓客明細的 editor 邊界；工作人員取得的是新人匯出的檔案。
     const access = await requireWorkspaceAccess<{id:string; name:string}>(workspaceId, user.id, "edit", tx);
