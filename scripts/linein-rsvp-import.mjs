@@ -541,6 +541,7 @@ async function planAndApplyImport(
     include: {
       guest: {
         include: {
+          checkIn: { select: { id: true } },
           seatingTable: {
             select: { id: true, workspaceId: true, capacity: true },
           },
@@ -587,6 +588,9 @@ async function planAndApplyImport(
     }
 
     updates.push({ index, record, existing });
+    if (existing.guest.checkIn && record.attendanceStatus !== "ATTENDING") {
+      conflictIndexes.add(index);
+    }
     if (!existing.guest.seatingTableId) {
       return;
     }
@@ -639,7 +643,7 @@ async function planAndApplyImport(
 
   for (const { index, record } of creates) {
     const guest = await transaction.guest.create({
-      data: { workspaceId, ...guestFields(record) },
+      data: { workspaceId, ...guestFields(record), seniority: "PEER" },
       select: { id: true },
     });
     const importRecord = await transaction.guestImportRecord.create({

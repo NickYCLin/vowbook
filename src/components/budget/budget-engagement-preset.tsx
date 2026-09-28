@@ -16,10 +16,10 @@ const engagementPresetItems = BUDGET_ENGAGEMENT_PRESET_GROUPS.flatMap(
 
 function restoreConnectedFocus(trigger: HTMLButtonElement | null) {
   if (trigger?.isConnected && trigger.closest("[hidden]") === null) {
-    trigger.focus();
+    trigger.focus({ preventScroll: true });
     return;
   }
-  document.getElementById("budget-items-heading")?.focus();
+  document.getElementById("budget-items-heading")?.focus({ preventScroll: true });
 }
 
 export function BudgetEngagementPreset({

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { WeddingOverview } from "@/components/workspaces/wedding-overview";
+import { WeddingHome } from "@/components/workspaces/wedding-home";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
@@ -9,7 +9,7 @@ import {
   WeddingOverviewDataError,
 } from "@/lib/wedding-overview";
 
-export const metadata: Metadata = { title: "婚宴總覽" };
+export const metadata: Metadata = { title: "婚宴首頁" };
 
 export default async function OverviewPage({
   params,
@@ -39,11 +39,11 @@ export default async function OverviewPage({
       <WorkspacePageHeader
         workspaceId={workspaceId}
         workspaceName={data.workspace.name}
-        sectionTitle="婚宴總覽"
-        description="集中查看賓客回覆、入席安排、任務、花費與婚宴執行進度。"
+        sectionTitle="婚宴首頁"
+        description={`${data.workspace.weddingDate ? new Intl.DateTimeFormat("zh-TW", { dateStyle: "long", timeZone: data.workspace.timezone }).format(new Date(data.workspace.weddingDate)) : "婚期尚未決定"} · 接著把需要確認的事情處理好。`}
         activeSection="overview"
       />
-      <WeddingOverview workspaceId={workspaceId} data={data} />
+      <WeddingHome workspaceId={workspaceId} data={data} />
     </main>
   );
 }

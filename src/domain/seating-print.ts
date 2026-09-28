@@ -5,7 +5,7 @@ type Guest={id:string;name:string;partySize:number;side:GuestSideValue;vegetaria
 type Table={id:string;number:number;name:string;capacity:number;guests:readonly Guest[]};
 export function seatingPrintData(tables:readonly Table[],unassigned:readonly Guest[]):OperationsPrintData {
  const rows:OperationsPrintData["rows"]=[];
- const cells=(label:string,g:Guest,assigned:boolean):PrintCell[]=>[label,g.name,GUEST_SIDE_LABELS[g.side],String(g.partySize),g.vegetarianCount==null?"未填":g.vegetarianCount>0?`素 ${g.vegetarianCount} 位`:"—",g.childSeatCount==null?"未填":g.childSeatCount>0?`${g.childSeatCount} 張`:"—",assigned?{checkLabel:"帶位完成勾選框"}:"待安排",g.notes??""];
+ const cells=(label:string,g:Guest,assigned:boolean):PrintCell[]=>[label,g.name,GUEST_SIDE_LABELS[g.side],String(g.partySize),g.vegetarianCount!=null&&g.vegetarianCount>0?`素 ${g.vegetarianCount} 位`:"-",g.childSeatCount!=null&&g.childSeatCount>0?`${g.childSeatCount} 張`:"-",assigned?{checkLabel:"帶位完成勾選框"}:"待安排",g.notes??""];
  for(const table of [...tables].sort((a,b)=>a.number-b.number)) {
   const count=table.guests.reduce((sum,g)=>sum+g.partySize,0);
   const label=`${seatingTableLabel(table)}\n${count}／${table.capacity} 位`;

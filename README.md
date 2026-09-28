@@ -41,22 +41,26 @@ A wedding planning app for couples and planners to manage guests, seating, budge
 | **發餅名單** | 共同出席者可合併為同一家，依新郎／新娘親友分類，列印含姓名、稱謂、盒數與領取勾選欄的名單，或另存 PDF。 |
 | **報到與禮金** | 登記到場人數與禮金，標記不收禮金但送餅，追蹤禮到人不到的回禮。 |
 | **桌次** | 安排賓客入席、檢查桌次容量，編排場地平面配置與列印座位圖；可列印招待帶位名單，包含同行人數、素食、兒童椅與勾選欄，未排桌親友另列。 |
+| **座位方案** | 臨時有人加入或缺席時，先在方案裡試排不同版本，確認後再整批套用回正式安排。 |
 | **任務** | 列出待辦、設定到期日，追蹤進行中與已完成的事項。 |
 | **花費** | 按分類記錄訂金、尾款與付款狀態，將報價、收據或合約附件放在對應項目。 |
 | **工作人員** | 整理角色、聯絡方式、紅包與便當，透過總召交辦清單分派事項並關聯流程。 |
 | **總流程** | 排好婚禮當天的時間、地點、內容與工作人員，依需要套用午宴流程範本。 |
 | **協作者** | 邀請伴侶、婚顧或檢視者加入；由擁有者管理成員角色與存取權。 |
+| **婚宴設定** | 調整婚宴名稱與日期、餐標與服務費率；刪除婚宴由擁有者操作。 |
 
 花費附件與桌次平面配置包含在各自的功能內。支援的花費附件為 PDF、JPEG、PNG 與 WebP，單檔上限 10 MiB。
 
 ## 如何開始
 
-1. 開啟 [VowBook](https://ycspace.myvnc.com/VowBook)，使用 Google 帳號登入。
+1. 開啟 [VowBook](https://ycspace.myvnc.com/VowBook)，使用 Google 或 Apple 帳號登入。
 2. 建立婚宴工作區，填入婚宴的基本資訊。
 3. 先整理賓客、花費或任務，依自己的籌備進度逐步補齊。
 4. 由工作區擁有者建立協作邀請，讓對方使用受邀的 Google 帳號加入。
 
 使用線上服務不需要自行安裝。想自行保管與維護服務，可參考 [開發與自架指南](docs/development.md)；自架需要 PostgreSQL、Google OAuth 設定與 HTTPS 服務環境。
+
+婚禮當天常用的功能另有原生 App，透過 `src/app/api/mobile/v1/` 讀寫同一份資料；本 repository 只包含服務端，不含 App 專案。
 
 ## 誰可以查看與修改
 
@@ -89,7 +93,7 @@ A wedding planning app for couples and planners to manage guests, seating, budge
 | 參與開發 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 回報安全問題 | [SECURITY.md](SECURITY.md) |
 
-技術組成：Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、NextAuth 4 Google OAuth、PostgreSQL 與 Prisma 6；測試使用 Vitest、Testing Library 與 Playwright。實際版本和命令以 [package.json](package.json) 為準。
+技術組成：Next.js 16 App Router、React 19、TypeScript、Tailwind CSS 4、NextAuth 4 Google OAuth 與 Sign in with Apple、PostgreSQL 與 Prisma 6；測試使用 Vitest、Testing Library 與 Playwright。實際版本和命令以 [package.json](package.json) 為準。
 
 ## 參與與授權
 

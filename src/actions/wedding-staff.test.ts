@@ -77,6 +77,7 @@ describe("wedding staff actions", () => {
     });
     requireLockedWorkspaceAccess.mockResolvedValue("PLANNER");
     create.mockResolvedValue({ id: "staff_1" });
+    findFirst.mockResolvedValue({ redEnvelopeAmount: null, redEnvelopeSentAt: null, version: 2 });
     updateMany.mockResolvedValue({ count: 1 });
     deleteMany.mockResolvedValue({ count: 1 });
     queryRaw.mockImplementation(async (statement) => {
@@ -94,6 +95,12 @@ describe("wedding staff actions", () => {
     transaction.mockImplementation(async (operation) =>
       operation(transactionClient),
     );
+  });
+
+  it("explains why an already handed-out envelope cannot have its amount cleared", async () => {
+    findFirst.mockResolvedValueOnce({ redEnvelopeAmount: 3600, redEnvelopeSentAt: new Date(), version: 2 });
+    await expect(updateWeddingStaffAction("workspace_1", "staff_1", idleState, staffForm("2"))).resolves.toMatchObject({ status: "error", code: "VALIDATION", message: expect.stringContaining("先改回尚未發放") });
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it("marks a red envelope as handed out with a server timestamp under version CAS", async () => {
@@ -305,7 +312,21 @@ describe("wedding staff actions", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  it("stays quiet after a synced update and only speaks up when a refresh is needed", async () => {
+    findFirst.mockResolvedValueOnce({ redEnvelopeAmount: null, redEnvelopeSentAt: null, version: 4 });
+    await expect(
+      updateWeddingStaffAction("workspace_1", "staff_1", idleState, staffForm("4")),
+    ).resolves.toEqual({ status: "success" });
+
+    findFirst.mockResolvedValueOnce({ redEnvelopeAmount: null, redEnvelopeSentAt: null, version: 5 });
+    revalidatePath.mockImplementationOnce(() => { throw new Error("revalidate failed"); });
+    await expect(
+      updateWeddingStaffAction("workspace_1", "staff_1", idleState, staffForm("5")),
+    ).resolves.toMatchObject({ status: "success", message: expect.stringContaining("請重新整理") });
+  });
+
   it("updates and deletes with id + workspaceId + version CAS", async () => {
+    findFirst.mockResolvedValueOnce({ redEnvelopeAmount: null, redEnvelopeSentAt: null, version: 4 });
     await expect(
       updateWeddingStaffAction(
         "workspace_1",

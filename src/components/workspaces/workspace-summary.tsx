@@ -37,6 +37,7 @@ type WorkspaceSummaryProps = {
   >;
   stats?: WorkspaceOverviewStats;
   now?: Date;
+  compact?: boolean;
 };
 
 function percent(value: number, total: number): number {
@@ -68,6 +69,7 @@ export function WorkspaceSummary({
   workspace,
   stats,
   now = new Date(),
+  compact = false,
 }: WorkspaceSummaryProps) {
   const weddingDate = workspace.weddingDate
     ? new Intl.DateTimeFormat("zh-TW", {
@@ -125,7 +127,7 @@ export function WorkspaceSummary({
           )}
         </div>
 
-        {stats && (
+        {!compact && stats && (
           <div className="mt-5 border-t border-line pt-5">
             <StatRow>
               <Stat
@@ -167,7 +169,7 @@ export function WorkspaceSummary({
 
         {/* 手機排成兩欄的入口列，比九顆藥丸籤更好點也更整齊。 */}
         <div className="mt-5 grid min-w-0 grid-cols-2 gap-2 border-t border-line pt-5 sm:flex sm:flex-wrap">
-          {modules.map((module) => (
+          {(compact ? [{ href: `/workspaces/${workspace.id}/overview`, label: "進入婚宴", icon: workspaceSections[0].icon }] : modules).map((module) => (
             <ModuleLink key={module.href} href={module.href} icon={module.icon}>
               {module.label}
             </ModuleLink>

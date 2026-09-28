@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
 import {
   useCallback,
   useEffect,
@@ -33,6 +35,11 @@ import {
   type BudgetPreparationStatus,
 } from "@/domain/budget-item";
 import { hiddenBudgetCeremonyStageKeys } from "@/domain/budget-ceremony-stage";
+import type {
+  BudgetDerivedCost,
+  WeddingMealPricing,
+} from "@/domain/budget-derived-cost";
+import { MealPricingForm } from "@/components/budget/meal-pricing-form";
 import { coveredBudgetPreparationSuggestionKeys } from "@/domain/budget-preparation-preset";
 import { containDialogFocus } from "@/lib/dialog-focus-containment";
 import type {
@@ -515,6 +522,7 @@ function BudgetSummaryView({
         </div>
       ) : null}
       <dl
+        data-card-surface="raised"
         data-budget-summary-layout="responsive"
         data-mobile-layout="two-plus-one"
         data-desktop-layout="three-columns"
@@ -955,10 +963,10 @@ function BudgetItemRow({
   const restoreDialogFocus = useCallback(() => {
     const trigger = triggerRef.current;
     if (trigger?.isConnected && trigger.closest("[hidden]") === null) {
-      trigger.focus();
+      trigger.focus({ preventScroll: true });
       return;
     }
-    document.getElementById("budget-items-heading")?.focus();
+    document.getElementById("budget-items-heading")?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
@@ -971,7 +979,7 @@ function BudgetItemRow({
     const dialog = dialogRef.current;
     return () => {
       if (dialog?.open) {
-        document.getElementById("budget-items-heading")?.focus();
+        document.getElementById("budget-items-heading")?.focus({ preventScroll: true });
       }
     };
   }, []);
@@ -1577,6 +1585,7 @@ function BudgetItemRow({
         )}
 
         <dialog
+        data-dialog-presentation="panel"
           ref={dialogRef}
           aria-labelledby={dialogTitleId}
           onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
@@ -2357,6 +2366,8 @@ export function BudgetList({
   workspaceToday = null,
   items,
   summary,
+  derivedCosts = [],
+  mealPricing = null,
   canEdit,
   canResetBudget = false,
   resetSnapshot = null,
@@ -2370,6 +2381,8 @@ export function BudgetList({
   workspaceToday?: string | null;
   items: BudgetItemListItem[];
   summary: BudgetSummary;
+  derivedCosts?: BudgetDerivedCost[];
+  mealPricing?: WeddingMealPricing | null;
   canEdit: boolean;
   canResetBudget?: boolean;
   resetSnapshot?: BudgetResetSnapshot | null;
@@ -2378,8 +2391,8 @@ export function BudgetList({
   ceremonyStageCleanups?: BudgetCeremonyStageCleanup[];
   ceremonyPreferencesVersion?: number;
 }) {
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<BudgetStatusFilter>("ALL");
+  const [search, setSearch] = useWorkspaceViewState(`${workspaceId}:budget:search`, "");
+  const [statusFilter, setStatusFilter] = useWorkspaceViewState<BudgetStatusFilter>(`${workspaceId}:budget:statusFilter`, "ALL");
   const [notice, setNotice] = useState<string | null>(null);
   const [savedCeremonyPreferences, setSavedCeremonyPreferences] = useState<{
     workspaceId: string;
@@ -2391,7 +2404,7 @@ export function BudgetList({
     string | null
   >(null);
   const [taxonomySelection, setTaxonomySelection] =
-    useState<TaxonomySelectionState>({
+    useWorkspaceViewState<TaxonomySelectionState>(`${workspaceId}:budget:selection`, {
       workspaceId: null,
       itemId: null,
     });
@@ -2980,6 +2993,58 @@ export function BudgetList({
         onShowSelfProvided={() => showSummaryStatus("ALREADY_OWNED")}
         onShowNotPlanned={() => showSummaryStatus("NOT_PLANNED")}
       />
+      {derivedCosts.length > 0 || (canEdit && mealPricing) ? (
+        <section
+          aria-labelledby="budget-derived-heading"
+          data-budget-derived-costs
+          className="min-w-0 rounded-card border border-line bg-surface"
+        >
+          <div className="border-b border-line px-4 py-3 sm:px-5">
+            <h2
+              id="budget-derived-heading"
+              className="text-sm font-semibold text-ink"
+            >
+              依名單自動計算
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-ink-faint">
+              金額依工作人員與賓客名單即時換算，已計入上方總計，不需要另外新增項目。
+            </p>
+          </div>
+          {derivedCosts.length === 0 ? (
+            <p className="px-4 py-3 text-xs leading-5 text-ink-faint sm:px-5">
+              填入單價後，便當與素食套餐會依名單人數自動換算出現在這裡。
+            </p>
+          ) : null}
+          <ul className="divide-y divide-line">
+            {derivedCosts.map((cost) => (
+              <li
+                key={cost.key}
+                className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 sm:px-5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink">{cost.name}</p>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-faint">
+                    {cost.detail}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold tabular-nums text-ink">
+                  {formatTwdAmount(cost.amount)}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {canEdit && mealPricing ? (
+            <div className="border-t border-line px-4 py-3 sm:px-5">
+              <MealPricingForm
+                workspaceId={workspaceId}
+                staffMealUnitPrice={mealPricing.staffMealUnitPrice}
+                vegetarianMealUnitPrice={mealPricing.vegetarianMealUnitPrice}
+                serviceChargePercent={mealPricing.serviceChargePercent}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
       <div className="xl:hidden">
         <BudgetHierarchyGuide />
       </div>

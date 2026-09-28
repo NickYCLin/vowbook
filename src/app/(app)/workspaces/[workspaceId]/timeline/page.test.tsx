@@ -23,6 +23,11 @@ vi.mock("@/components/timeline/game-participants", () => ({
 vi.mock("@/components/timeline/wedding-speeches", () => ({
   WeddingSpeechCards: () => <div>謝親恩區</div>,
 }));
+vi.mock("@/components/print/print-preview-link", () => ({
+  PrintPreviewLink: ({ href, children }: { href: string; children: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 
 import TimelinePage from "./page";
 

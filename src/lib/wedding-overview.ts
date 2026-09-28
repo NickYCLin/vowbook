@@ -1,10 +1,12 @@
 import "server-only";
+import { dateKeyInTimezone } from "@/domain/calendar-date";
 import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
+import { summarizeWeddingStaffRedEnvelopes } from "@/domain/wedding-staff";
 import { prisma } from "@/lib/prisma";
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
 
@@ -65,7 +67,11 @@ type OverviewTransaction = {
   seatingTable: { findMany(args: unknown): Promise<OverviewTableRecord[]> };
   weddingTask: { findMany(args: unknown): Promise<OverviewTaskRecord[]> };
   budgetItem: { findMany(args: unknown): Promise<OverviewBudgetRecord[]> };
-  weddingStaffAssignment: { count(args: unknown): Promise<number> };
+  weddingStaffAssignment: {
+    findMany(args: unknown): Promise<
+      Array<{ redEnvelopeAmount: number | null; redEnvelopeSentAt: Date | null }>
+    >;
+  };
   weddingTimelineItem: { count(args: unknown): Promise<number> };
 };
 
@@ -84,13 +90,14 @@ type SideSummary = {
 
 export type WeddingOverviewData = {
   role: "OWNER" | "PARTNER" | "PLANNER" | "VIEWER";
-  workspace: Pick<WeddingWorkspace, "id" | "name">;
+  workspace: Pick<WeddingWorkspace, "id" | "name" | "timezone"> & { weddingDate: string | null };
   guests: {
     generalGroupTotal: number;
     respondedGroupTotal: number;
     attendingGroupTotal: number;
     declinedGroupTotal: number;
     undecidedGroupTotal: number;
+    undecidedAttendanceGroupTotal: number;
     attendingHeadcount: number;
     assignedAttendingHeadcount: number;
     unassignedAttendingHeadcount: number;
@@ -196,22 +203,6 @@ function sumTwdAmounts(values: Iterable<number>): string {
 }
 
 
-function dateKeyInTimezone(value: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-  const part = (type: "year" | "month" | "day") =>
-    parts.find((entry) => entry.type === type)?.value;
-  const year = part("year");
-  const month = part("month");
-  const day = part("day");
-  if (!year || !month || !day) throw new WeddingOverviewDataError();
-  return `${year}-${month}-${day}`;
-}
-
 function summarizeGuests(guests: OverviewGuestRecord[]) {
   const bySide: Record<GuestSideValue, SideSummary> = {
     PARTNER_A: emptySideSummary(),
@@ -230,6 +221,7 @@ function summarizeGuests(guests: OverviewGuestRecord[]) {
   let attendingGroupTotal = 0;
   let declinedGroupTotal = 0;
   let undecidedGroupTotal = 0;
+  let undecidedAttendanceGroupTotal = 0;
   let attendingHeadcount = 0;
   let assignedAttendingHeadcount = 0;
   let unassignedAttendingHeadcount = 0;
@@ -271,6 +263,9 @@ function summarizeGuests(guests: OverviewGuestRecord[]) {
     );
     invitations[delivery ?? "UNSET"] += 1;
 
+    if (guest.category !== "COUPLE" && guest.attendanceStatus === "UNDECIDED") {
+      undecidedAttendanceGroupTotal += 1;
+    }
     if (guest.category !== "GUEST") continue;
     generalGroupTotal += 1;
     bySide[guest.side].groupTotal += 1;
@@ -291,6 +286,7 @@ function summarizeGuests(guests: OverviewGuestRecord[]) {
     attendingGroupTotal,
     declinedGroupTotal,
     undecidedGroupTotal,
+    undecidedAttendanceGroupTotal,
     attendingHeadcount,
     assignedAttendingHeadcount,
     unassignedAttendingHeadcount,
@@ -327,7 +323,13 @@ function summarizeTasks(
 function summarizeBudget(
   records: OverviewBudgetRecord[],
   today: string,
+  staffRedEnvelopes: ReadonlyArray<{
+    redEnvelopeAmount: number | null;
+    redEnvelopeSentAt: Date | null;
+  }> = [],
 ): WeddingOverviewData["budget"] {
+  const pendingRedEnvelopes =
+    summarizeWeddingStaffRedEnvelopes(staffRedEnvelopes);
   const expenses = records.filter((record) => record.kind === "EXPENSE");
   const trackedExpenses = expenses.filter(
     (record) => record.preparationStatus === "NEEDS_ACTION",
@@ -340,7 +342,7 @@ function summarizeBudget(
     planningCount: trackedExpenses.filter(
       (record) => record.bookingStatus === "PLANNING",
     ).length,
-    balanceDueCount: balanceDue.length,
+    balanceDueCount: balanceDue.length + pendingRedEnvelopes.pendingCount,
     overdueBalanceDueCount: balanceDue.filter(
       (record) =>
         record.dueDate !== null &&
@@ -356,9 +358,15 @@ function summarizeBudget(
       ),
     ),
     balanceDueTotal: sumTwdAmounts(
-      balanceDue.flatMap((record) =>
-        record.balanceAmount === null ? [] : [record.balanceAmount],
-      ),
+      balanceDue
+        .flatMap((record) =>
+          record.balanceAmount === null ? [] : [record.balanceAmount],
+        )
+        .concat(
+          pendingRedEnvelopes.pendingAmount === 0
+            ? []
+            : [pendingRedEnvelopes.pendingAmount],
+        ),
     ),
     selfProvidedCount: expenses.filter(
       (record) => record.preparationStatus === "ALREADY_OWNED",
@@ -388,7 +396,7 @@ export async function getWeddingOverview(
           tables,
           tasks,
           budgetItems,
-          staffTotal,
+          staffRedEnvelopes,
           timelineItemTotal,
           memberTotal,
         ] = await Promise.all([
@@ -421,7 +429,10 @@ export async function getWeddingOverview(
               paid: true,
             },
           }),
-          transaction.weddingStaffAssignment.count({ where: { workspaceId } }),
+          transaction.weddingStaffAssignment.findMany({
+            where: { workspaceId },
+            select: { redEnvelopeAmount: true, redEnvelopeSentAt: true },
+          }),
           transaction.weddingTimelineItem.count({ where: { workspaceId } }),
           transaction.membership.count({ where: { workspaceId } }),
         ]);
@@ -442,6 +453,8 @@ export async function getWeddingOverview(
           workspace: {
             id: access.workspace.id,
             name: access.workspace.name,
+            weddingDate: access.workspace.weddingDate?.toISOString() ?? null,
+            timezone: access.workspace.timezone,
           },
           guests: guestSummary,
           seating: {
@@ -456,9 +469,9 @@ export async function getWeddingOverview(
               guestSummary.unassignedAttendingHeadcount,
           },
           tasks: summarizeTasks(tasks, today),
-          budget: summarizeBudget(budgetItems, today),
+          budget: summarizeBudget(budgetItems, today, staffRedEnvelopes),
           operations: {
-            staffTotal,
+            staffTotal: staffRedEnvelopes.length,
             timelineItemTotal,
             memberTotal,
           },

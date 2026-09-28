@@ -46,6 +46,20 @@ describe("Next.js deployment config", () => {
     });
   });
 
+  it("allows only same-origin embedding for the five authenticated print pages", async () => {
+    const config = await loadNextConfig("/VowBook");
+    const rules = (await config.headers?.()) ?? [];
+    const embedded = rules.filter(rule => rule.headers.some(header => header.value === "frame-ancestors 'self'"));
+    expect(embedded.map(rule => rule.source)).toEqual([
+      "/workspaces/:workspaceId/tables/print",
+      "/workspaces/:workspaceId/tables/chart",
+      "/workspaces/:workspaceId/staff/print",
+      "/workspaces/:workspaceId/gifts/print",
+      "/workspaces/:workspaceId/budget/print",
+    ]);
+    for (const rule of embedded) expect(rule.headers).toContainEqual({ key: "X-Frame-Options", value: "SAMEORIGIN" });
+  });
+
   it("fails the build config for an invalid base path", async () => {
     await expect(loadNextConfig("/VowBook/")).rejects.toThrow(
       /NEXT_PUBLIC_BASE_PATH/,

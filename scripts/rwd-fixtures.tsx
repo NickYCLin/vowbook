@@ -1,3 +1,4 @@
+import { WorkspaceFrame } from "@/components/workspaces/workspace-frame";
 import {seatingPrintData} from "@/domain/seating-print";
 import {OperationsPrintSheet} from "@/components/print/operations-print-sheet";
 import {staffPrintData,balancePrintData} from "@/domain/operations-print";
@@ -36,7 +37,9 @@ import { WeddingGameParticipantLists } from "@/components/timeline/game-particip
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WorkspaceMembersPanel } from "@/components/workspaces/workspace-members";
 import { WorkspaceSummary } from "@/components/workspaces/workspace-summary";
-import { WeddingOverview } from "@/components/workspaces/wedding-overview";
+import { WeddingHome as WeddingOverview } from "@/components/workspaces/wedding-home";
+import { WorkspaceSwitcher } from "@/components/workspaces/workspace-switcher";
+import { Wordmark } from "@/components/brand/wordmark";
 import {
   WorkspacePageHeader,
   type WorkspaceSection,
@@ -56,12 +59,11 @@ function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-paper">
-      <header className="sticky top-0 z-40 border-b border-line bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur-md print:hidden">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
-          <span className="font-serif text-lg font-semibold text-ink">
-            誓約簿 VowBook
-          </span>
+    <div data-app-surface className="min-h-screen bg-paper">
+      <header data-app-header className="sticky top-0 z-40 border-b border-line bg-surface/85 pt-[env(safe-area-inset-top)] backdrop-blur-md print:hidden">
+        <div className="mx-auto flex w-full max-w-[100rem] items-center justify-between gap-2 px-5 py-3 sm:gap-5 sm:px-8">
+          <div data-app-wordmark className="shrink-0"><Wordmark href="/dashboard" compact/></div>
+          <div className="flex min-w-0 flex-1 sm:max-w-lg"><WorkspaceSwitcher userId="synthetic" choices={[{id:"workspace_rwd",name:LONG_NAME,role:"OWNER"},{id:"other",name:LONG_NAME,role:"PLANNER"}]}/></div>
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <ThemeMenu displayName={LONG_EMAIL} initial="誓" />
             <span className="hidden sm:block">
@@ -92,6 +94,7 @@ function WorkspacePage({
 }) {
   return (
     <AppShell>
+      <WorkspaceFrame workspaceId="workspace_rwd" pathname={`/workspaces/workspace_rwd/${activeSection}`}>
       <main className="mx-auto w-full max-w-6xl min-w-0 px-5 py-6 sm:px-8 sm:py-12">
         <WorkspacePageHeader
           workspaceId="workspace_rwd"
@@ -104,6 +107,7 @@ function WorkspacePage({
         />
         {children}
       </main>
+      </WorkspaceFrame>
     </AppShell>
   );
 }
@@ -381,7 +385,7 @@ const budgetSummary = {
 const surfaces: { name: string; element: ReactNode }[] = [
   {name:"seating-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="招待帶位名單" instructions="依桌號查找賓客，完成帶位後打勾。" data={seatingPrintData([{id:"t",number:5,name:LONG_NAME,capacity:12,guests:[{id:"g",name:LONG_NAME,partySize:3,side:"PARTNER_A",vegetarianCount:1,childSeatCount:1,notes:LONG_NAME}]}],[{id:"u",name:LONG_NAME,partySize:2,side:"SHARED",notes:LONG_NAME}])}/></AppShell>},
   {name:"staff-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="工作人員發放清單" instructions="便當與紅包分別核對後打勾。" data={staffPrintData([{id:"a",roleName:LONG_NAME,personName:LONG_NAME,notes:LONG_NAME,mealCount:3,vegetarianMealCount:1,redEnvelopeAmount:3600,redEnvelopeSentAt:null},{id:"b",roleName:"主持",personName:"工作人員乙",notes:null,mealCount:null,vegetarianMealCount:null,redEnvelopeAmount:1200,redEnvelopeSentAt:new Date()}])}/></AppShell>},
-  {name:"balance-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="廠商尾款清單" instructions="核對尾款與付款期限，付款後打勾。" data={balancePrintData([{id:"a",name:LONG_NAME,kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:LONG_NAME,vendorContact:LONG_NAME,balanceAmount:12000,dueDate:"2026-10-01",notes:LONG_NAME,additionalAmount:1000,balancePaymentMethod:"BANK_TRANSFER"},{id:"mua",name:"新娘秘書",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:"新秘工作室",vendorContact:null,balanceAmount:8000,dueDate:"2026-10-03",notes:"尾款以紅包方式當天交付",additionalAmount:null,balancePaymentMethod:"RED_ENVELOPE"},{id:"b",name:"待確認廠商",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:null,vendorContact:null,balanceAmount:null,dueDate:null,notes:null,additionalAmount:null}])}/></AppShell>},
+  {name:"balance-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="廠商尾款清單" instructions="核對尾款與付款期限，付款後打勾。" data={balancePrintData([{id:"a",name:LONG_NAME,kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:LONG_NAME,vendorContact:LONG_NAME,balanceAmount:12000,dueDate:"2026-10-01",notes:LONG_NAME,additionalAmount:1000,balancePaymentMethod:"BANK_TRANSFER"},{id:"mua",name:"新娘秘書",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:"新秘工作室",vendorContact:null,balanceAmount:8000,dueDate:"2026-10-03",notes:"尾款以紅包方式當天交付",additionalAmount:null,balancePaymentMethod:"RED_ENVELOPE"},{id:"b",name:"待確認廠商",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:null,vendorContact:null,balanceAmount:null,dueDate:null,notes:null,additionalAmount:null}],[{id:"s1",personName:LONG_NAME,roleName:"主持",contactPhone:null,notes:null,redEnvelopeAmount:2000,redEnvelopeSentAt:null}])}/></AppShell>},
   { name:"gift-print", element:<AppShell><HouseholdPrintSheet workspaceName={LONG_NAME} kind="gifts" rows={[
     {key:"a",group:"GROOM_FAMILY",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:""},
     {key:"b",group:"GROOM_FRIENDS",names:"朋友一家",relationships:"新郎的朋友",exempt:false,notes:""},
@@ -389,7 +393,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
     {key:"d",group:"BRIDE_FRIENDS",names:"朋友一家",relationships:"新娘的朋友",exempt:false,notes:""},
     {key:"e",group:"SHARED",names:LONG_NAME,relationships:LONG_NAME,exempt:false,notes:LONG_NAME},
   ]}/></AppShell> },
-  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:1,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
+  ...[false, true].map(open => ({ name: open ? "cakes-editor" : "cakes", element: <AppShell><WeddingCakeBoard workspaceId="rwd" defaultCreateOpen={open} data={{ workspace: {id:"rwd", name:LONG_NAME}, households:[{id:"home",name:LONG_NAME,boxes:0,version:0}], guests:[{id:"guest",name:LONG_NAME,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"ELDER",attendanceStatus:"ATTENDING",partySize:3,checkedIn:false,side:"PARTNER_A",relationshipLabel:LONG_NAME,cakeHouseholdId:"home"},{id:"guest2",name:LONG_URL_ISH,version:0,category:"GUEST",giftExemptWithCake:false,seniority:"PEER",attendanceStatus:"ATTENDING",partySize:1,checkedIn:false,side:"PARTNER_A",relationshipLabel:"舅母",cakeHouseholdId:null}] }}/></AppShell> })),
 
   {
     name: "system-admin-users",
@@ -463,8 +467,8 @@ const surfaces: { name: string; element: ReactNode }[] = [
               選擇一場婚宴繼續籌備，或建立新的工作區。
             </p>
           </header>
-          <div className="mt-6 min-w-0 space-y-5">
-            <WorkspaceSummary
+          <div className="mt-6 grid min-w-0 items-start gap-5 md:grid-cols-2">
+            <WorkspaceSummary compact
               role="OWNER"
               workspace={
                 {
@@ -489,7 +493,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
               }}
               now={new Date("2026-08-13T02:00:00.000Z")}
             />
-            <WorkspaceSummary
+            <WorkspaceSummary compact
               role="VIEWER"
               workspace={
                 {
@@ -512,7 +516,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
     name: "overview",
     element: (
       <WorkspacePage
-        sectionTitle="婚宴總覽"
+        sectionTitle="婚宴首頁"
         description="集中查看賓客回覆、入席安排、任務、花費與婚宴執行進度。"
         activeSection="overview"
       >
@@ -525,6 +529,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
               attendingGroupTotal: 154,
               declinedGroupTotal: 22,
               undecidedGroupTotal: 112,
+              undecidedAttendanceGroupTotal: 112,
               attendingHeadcount: 412,
               assignedAttendingHeadcount: 368,
               unassignedAttendingHeadcount: 44,

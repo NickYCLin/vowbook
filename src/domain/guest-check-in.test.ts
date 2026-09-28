@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GuestCheckInValidationError,
+  canGuestCheckIn,
   MAX_GUEST_CHECK_IN_HEADCOUNT,
   normalizeGuestCheckInDetails,
   normalizeGuestCheckInExpectedVersion,
@@ -9,6 +10,16 @@ import {
 } from "./guest-check-in";
 
 describe("guest check-in domain", () => {
+  it("excludes declined, undecided and the couple from expected arrivals but preserves old records", () => {
+    const entries = [
+      { category: "COUPLE" as const, attendanceStatus: "ATTENDING" as const, partySize: 1, checkedInHeadcount: null },
+      { category: "FAMILY" as const, attendanceStatus: "ATTENDING" as const, partySize: 2, checkedInHeadcount: null },
+      { category: "GUEST" as const, attendanceStatus: "DECLINED" as const, partySize: 3, checkedInHeadcount: 3 },
+      { category: "GUEST" as const, attendanceStatus: "UNDECIDED" as const, partySize: 4, checkedInHeadcount: null },
+    ];
+    expect(entries.map(canGuestCheckIn)).toEqual([false, true, false, false]);
+    expect(summarizeGuestCheckIns(entries)).toEqual({ expectedGroups: 1, expectedHeadcount: 2, arrivedGroups: 1, arrivedHeadcount: 3, pendingGroups: 1, pendingHeadcount: 2, unexpectedGroups: 1 });
+  });
   it("normalizes a positive integer headcount and an optional bounded note", () => {
     expect(
       normalizeGuestCheckInDetails({

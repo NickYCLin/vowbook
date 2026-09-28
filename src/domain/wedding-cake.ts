@@ -1,11 +1,16 @@
 import { familyRelationshipRank } from "./family-relationship";
 import { compareGuestsBySeniorityThenSurnameStroke, type GuestCategoryValue, type GuestSeniorityValue, type GuestSideValue } from "./guest";
 export type CakeGuest = { id: string; category: GuestCategoryValue; name: string; seniority: GuestSeniorityValue; side: GuestSideValue; attendanceStatus: string; checkedIn: boolean; relationshipLabel: string | null; cakeHouseholdId: string | null };
+/** 匯入的名單常把側別寫進稱謂，例如「男方親友」；再冠一次會變成「新郎的男方親友」。 */
+const SIDE_STATED = /^(新郎|新娘|男方|女方)/;
+/** 「男方親友」「男方」和沒填稱謂講的是同一件事，一律收斂成「新郎親友」。 */
+const SIDE_ONLY = /^(新郎|新娘|男方|女方)(親友)?$/;
 export function cakeRelationshipLabel(guest: Pick<CakeGuest, "side" | "relationshipLabel">): string {
   const title = guest.relationshipLabel?.trim();
-  if (guest.side === "SHARED") return title ? `共同親友：${title}` : "共同親友（稱謂未填）";
+  if (guest.side === "SHARED") return title ? `共同親友：${title}` : "共同親友";
   const partner = guest.side === "PARTNER_A" ? "新郎" : "新娘";
-  return title ? `${partner}的${title}` : `${partner}親友（稱謂未填）`;
+  if (!title || SIDE_ONLY.test(title)) return `${partner}親友`;
+  return SIDE_STATED.test(title) ? title : `${partner}的${title}`;
 }
 export const CAKE_GROUPS = [
   {id:"GROOM_FAMILY",label:"新郎的親戚家人"},

@@ -66,7 +66,7 @@ describe("BudgetPage", () => {
     expect(screen.getByText("可編輯花費")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回所有婚宴" })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/dashboard?view=all",
     );
     expect(container.querySelector("main")).toHaveClass("max-w-6xl");
     expect(container.querySelector("header")).toHaveClass("sr-only");
@@ -76,7 +76,7 @@ describe("BudgetPage", () => {
     );
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
     expect(within(navigation).getByRole("link", { name: "花費" })).toHaveAttribute(
       "aria-current",
       "page",

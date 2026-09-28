@@ -126,6 +126,16 @@ describe("guest server actions", () => {
     );
   });
 
+  it.each(["DECLINED", "UNDECIDED", "COUPLE"])("prevents a checked-in guest from becoming %s", async (target) => {
+    findUnique.mockResolvedValueOnce({ id: "guest_1", version: 0, partySize: 1, seatingTableId: null, checkIn: { id: "check_1" } });
+    const form = validGuestFormData();
+    if (target === "COUPLE") {
+      form.set("category", "COUPLE"); form.set("side", "PARTNER_A"); form.set("partySize", "1");
+    } else form.set("attendanceStatus", target);
+    await expect(updateGuestAction("workspace_1", "guest_1", idleState, form)).resolves.toMatchObject({ status: "error", message: expect.stringContaining("先取消報到") });
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("creates only after session edit access and ignores forged identity fields", async () => {
     const formData = validGuestFormData();
     formData.set("workspaceId", "workspace_attacker");
@@ -147,6 +157,7 @@ describe("guest server actions", () => {
         workspaceId: "workspace_1",
         name: "王小明 與家人",
         category: "GUEST",
+        seniority: "PEER",
         side: "SHARED",
         attendanceStatus: "ATTENDING",
         partySize: 3,
@@ -182,7 +193,7 @@ describe("guest server actions", () => {
     });
 
     expect(create).toHaveBeenCalledOnce();
-    expect(revalidatePath).toHaveBeenCalledTimes(5);
+    expect(revalidatePath).toHaveBeenCalledTimes(10);
     expect(revalidatePath).toHaveBeenCalledWith(
       "/workspaces/workspace_1/tables",
     );
@@ -579,6 +590,7 @@ describe("guest server actions", () => {
         version: true,
         partySize: true,
         seatingTableId: true,
+        checkIn: { select: { id: true } },
       },
     });
     expect(tableFindUnique).not.toHaveBeenCalled();

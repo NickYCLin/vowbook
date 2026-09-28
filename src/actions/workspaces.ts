@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -12,10 +11,7 @@ import {
   type NormalizedWorkspaceDetails,
   WorkspaceValidationError,
 } from "@/domain/workspace";
-import {
-  BUDGET_SYSTEM_NODES,
-  type BudgetSystemNodeKey,
-} from "@/domain/budget-item";
+import { createWorkspaceForUser } from "@/lib/create-workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 
@@ -84,6 +80,7 @@ function revalidateUpdatedWorkspace(): boolean {
   const attempts = [
     () => revalidatePath("/dashboard"),
     () => revalidatePath("/workspaces/[workspaceId]", "layout"),
+    () => revalidatePath("/", "layout"),
   ];
   for (const attempt of attempts) {
     try {
@@ -107,6 +104,7 @@ function revalidateWorkspaceCollection(): void {
       succeeded = false;
     }
   }
+  try { revalidatePath("/", "layout"); } catch { succeeded = false; }
   if (!succeeded) {
     console.error("婚宴工作區清單重新驗證失敗。");
   }
@@ -129,59 +127,10 @@ export async function createWorkspaceAction(
     return { status: "error", message: "輸入內容有誤，請重新確認。" };
   }
 
+  let createdWorkspaceId: string;
   try {
-    const taxonomyNodeIds = Object.fromEntries(
-      BUDGET_SYSTEM_NODES.map((node) => [node.key, randomUUID()]),
-    ) as Record<BudgetSystemNodeKey, string>;
-
-    await prisma.$transaction((transaction) =>
-      transaction.weddingWorkspace.create({
-        data: {
-          ...details,
-          createdById: currentUser.id,
-          memberships: {
-            create: {
-              userId: currentUser.id,
-              role: "OWNER",
-            },
-          },
-          budgetItems: {
-            create: BUDGET_SYSTEM_NODES.map((node) => ({
-              id: taxonomyNodeIds[node.key],
-              parentId:
-                node.parentKey === null
-                  ? null
-                  : taxonomyNodeIds[node.parentKey],
-              source: "MANUAL" as const,
-              externalId: null,
-              sourceHash: null,
-              sourceOrder: node.sourceOrder,
-              name: node.label,
-              kind: "GROUP" as const,
-              category: null,
-              systemTaxonomyKey: node.key,
-              legacyCategory: null,
-              plannedAmount: 0,
-              actualAmount: null,
-              dueDate: null,
-              notes: null,
-              paid: false,
-              paidAt: null,
-              bookingStatus: "PLANNING" as const,
-              depositAmount: null,
-              balanceAmount: null,
-              additionalAmount: null,
-              estimatedRange: null,
-              candidateVendors: null,
-              confirmedVendor: null,
-              vendorContact: null,
-              primaryContact: null,
-              balancePaymentMethod: null,
-            })),
-          },
-        },
-      }),
-    );
+    const created = await createWorkspaceForUser(currentUser.id, details);
+    createdWorkspaceId = created.id;
   } catch {
     return {
       status: "error",
@@ -190,7 +139,7 @@ export async function createWorkspaceAction(
   }
 
   revalidateWorkspaceCollection();
-  redirect("/dashboard");
+  redirect(`/workspaces/${createdWorkspaceId}/overview`);
 }
 
 export async function updateWorkspaceAction(

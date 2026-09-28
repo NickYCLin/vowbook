@@ -106,7 +106,7 @@ export function BudgetAttachments({
   const pending = uploadPending || deletingId !== null;
 
   useEffect(() => {
-    if (status !== null || error !== null) feedbackRef.current?.focus();
+    if (status !== null || error !== null) feedbackRef.current?.focus({ preventScroll: true });
   }, [error, status]);
 
   async function upload(event: FormEvent<HTMLFormElement>): Promise<void> {

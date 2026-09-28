@@ -3,7 +3,9 @@
 import { CaretLeft, DotsThreeCircle } from "@phosphor-icons/react/dist/ssr";
 import Link, { useLinkStatus } from "next/link";
 import {
+  Fragment,
   useEffect,
+  useContext,
   useId,
   useLayoutEffect,
   useRef,
@@ -12,6 +14,7 @@ import {
   type RefObject,
 } from "react";
 import { cn } from "@/lib/class-names";
+import { WorkspaceFrameContext } from "./workspace-view-state";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
 import {
   workspaceSectionHref,
@@ -56,6 +59,7 @@ function WorkspaceNavigationLink({
   placement,
   activeLinkRef,
   onNavigate,
+  layout,
 }: {
   workspaceId: string;
   section: WorkspaceSectionDefinition;
@@ -65,6 +69,7 @@ function WorkspaceNavigationLink({
   placement: "bar" | "panel";
   activeLinkRef: RefObject<HTMLAnchorElement | null>;
   onNavigate: (section: WorkspaceSection) => void;
+  layout: "tabs" | "sidebar";
 }) {
   const Icon = section.icon;
 
@@ -73,7 +78,9 @@ function WorkspaceNavigationLink({
       ref={isCurrent ? activeLinkRef : undefined}
       href={workspaceSectionHref(workspaceId, section)}
       prefetch={false}
+      scroll={layout === "sidebar" ? false : undefined}
       data-workspace-prefetch="disabled"
+      data-workspace-section={section.key}
       data-workspace-nav-placement={placement}
       data-workspace-pending={isPending ? "true" : undefined}
       onClick={(event) => {
@@ -88,9 +95,10 @@ function WorkspaceNavigationLink({
         }
         onNavigate(section.key);
       }}
-      aria-current={isDisplayedCurrent ? "page" : undefined}
+      aria-current={isCurrent ? "page" : undefined}
       className={cn(
         "min-h-11 shrink-0 transition",
+        layout === "sidebar" && "workspace-sidebar-link",
         // 桌機頁籤：目前分頁不只靠顏色區分，另外用底線加粗表示。
         "md:-mb-px md:inline-flex md:items-center md:justify-center md:gap-1.5 md:rounded-t-control md:border-b-2 md:px-3.5 md:text-sm md:whitespace-nowrap",
         isDisplayedCurrent
@@ -113,7 +121,7 @@ function WorkspaceNavigationLink({
       <Icon
         aria-hidden="true"
         weight={isDisplayedCurrent ? "fill" : "regular"}
-        className="size-[1.375rem] shrink-0 md:hidden"
+        className={cn("size-[1.375rem] shrink-0", layout === "tabs" && "md:hidden")}
       />
       <span>{section.label}</span>
       <WorkspaceNavigationHint />
@@ -124,24 +132,23 @@ function WorkspaceNavigationLink({
 export function WorkspaceNavigation({
   workspaceId,
   activeSection,
+  layout = "tabs",
 }: {
   workspaceId: string;
   activeSection: WorkspaceSection;
+  layout?: "tabs" | "sidebar";
 }) {
   const navigationRef = useRef<HTMLElement>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const morePanelId = useId();
-  const [pendingSection, setPendingSection] = useState<WorkspaceSection | null>(null);
   // 記住面板是在哪一頁打開的：路由一換，面板自然就算收起，不必靠 effect 重設。
   const [moreOpenedForSection, setMoreOpenedForSection] =
     useState<WorkspaceSection | null>(null);
   const isMoreOpen = moreOpenedForSection === activeSection;
   const setIsMoreOpen = (open: boolean) =>
     setMoreOpenedForSection(open ? activeSection : null);
-  const effectivePendingSection =
-    pendingSection === activeSection ? null : pendingSection;
-  const displayedSection = effectivePendingSection ?? activeSection;
+  const displayedSection = activeSection;
   const isMoreSectionDisplayed = secondarySections.some(
     (section) => section.key === displayedSection,
   );
@@ -151,8 +158,8 @@ export function WorkspaceNavigation({
     const activeLink = activeLinkRef.current;
     if (!navigation || !activeLink) return;
 
-    revealActiveWorkspaceNavigationItem(navigation, activeLink);
-  }, [activeSection]);
+    if (layout === "tabs") revealActiveWorkspaceNavigationItem(navigation, activeLink);
+  }, [activeSection, layout]);
 
   useEffect(() => {
     if (!isMoreOpen) return;
@@ -165,8 +172,7 @@ export function WorkspaceNavigation({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isMoreOpen]);
 
-  const handleNavigate = (section: WorkspaceSection) => {
-    setPendingSection(section === activeSection ? null : section);
+  const handleNavigate = () => {
     setIsMoreOpen(false);
   };
 
@@ -180,10 +186,11 @@ export function WorkspaceNavigation({
       section={section}
       isCurrent={activeSection === section.key}
       isDisplayedCurrent={displayedSection === section.key}
-      isPending={effectivePendingSection === section.key}
+      isPending={false}
       placement={placement}
       activeLinkRef={activeLinkRef}
       onNavigate={handleNavigate}
+      layout={layout}
     />
   );
 
@@ -191,8 +198,8 @@ export function WorkspaceNavigation({
     <nav
       ref={navigationRef}
       aria-label="工作區功能"
-      aria-busy={effectivePendingSection ? "true" : "false"}
       data-workspace-nav
+      data-workspace-nav-layout={layout}
       data-workspace-more-open={isMoreOpen ? "true" : undefined}
       className="relative min-w-0 md:mt-3 md:overflow-x-auto md:border-b md:border-line md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden"
     >
@@ -215,7 +222,10 @@ export function WorkspaceNavigation({
           data-workspace-nav-list
           className="max-md:grid max-md:grid-cols-5 md:flex md:w-max md:min-w-full md:flex-nowrap md:gap-x-1"
         >
-          {primarySections.map((section) => renderLink(section, "bar"))}
+          {primarySections.map(section => <Fragment key={section.key}>
+            {layout === "sidebar" && section.key === "guests" && <span className="hidden px-3 pb-1 pt-5 text-eyebrow font-semibold text-ink-faint md:block">婚宴籌備</span>}
+            {renderLink(section, "bar")}
+          </Fragment>)}
           <button
             ref={moreButtonRef}
             type="button"
@@ -249,17 +259,14 @@ export function WorkspaceNavigation({
               isMoreOpen ? "max-md:grid" : "max-md:hidden",
             )}
           >
-            {secondarySections.map((section) => renderLink(section, "panel"))}
+            {secondarySections.map(section => <Fragment key={section.key}>
+              {layout === "sidebar" && (section.key === "check-in" || section.key === "settings") && <span className="hidden px-3 pb-1 pt-5 text-eyebrow font-semibold text-ink-faint md:block">{section.key === "check-in" ? "婚宴當天" : "設定與協作"}</span>}
+              {renderLink(section, "panel")}
+            </Fragment>)}
           </div>
         </div>
       </div>
-      {effectivePendingSection ? (
-        <span
-          data-workspace-navigation-progress
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-clay motion-safe:animate-pulse max-md:hidden"
-        />
-      ) : null}
+
     </nav>
   );
 }
@@ -284,27 +291,29 @@ export function WorkspacePageHeader({
   /** 該頁的主要動作，例如「新增賓客」。放在標題右側，不必捲到頁尾。 */
   actions?: ReactNode;
 }) {
+  const inWorkspaceFrame = useContext(WorkspaceFrameContext);
+  const SectionIcon = workspaceSections.find(section => section.key === activeSection)!.icon;
   return (
     <>
-      <Link
-        href="/dashboard"
+      {!inWorkspaceFrame && <Link
+        href="/dashboard?view=all"
         className="-ml-1.5 inline-flex min-h-11 items-center gap-1 rounded-control px-1.5 text-caption font-semibold text-ink-soft transition hover:text-clay-strong"
       >
         <CaretLeft aria-hidden="true" weight="bold" className="size-3.5" />
         返回所有婚宴
-      </Link>
+      </Link>}
 
-      <WorkspaceNavigation
+      {!inWorkspaceFrame && <WorkspaceNavigation
         workspaceId={workspaceId}
         activeSection={activeSection}
-      />
+      />}
 
       <header
         data-workspace-header="compact"
         className={
           compactIntro
             ? "sr-only"
-            : "flex min-w-0 items-start justify-between gap-3 py-4 sm:gap-6 sm:py-5"
+            : "workspace-page-heading mb-6 flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row sm:gap-6"
         }
       >
         <div className="min-w-0 max-w-3xl flex-1">
@@ -316,9 +325,12 @@ export function WorkspacePageHeader({
           >
             {workspaceName}
           </p>
-          <h1 className="mt-0.5 min-w-0 break-words font-serif text-2xl leading-tight font-semibold text-ink sm:mt-1.5 sm:text-3xl">
-            {sectionTitle}
-          </h1>
+          <div className="mt-2 flex min-w-0 items-center gap-3">
+            <span className="workspace-section-icon grid size-11 shrink-0 place-items-center rounded-2xl text-clay-strong"><SectionIcon aria-hidden="true" className="size-6" /></span>
+            <h1 className="min-w-0 break-words font-serif text-2xl leading-tight font-semibold text-ink sm:text-3xl">
+              {sectionTitle}
+            </h1>
+          </div>
           <p className="mt-1.5 max-w-2xl text-caption leading-6 text-ink-soft sm:mt-2 sm:text-base sm:leading-7">
             {description}
           </p>
@@ -329,7 +341,7 @@ export function WorkspacePageHeader({
           )}
         </div>
         {actions && (
-          <div className="shrink-0 pt-5 sm:pt-6">{actions}</div>
+          <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:max-w-[50%]">{actions}</div>
         )}
       </header>
       {compactIntro && readOnlyNotice && (

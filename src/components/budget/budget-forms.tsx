@@ -922,6 +922,7 @@ export function EditBudgetItemForm({
         </div>
       ) : null}
       <dialog
+        data-dialog-presentation="panel"
         ref={dialogRef}
         aria-labelledby={dialogTitleId}
         aria-describedby={dialogItemId}
@@ -931,7 +932,7 @@ export function EditBudgetItemForm({
             event.preventDefault();
           }
         }}
-        onClose={() => triggerRef.current?.focus()}
+        onClose={() => triggerRef.current?.focus({ preventScroll: true })}
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)] backdrop:bg-stone-950/30 backdrop:backdrop-blur-[1px]"
       >
         <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">

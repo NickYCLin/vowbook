@@ -10,6 +10,7 @@ it("prints the authorized seating plan, including unassigned guests",async()=>{
  render(await SeatingPrintPage({params:Promise.resolve({workspaceId:"w"})}));
  expect(get).toHaveBeenCalledWith("w");expect(screen.getByRole("button",{name:"列印帶位名單／另存 PDF"})).toBeInTheDocument();
  expect(screen.getByRole("cell",{name:"尚未排桌"})).toBeInTheDocument();
+ expect(screen.getByText(/素食與兒童椅未填或為 0 表示不需要/)).toBeInTheDocument();
 });
 it("hides the print route without workspace membership",async()=>{
  get.mockRejectedValue(new WorkspaceAccessDeniedError());

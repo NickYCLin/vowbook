@@ -164,6 +164,9 @@ async function revalidateSeatingViews(workspaceId: string): Promise<boolean> {
     () => revalidatePath(`/workspaces/${workspaceId}/tables/print`),
     () => revalidatePath(guestsPath(workspaceId)),
     () => revalidatePath(`/workspaces/${workspaceId}/overview`),
+    () => revalidatePath(`/workspaces/${workspaceId}/check-in`),
+    () => revalidatePath(`/workspaces/${workspaceId}/tables/chart`),
+
     () => revalidatePath("/dashboard"),
   ];
   let revalidated = true;

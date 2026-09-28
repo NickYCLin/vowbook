@@ -17,6 +17,7 @@ import {
   GUEST_SENIORITY_LABELS,
   GUEST_SIDES,
   guestIdentityLabel,
+  effectiveGuestSeniority,
   normalizeGuestInput,
   normalizeGuestVersion,
   type GuestAttendanceStatusValue,
@@ -86,9 +87,7 @@ function guestFieldValues(
   return {
     name: initialValues?.name ?? "",
     category: initialValues?.category ?? "GUEST",
-    seniority:
-      initialValues?.seniority ??
-      (initialValues?.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
+    seniority: effectiveGuestSeniority(initialValues?.seniority),
     side: initialValues?.side ?? "SHARED",
     attendanceStatus: initialValues?.attendanceStatus ?? "UNDECIDED",
     partySize: String(initialValues?.partySize ?? 1),
@@ -229,7 +228,7 @@ function GuestFields({
           <Field
             htmlFor={`${idPrefix}-seniority`}
             label="賓客輩份"
-            hint="名單會先依輩份，再依姓氏筆劃排列；未設定會排在最後。"
+            hint="輩份預設為平輩；名單先依輩份，再依姓氏筆劃排列。"
           >
             <Select
               id={`${idPrefix}-seniority`}
@@ -243,7 +242,7 @@ function GuestFields({
                 )
               }
             >
-              {GUEST_SENIORITIES.map((seniority) => (
+              {GUEST_SENIORITIES.filter(seniority => seniority !== "UNSPECIFIED").map((seniority) => (
                 <option key={seniority} value={seniority}>
                   {GUEST_SENIORITY_LABELS[seniority]}
                 </option>
@@ -486,7 +485,7 @@ function ActionFeedback({
 
   useEffect(() => {
     if (state.status !== "idle") {
-      feedbackRef.current?.focus();
+      feedbackRef.current?.focus({ preventScroll: true });
     }
   }, [state]);
 
@@ -620,9 +619,7 @@ function createEditGuestSnapshot(
   const normalizedManagedFields = Array.from(new Set(props.managedFields)).sort();
   return {
     ...props,
-    seniority:
-      props.seniority ??
-      (props.category === "COUPLE" ? "PEER" : "UNSPECIFIED"),
+    seniority: effectiveGuestSeniority(props.seniority),
     managedFields: normalizedManagedFields,
     managedFieldsSignature: managedFieldsSignature(normalizedManagedFields),
     details: props.details ?? null,

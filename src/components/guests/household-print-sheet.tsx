@@ -21,7 +21,7 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
 }`}</style>
   <section data-household-print data-cake-print={cake?true:undefined} data-gift-print={!cake?true:undefined} className="mt-8 print:mt-0" aria-label={cake?"發餅匯出預覽":"紙本禮金簿預覽"}>
    <p className="hidden print:block font-semibold">{workspaceName}｜{title}</p>
-   <p className="hidden print:block my-2 text-sm">{cake?"請核對姓名與盒數，發放後在「領取勾選」欄打勾。同戶只領一次，新人本人不領餅。":"同一家人合併登記，請在金額欄手寫收到的禮金。未登記者金額欄留白；已登記者標示「禮金已收訖」，不列印金額。已排除不收禮金者。"}</p>
+   <p className="hidden print:block my-2 text-sm">{cake?"請核對姓名與盒數，發放後在「領取勾選」欄打勾。0 盒表示當日不領取，不需打勾。同戶只領一次，新人本人不領餅。":"同一家人合併登記，請在金額欄手寫收到的禮金。未登記者金額欄留白；已登記者標示「禮金已收訖」，不列印金額。已排除不收禮金者。"}</p>
    <h2 className="font-serif text-lg font-semibold">{title} · {countLabel(rows)}</h2>
    {groups.map(group=><section key={group.id} aria-label={group.label} className={`mt-6 ${group.rows.length?"":"print:hidden"}`}>
     <h3 className="font-serif text-lg font-semibold print:hidden">{group.label} · {countLabel(group.rows)}</h3>
@@ -35,7 +35,7 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
       <tbody>{group.rows.map(row=><tr key={row.key} className="border-t border-line">
        <td className="break-words p-3">{row.names}</td><td className="break-words p-3">{row.relationships}</td>
        <td className="p-3">{cake?row.boxes:row.giftReceived?<span className="font-semibold">禮金已收訖</span>:row.exempt?<span className="font-semibold">不收禮金</span>:<span data-gift-amount-blank className="gift-amount-blank block min-h-9 w-full border-b border-ink"/>}</td>
-       <td className="break-words p-3">{cake?<span role="img" aria-label="領取勾選框" className="cake-check-box inline-block h-6 w-6 border border-ink align-middle"/>:row.notes}</td>
+       <td className="break-words p-3">{cake?(row.boxes===0?<span>當日不領取</span>:<span role="img" aria-label="領取勾選框" className="cake-check-box inline-block h-6 w-6 border border-ink align-middle"/>):row.notes}</td>
       </tr>)}</tbody>
      </table>
     </div>:<p className="mt-2 text-sm text-ink-soft">{cake?"此分類目前沒有確認出席的領餅名單。":"此分類目前沒有親友名單。"}</p>}

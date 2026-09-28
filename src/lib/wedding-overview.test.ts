@@ -51,7 +51,7 @@ describe("getWeddingOverview", () => {
     tableFindMany.mockResolvedValue([]);
     taskFindMany.mockResolvedValue([]);
     budgetFindMany.mockResolvedValue([]);
-    staffCount.mockResolvedValue(0);
+    staffCount.mockResolvedValue([]);
     timelineCount.mockResolvedValue(0);
     membershipCount.mockResolvedValue(1);
     transaction.mockImplementation(
@@ -61,7 +61,7 @@ describe("getWeddingOverview", () => {
           seatingTable: { findMany: tableFindMany },
           weddingTask: { findMany: taskFindMany },
           budgetItem: { findMany: budgetFindMany },
-          weddingStaffAssignment: { count: staffCount },
+          weddingStaffAssignment: { findMany: staffCount },
           weddingTimelineItem: { count: timelineCount },
           membership: { count: membershipCount },
         }),
@@ -135,6 +135,19 @@ describe("getWeddingOverview", () => {
     ]);
     const data = await getWeddingOverview("workspace_1");
     expect(data.guests.gifts).toEqual({ recordedCount: 1, unrecordedGeneralGroupCount: 1, totalAmount: "1200" });
+  });
+
+  it("includes undecided family groups in home reminders while keeping the general-guest response metric separate", async () => {
+    const base = { side: "SHARED", partySize: 1, seatingTableId: null, importRecords: [], weddingGift: null };
+    guestFindMany.mockResolvedValue([
+      { ...base, category: "GUEST", attendanceStatus: "UNDECIDED" },
+      { ...base, category: "FAMILY", attendanceStatus: "UNDECIDED" },
+      { ...base, category: "FAMILY", attendanceStatus: "DECLINED" },
+      { ...base, category: "COUPLE", attendanceStatus: "UNDECIDED" },
+    ]);
+    const data = await getWeddingOverview("workspace_1");
+    expect(data.guests.undecidedGroupTotal).toBe(1);
+    expect(data.guests.undecidedAttendanceGroupTotal).toBe(2);
   });
 
   it("returns precise guest, seating, task, budget, and operations summaries", async () => {
@@ -326,7 +339,7 @@ describe("getWeddingOverview", () => {
         paid: false,
       },
     ]);
-    staffCount.mockResolvedValue(4);
+    staffCount.mockResolvedValue([{redEnvelopeAmount:null,redEnvelopeSentAt:null},{redEnvelopeAmount:null,redEnvelopeSentAt:null},{redEnvelopeAmount:null,redEnvelopeSentAt:null},{redEnvelopeAmount:null,redEnvelopeSentAt:null}]);
     timelineCount.mockResolvedValue(6);
     membershipCount.mockResolvedValue(3);
 
@@ -341,6 +354,7 @@ describe("getWeddingOverview", () => {
       attendingGroupTotal: 2,
       declinedGroupTotal: 1,
       undecidedGroupTotal: 1,
+      undecidedAttendanceGroupTotal: 1,
       attendingHeadcount: 11,
       assignedAttendingHeadcount: 8,
       unassignedAttendingHeadcount: 3,

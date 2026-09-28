@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
 import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
 import {
   useActionState,
@@ -724,8 +726,9 @@ function GiftExemptionForm({ workspaceId, guest, onSaved }: {
     <input type="hidden" name="expectedVersion" value={guest.version ?? 0} />
     <input type="hidden" name="giftExemptWithCake" value={guest.giftExemptWithCake ? "off" : "on"} />
     <Button type="submit" variant="ghost" size="sm" className="min-h-11 sm:min-h-9" disabled={pending}
+      title={guest.giftExemptWithCake ? "恢復收禮金，這位親友會重新列入紙本禮金簿" : "標記不收禮金、會送餅：紙本禮金簿不列入，發餅名單仍保留"}
       aria-label={guest.giftExemptWithCake ? `取消 ${guest.name} 的不收禮金、會送餅標記` : `標記 ${guest.name} 不收禮金、會送餅`}>
-      {guest.giftExemptWithCake ? "取消不收禮金標記" : "不收禮金、會送餅"}
+      {guest.giftExemptWithCake ? "恢復收禮金" : "不收禮金"}
     </Button>
     <ActionFeedback state={state} />
   </form>;
@@ -748,9 +751,9 @@ export function WeddingGiftBook({
   const [exemptions, setExemptions] = useState<Record<string, GuestGiftExemptionSnapshot>>({});
   const contentId = useId();
   const [expanded, setExpanded] = useState(defaultExpanded || !collapsible);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<GiftFilter>(DEFAULT_GIFT_FILTER);
-  const [sort, setSort] = useState<WeddingGiftSort>("ROSTER");
+  const [search, setSearch] = useWorkspaceViewState(`${workspaceId}:gifts:search`, "");
+  const [filter, setFilter] = useWorkspaceViewState<GiftFilter>(`${workspaceId}:gifts:filter`, DEFAULT_GIFT_FILTER);
+  const [sort, setSort] = useWorkspaceViewState<WeddingGiftSort>(`${workspaceId}:gifts:sort`, "ROSTER");
   const [feedback, setFeedback] = useState<GiftFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const [editorSelection, setEditorSelection] =
@@ -857,7 +860,7 @@ export function WeddingGiftBook({
   }, [guests]);
 
   useEffect(() => {
-    if (feedback) feedbackRef.current?.focus();
+    if (feedback) feedbackRef.current?.focus({ preventScroll: true });
   }, [feedback]);
 
   useEffect(() => {
@@ -1162,7 +1165,7 @@ export function WeddingGiftBook({
                     });
                     return (
                       <li key={guest.id} className="min-w-0">
-                        <article className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,auto)_auto] sm:items-center sm:px-5">
+                        <article className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(6rem,auto)_auto] sm:items-center sm:px-5">
                           <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <h3 className="min-w-0 font-serif text-body font-semibold break-words text-ink">
@@ -1207,9 +1210,7 @@ export function WeddingGiftBook({
                               </p>
                             ) : (
                               <p className="text-caption font-semibold text-ink-faint">
-                                {isGiftCollectionExcluded(guest) ? "不收禮金" : guest.category === "GUEST"
-                                  ? "未有禮金紀錄"
-                                  : "未有禮金紀錄（不列入一般賓客統計）"}
+                                {isGiftCollectionExcluded(guest) ? "不收禮金" : "未登記"}
                               </p>
                             )}
                           </div>

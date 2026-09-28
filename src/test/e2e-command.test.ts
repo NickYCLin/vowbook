@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -22,7 +23,7 @@ afterEach(() => {
 });
 
 function run(mode: string, exitCode = 0) {
-  const root = mkdtempSync(path.join(tmpdir(), "vowbook e2e command "));
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "vowbook e2e command ")));
   roots.push(root);
   mkdirSync(path.join(root, "scripts"));
   cpSync(

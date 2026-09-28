@@ -14,7 +14,26 @@ describe("cake distribution", () => {
   });
   it("keeps shared relationships neutral and makes missing titles explicit", () => {
     const rows = cakeRows([guest("a", { side: "SHARED", relationshipLabel: "朋友" }), guest("b", { side: "PARTNER_B", relationshipLabel: null }), guest("c", { relationshipLabel: "二舅" })], []);
-    expect(rows.map(row => row.relationships)).toEqual(["c：新郎的二舅", "b：新娘親友（稱謂未填）", "a：共同親友：朋友"]);
+    expect(rows.map(row => row.relationships)).toEqual(["c：新郎的二舅", "b：新娘親友", "a：共同親友：朋友"]);
+  });
+  it("drops the placeholder for a shared guest with no title", () => {
+    const rows = cakeRows([guest("a", { side: "SHARED", relationshipLabel: null })], []);
+    expect(rows[0].relationships).toBe("a：共同親友");
+  });
+  it("treats a bare side as the same thing whether or not a title was filled in", () => {
+    const rows = cakeRows([
+      guest("a", { relationshipLabel: "男方親友" }),
+      guest("b", { side: "PARTNER_B", relationshipLabel: "女方" }),
+      guest("c", { relationshipLabel: null }),
+    ], []);
+    expect(rows.map(row => row.relationships)).toEqual(["a：新郎親友", "c：新郎親友", "b：新娘親友"]);
+  });
+  it("does not restate the side when the title already carries it", () => {
+    const rows = cakeRows([
+      guest("a", { relationshipLabel: "男方同事" }),
+      guest("b", { side: "PARTNER_B", relationshipLabel: "新娘的同學" }),
+    ], []);
+    expect(rows.map(row => row.relationships)).toEqual(["a：男方同事", "b：新娘的同學"]);
   });
   it("includes checked-in guests and respects custom household box counts", () => {
     expect(cakeRows([guest("a", { checkedIn:true, attendanceStatus:"DECLINED", cakeHouseholdId:"h" })], [{id:"h",boxes:2}])[0].boxes).toBe(2);

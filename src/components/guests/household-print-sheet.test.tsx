@@ -1,6 +1,17 @@
 import {render,screen,within} from "@testing-library/react";
 import {expect,it} from "vitest";
 import {HouseholdPrintSheet} from "./household-print-sheet";
+it("keeps zero-box households for reference without a collection checkbox",()=>{
+ render(<HouseholdPrintSheet workspaceName="婚宴" kind="cakes" rows={[
+  {key:"none",group:"GROOM_FAMILY",names:"事先送餅的一家",relationships:"新郎親友",boxes:0},
+  {key:"one",group:"GROOM_FAMILY",names:"當天領餅的一家",relationships:"新郎親友",boxes:1},
+ ]}/>);
+ const noCollection=screen.getByRole("row",{name:/事先送餅的一家/});
+ expect(within(noCollection).getByText("當日不領取")).toBeInTheDocument();
+ expect(within(noCollection).queryByRole("img",{name:"領取勾選框"})).not.toBeInTheDocument();
+ expect(screen.getAllByRole("img",{name:"領取勾選框"})).toHaveLength(1);
+ expect(screen.getByRole("heading",{level:2})).toHaveTextContent("共 1 盒");
+});
 it("prints gift households with a blank amount column and exemption notes",()=>{
  const {container}=render(<HouseholdPrintSheet workspaceName="婚宴" kind="gifts" rows={[
   {key:"a",group:"GROOM_FAMILY",names:"父親一家",relationships:"新郎的父親",exempt:false,notes:""},

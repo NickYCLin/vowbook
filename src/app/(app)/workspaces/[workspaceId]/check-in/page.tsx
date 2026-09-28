@@ -46,7 +46,7 @@ export default async function CheckInPage({
         workspaceId={workspaceId}
         workspaceName={data.workspace.name}
         sectionTitle="賓客報到"
-        description="婚宴當天逐組記錄實際到場人數；報到不會改寫賓客的出席回覆，兩邊各自保留。"
+        description="只替確認出席的賓客與家人報到；不出席者與新人不需報到，臨時到場請先到名單確認出席。"
         activeSection="check-in"
         readOnlyNotice={
           canEdit

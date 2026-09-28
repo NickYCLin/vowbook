@@ -68,6 +68,7 @@ export default async function TasksPage({ params }: TasksPageProps) {
       <WeddingTaskList
         workspaceId={workspaceId}
         tasks={data.tasks}
+        today={data.workspaceToday}
         canEdit={canEdit}
       />
     </main>

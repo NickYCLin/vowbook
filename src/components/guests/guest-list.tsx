@@ -1,6 +1,9 @@
 "use client";
 
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { CaretDown } from "@phosphor-icons/react/dist/ssr";
 import {
   GUEST_CATEGORIES,
   GUEST_CATEGORY_LABELS,
@@ -413,17 +416,19 @@ export function GuestList({
 }: GuestListProps) {
   const [feedback, setFeedback] = useState<GuestFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
-  const [search, setSearch] = useState("");
-  const [attendanceFilter, setAttendanceFilter] = useState<
+  const [search, setSearch] = useWorkspaceViewState(`${workspaceId}:guests:search`, "");
+  const [planningSummaryOpen, setPlanningSummaryOpen] = useWorkspaceViewState(`${workspaceId}:guests:planningSummaryOpen`, false);
+  const planningSummaryId = useId();
+  const [attendanceFilter, setAttendanceFilter] = useWorkspaceViewState<
     GuestAttendanceStatusValue | "ALL"
-  >("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<
+  >(`${workspaceId}:guests:attendanceFilter`, "ALL");
+  const [categoryFilter, setCategoryFilter] = useWorkspaceViewState<
     GuestCategoryValue | "ALL"
-  >("ALL");
-  const [sideFilter, setSideFilter] = useState<GuestSideValue | "ALL">("ALL");
-  const [seatingFilter, setSeatingFilter] = useState<
+  >(`${workspaceId}:guests:categoryFilter`, "ALL");
+  const [sideFilter, setSideFilter] = useWorkspaceViewState<GuestSideValue | "ALL">(`${workspaceId}:guests:sideFilter`, "ALL");
+  const [seatingFilter, setSeatingFilter] = useWorkspaceViewState<
     "ALL" | "ASSIGNED" | "UNASSIGNED"
-  >("ALL");
+  >(`${workspaceId}:guests:seatingFilter`, "ALL");
   const totals = useMemo(() => {
     let generalGuestGroups = 0;
     let generalRespondedGroups = 0;
@@ -547,7 +552,7 @@ export function GuestList({
 
   useEffect(() => {
     if (feedback) {
-      feedbackRef.current?.focus();
+      feedbackRef.current?.focus({ preventScroll: true });
     }
   }, [feedback]);
 
@@ -761,8 +766,14 @@ export function GuestList({
         )}
 
         {guests.length > 0 && canEdit ? (
-          <>
-            <Card className="mb-4">
+          <Card className="mb-4">
+            <button type="button" aria-expanded={planningSummaryOpen} aria-controls={planningSummaryId} onClick={() => setPlanningSummaryOpen(!planningSummaryOpen)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-card px-5 py-4 text-left sm:px-6">
+              <span className="min-w-0"><span className="font-semibold">宴席與喜帖摘要</span><span className="mt-1 block text-caption text-ink-soft">兒童椅 {requirements.childSeats.total || "-"} · 素食 {requirements.vegetarianMeals.total || "-"} · 紙本喜帖 {invitations.paper.total} 份</span></span>
+              <CaretDown aria-hidden="true" className={cn("size-5 shrink-0 text-clay transition-transform", planningSummaryOpen && "rotate-180")} />
+            </button>
+            <div id={planningSummaryId} data-guest-planning-details hidden={!planningSummaryOpen}>
+            <div className="grid min-w-0 border-t border-line xl:grid-cols-2">
+            <div>
               <section
                 aria-labelledby="guest-requirements-heading"
                 className="px-5 py-5 sm:px-6"
@@ -791,9 +802,9 @@ export function GuestList({
                   />
                 </div>
               </section>
-            </Card>
+            </div>
 
-            <Card className="mb-4">
+            <div className="border-t border-line xl:border-t-0 xl:border-l">
               <section
                 aria-labelledby="guest-invitations-heading"
                 className="px-5 py-5 sm:px-6"
@@ -822,8 +833,10 @@ export function GuestList({
                   />
                 </div>
               </section>
-            </Card>
-          </>
+            </div>
+            </div>
+            </div>
+          </Card>
         ) : null}
 
         {guests.length === 0 ? (

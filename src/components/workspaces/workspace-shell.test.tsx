@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { WorkspacePageHeader } from "./workspace-shell";
 
 const links = [
-  ["總覽", "/workspaces/workspace_synthetic/overview", "bar"],
+  ["婚宴首頁", "/workspaces/workspace_synthetic/overview", "bar"],
   ["賓客", "/workspaces/workspace_synthetic/guests", "bar"],
   ["桌次", "/workspaces/workspace_synthetic/tables", "panel"],
   ["報到", "/workspaces/workspace_synthetic/check-in", "panel"],
@@ -12,6 +12,7 @@ const links = [
   ["花費", "/workspaces/workspace_synthetic/budget", "bar"],
   ["工作人員", "/workspaces/workspace_synthetic/staff", "panel"],
   ["總流程", "/workspaces/workspace_synthetic/timeline", "panel"],
+  ["婚宴設定", "/workspaces/workspace_synthetic/settings", "panel"],
   ["協作者", "/workspaces/workspace_synthetic/members", "panel"],
 ] as const;
 
@@ -38,7 +39,7 @@ describe("WorkspacePageHeader", () => {
     expect(screen.getByText("這是合成唯讀提示。")).toHaveClass("text-ink-soft");
     expect(screen.getByRole("link", { name: "返回所有婚宴" })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/dashboard?view=all",
     );
 
     const navigation = screen.getByRole("navigation", {
@@ -111,7 +112,7 @@ describe("WorkspacePageHeader", () => {
     expect(panel).toHaveClass("max-md:hidden", "md:contents");
     expect(
       within(panel as HTMLElement).getAllByRole("link").map((link) => link.textContent),
-    ).toEqual(["桌次", "報到", "禮金", "工作人員", "總流程", "協作者"]);
+    ).toEqual(["桌次", "報到", "禮金", "工作人員", "總流程", "婚宴設定", "協作者"]);
     expect(navigation.querySelector("[data-workspace-more-backdrop]")).toBeNull();
 
     fireEvent.click(more);
@@ -132,8 +133,8 @@ describe("WorkspacePageHeader", () => {
     giftsLink.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(giftsLink, { button: 0 });
     expect(more).toHaveAttribute("aria-expanded", "false");
-    expect(giftsLink).toHaveAttribute("aria-current", "page");
-    expect(more).toHaveAttribute("aria-current", "true");
+    expect(giftsLink).not.toHaveAttribute("aria-current");
+    expect(more).not.toHaveAttribute("aria-current");
   });
 
   it("marks the 更多 tab as current when the active section lives inside the panel", () => {
@@ -155,7 +156,7 @@ describe("WorkspacePageHeader", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
-  it("marks the requested tab immediately while its route is loading", () => {
+  it("keeps the current location selected until the requested route finishes loading", () => {
     const props = {
       workspaceId: "workspace_synthetic",
       workspaceName: "合成婚宴",
@@ -174,10 +175,8 @@ describe("WorkspacePageHeader", () => {
 
     fireEvent.click(tablesLink, { button: 0 });
 
-    expect(navigation).toHaveAttribute("aria-busy", "true");
-    expect(tablesLink).toHaveAttribute("aria-current", "page");
-    expect(tablesLink).toHaveAttribute("data-workspace-pending", "true");
-    expect(guestsLink).not.toHaveAttribute("aria-current");
+    expect(tablesLink).not.toHaveAttribute("aria-current");
+    expect(guestsLink).toHaveAttribute("aria-current", "page");
 
     rerender(
       <WorkspacePageHeader
@@ -187,7 +186,7 @@ describe("WorkspacePageHeader", () => {
       />,
     );
 
-    expect(navigation).toHaveAttribute("aria-busy", "false");
+    expect(tablesLink).toHaveAttribute("aria-current", "page");
     expect(tablesLink).not.toHaveAttribute("data-workspace-pending");
   });
 

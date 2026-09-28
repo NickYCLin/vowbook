@@ -1,5 +1,4 @@
-import Link from "next/link";
-import {buttonClassName} from "@/components/ui/button";
+import { PrintPreviewLink } from "@/components/print/print-preview-link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BudgetList } from "@/components/budget/budget-list";
@@ -56,13 +55,15 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
         }
       />
 
-      <div className="my-5"><Link href={`/workspaces/${workspaceId}/budget/print`} className={buttonClassName({variant:"secondary"})}>列印廠商尾款清單</Link></div>
+      <div className="mb-5 flex justify-end"><PrintPreviewLink href={`/workspaces/${workspaceId}/budget/print`}>列印尾款待付清單</PrintPreviewLink></div>
       <BudgetList
         workspaceId={workspaceId}
         workspaceName={data.workspaceName}
         workspaceToday={data.workspaceToday}
         items={data.items}
         summary={data.summary}
+        derivedCosts={data.derivedCosts}
+        mealPricing={data.mealPricing}
         canEdit={data.canEdit}
         canResetBudget={data.canResetBudget}
         resetSnapshot={data.resetSnapshot}

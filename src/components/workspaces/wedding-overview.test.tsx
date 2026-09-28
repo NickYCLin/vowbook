@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { WeddingOverview } from "./wedding-overview";
+import { WeddingHome } from "./wedding-home";
 
 const data = {
   guests: {
@@ -9,6 +10,7 @@ const data = {
     attendingGroupTotal: 7,
     declinedGroupTotal: 1,
     undecidedGroupTotal: 2,
+    undecidedAttendanceGroupTotal: 2,
     attendingHeadcount: 20,
     assignedAttendingHeadcount: 15,
     unassignedAttendingHeadcount: 5,
@@ -65,6 +67,44 @@ const data = {
 } as const;
 
 describe("WeddingOverview", () => {
+  it("turns actual pending counts into direct actions and keeps full statistics collapsed", () => {
+    render(<WeddingHome workspaceId="workspace_1" data={data}/>);
+    expect(screen.getByRole("link", { name: /安排 5 位親友入席/ })).toHaveAttribute("href", "/workspaces/workspace_1/tables");
+    expect(screen.getByRole("link", { name: /確認 2 組親友是否出席/ })).toHaveAttribute("href", "/workspaces/workspace_1/guests");
+    expect(screen.getByRole("link", { name: /處理 4 項婚宴任務/ })).toHaveAttribute("href", "/workspaces/workspace_1/tasks");
+    expect(screen.getByRole("link", { name: /確認 2 筆廠商尾款/ })).toHaveAttribute("href", "/workspaces/workspace_1/budget");
+    expect(screen.getByText("查看完整籌備統計").closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("does not invent outstanding work when all tracked work is complete", () => {
+    render(<WeddingHome workspaceId="workspace_1" data={{ ...data, guests: { ...data.guests, unassignedAttendingHeadcount: 0, undecidedGroupTotal: 0, undecidedAttendanceGroupTotal: 0 }, tasks: { ...data.tasks, todo: 0, inProgress: 0 }, budget: { ...data.budget, balanceDueCount: 0 } }}/>);
+    expect(screen.getByText("目前沒有待確認的賓客、座位、任務或尾款。")).toBeVisible();
+    expect(screen.queryByRole("link", { name: /處理 .*項婚宴任務/ })).toBeNull();
+  });
+
+  it("still prompts for family replies after all general guests have responded", () => {
+    render(<WeddingHome workspaceId="workspace_1" data={{ ...data, guests: {
+      ...data.guests, undecidedGroupTotal: 0, undecidedAttendanceGroupTotal: 1,
+    } }} />);
+    expect(screen.getByRole("link", { name: /確認 1 組親友是否出席/ })).toBeVisible();
+  });
+
+  it("prioritizes overdue work and provides scoped summary and reception shortcuts", () => {
+    render(<WeddingHome workspaceId="workspace_1" data={data} />);
+    const pending = screen.getByRole("region", { name: "需要處理" });
+    expect(within(pending).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual([
+      "/workspaces/workspace_1/tasks", "/workspaces/workspace_1/budget",
+      "/workspaces/workspace_1/tables", "/workspaces/workspace_1/guests",
+    ]);
+    const metrics = screen.getByRole("region", { name: "婚宴規模摘要" });
+    expect(within(metrics).getByRole("link", { name: /確認出席 20\s*位親友/ })).toHaveAttribute("href", "/workspaces/workspace_1/guests");
+    expect(screen.getByRole("progressbar", { name: "首頁任務完成進度" })).toHaveAttribute("aria-valuenow", "33");
+    const reception = screen.getByRole("region", { name: "婚宴當天" });
+    expect(within(reception).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual([
+      "/workspaces/workspace_1/check-in", "/workspaces/workspace_1/gifts", "/workspaces/workspace_1/staff",
+    ]);
+  });
+
   it("renders linked preparation progress and distinguishes groups from headcount", () => {
     render(<WeddingOverview workspaceId="workspace_1" data={data} />);
 
@@ -206,6 +246,7 @@ describe("WeddingOverview", () => {
             attendingGroupTotal: 0,
             declinedGroupTotal: 0,
             undecidedGroupTotal: 0,
+            undecidedAttendanceGroupTotal: 0,
             attendingHeadcount: 0,
             assignedAttendingHeadcount: 0,
             unassignedAttendingHeadcount: 0,

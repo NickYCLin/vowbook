@@ -135,6 +135,17 @@ export async function getGuestCheckInBoard(
   workspaceId: string,
 ): Promise<GuestCheckInBoardData> {
   const currentUser = await requireCurrentUser();
+  return loadGuestCheckInBoard(workspaceId, currentUser.id);
+}
+
+/**
+ * 手機端沒有網站的 session，但報到看的是同一份名單，所以把查詢抽出來共用；
+ * Membership 仍在同一個交易裡驗證，呼叫端傳進來的只有已驗證過的使用者。
+ */
+export async function loadGuestCheckInBoard(
+  workspaceId: string,
+  userId: string,
+): Promise<GuestCheckInBoardData> {
   const boardPrisma = prisma as unknown as GuestCheckInPrismaClient;
 
   try {
@@ -142,7 +153,7 @@ export async function getGuestCheckInBoard(
       async (transaction) => {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
-        >(workspaceId, currentUser.id, "read", transaction);
+        >(workspaceId, userId, "read", transaction);
 
         const tables = await transaction.seatingTable.findMany({
           where: { workspaceId },
@@ -199,6 +210,7 @@ export async function getGuestCheckInBoard(
             const seated = guestsByTableId.get(table.id) ?? [];
             const tableSummary = summarizeGuestCheckIns(
               seated.map((guest) => ({
+                category: guest.category,
                 attendanceStatus: guest.attendanceStatus,
                 partySize: guest.partySize,
                 checkedInHeadcount: guest.checkIn?.headcount ?? null,
@@ -223,7 +235,8 @@ export async function getGuestCheckInBoard(
           tables: boardTables,
           summary: summarizeGuestCheckIns(
             guests.map((guest) => ({
-              attendanceStatus: guest.attendanceStatus,
+              category: guest.category,
+                attendanceStatus: guest.attendanceStatus,
               partySize: guest.partySize,
               checkedInHeadcount: guest.checkIn?.headcount ?? null,
             })),

@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { InvitationAcceptedNotice } from "@/components/auth/invitation-accepted-notice";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { CreateWorkspaceDialog } from "@/components/workspaces/create-workspace-dialog";
 import { DashboardWorkspaceDeletionFeedback } from "@/components/workspaces/dashboard-workspace-feedback";
 import { WorkspaceSummary } from "@/components/workspaces/workspace-summary";
 import { requireCurrentUserContext } from "@/lib/current-user";
-import { listWorkspaceOverviewsForUser } from "@/lib/workspace-overview";
+import { listWorkspaceChoicesForUser } from "@/lib/workspace-choices";
+import { RECENT_WORKSPACE_COOKIE, workspaceEntryId } from "@/domain/workspace-entry";
 
 export const metadata: Metadata = {
   title: "所有婚宴",
 };
 
 type DashboardPageProps = {
-  searchParams?: Promise<{ workspaceDeleted?: string | string[] }>;
+  searchParams?: Promise<{ workspaceDeleted?: string | string[]; view?: string | string[] }>;
 };
 
 export default async function DashboardPage({
@@ -24,11 +26,17 @@ export default async function DashboardPage({
     invitationNotice,
     pendingInvitationConfirmation,
   } = await requireCurrentUserContext();
-  const overviews = await listWorkspaceOverviewsForUser(currentUser.id);
-  const { workspaceDeleted } = await searchParams;
+  const overviews = await listWorkspaceChoicesForUser(currentUser.id);
+  const { workspaceDeleted, view } = await searchParams;
 
   if (overviews.length === 0 && !pendingInvitationConfirmation) {
     redirect("/onboarding");
+  }
+
+  if (view !== "all" && workspaceDeleted !== "1" && !invitationNotice && !pendingInvitationConfirmation) {
+    const recent = (await cookies()).get(RECENT_WORKSPACE_COOKIE)?.value;
+    const target = workspaceEntryId(currentUser.id, overviews.map(item => item.workspace.id), recent);
+    if (target) redirect(`/workspaces/${target}/overview`);
   }
 
   const now = new Date();
@@ -38,13 +46,13 @@ export default async function DashboardPage({
       <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 max-w-2xl">
           <p className="text-eyebrow font-semibold text-clay uppercase">
-            共同籌備空間
+            婚宴籌備
           </p>
           <h1 className="mt-2 font-serif text-display font-semibold text-ink">
             所有婚宴
           </h1>
           <p className="mt-3 text-caption leading-7 text-ink-soft sm:text-base">
-            這裡放著你參與的每一場，自己辦的和幫別人籌備的都在一起。每個工作區的資料與成員權限彼此獨立。
+            這裡放著你參與的每一場，自己辦的和幫別人籌備的都在一起。
           </p>
         </div>
         <div className="shrink-0">
@@ -73,13 +81,13 @@ export default async function DashboardPage({
         <DashboardWorkspaceDeletionFeedback />
       ) : null}
 
-      <section aria-label="已加入的婚宴工作區" className="mt-8 space-y-5">
+      <section aria-label="已加入的婚宴工作區" className="mt-8 grid items-start gap-5 md:grid-cols-2">
         {overviews.map((overview) => (
           <WorkspaceSummary
-            key={overview.membershipId}
+            key={overview.id}
             role={overview.role}
             workspace={overview.workspace}
-            stats={overview.stats}
+            compact
             now={now}
           />
         ))}

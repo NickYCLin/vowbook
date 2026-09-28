@@ -60,7 +60,8 @@ describe("getWeddingTaskList", () => {
   });
 
   it("allows VIEWER reads only after membership and runs two deterministic RepeatableRead queries", async () => {
-    await expect(getWeddingTaskList("workspace_1")).resolves.toEqual({
+    await expect(getWeddingTaskList("workspace_1", new Date("2026-09-16T16:00:00Z"))).resolves.toEqual({
+      workspaceToday: "2026-09-17",
       role: "VIEWER",
       workspace: { id: "workspace_1", name: "我們的婚宴" },
       tasks: [],

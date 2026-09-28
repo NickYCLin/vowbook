@@ -21,7 +21,7 @@ export const GUEST_SENIORITY_LABELS = {
   ELDER: "長輩",
   PEER: "平輩",
   JUNIOR: "晚輩",
-  UNSPECIFIED: "未設定",
+  UNSPECIFIED: "平輩",
 } as const satisfies Record<(typeof GUEST_SENIORITIES)[number], string>;
 /** 場地圖的圓桌只有幾十像素寬，「男方親友」四個字擠不下。 */
 export const GUEST_SIDE_SHORT_LABELS = {
@@ -38,6 +38,11 @@ export const GUEST_ATTENDANCE_STATUSES = [
 export type GuestSideValue = (typeof GUEST_SIDES)[number];
 export type GuestCategoryValue = (typeof GUEST_CATEGORIES)[number];
 export type GuestSeniorityValue = (typeof GUEST_SENIORITIES)[number];
+
+/** 舊名單的未填值沿用平輩，不必批次改寫資料。 */
+export function effectiveGuestSeniority(value?: GuestSeniorityValue | null): GuestSeniorityValue {
+  return value == null || value === "UNSPECIFIED" ? "PEER" : value;
+}
 
 export function guestIdentityLabel(
   category: GuestCategoryValue,
@@ -188,7 +193,8 @@ export function normalizeGuestInput(input: GuestInput): NormalizedGuestInput {
     throw new GuestValidationError("請選擇有效的出席狀態。");
   }
 
-  const seniority = input.seniority == null ? undefined : input.seniority;
+  const seniority = input.seniority == null ? undefined
+    : input.seniority === "" || input.seniority === "UNSPECIFIED" ? "PEER" : input.seniority;
   if (seniority !== undefined && !isGuestSeniority(seniority)) {
     throw new GuestValidationError("請選擇有效的賓客輩份。");
   }
@@ -237,7 +243,7 @@ export function compareGuestsBySeniorityThenSurnameStroke(
   right: SortableGuest,
 ): number {
   const seniorityDifference =
-    guestSeniorityRank[left.seniority] - guestSeniorityRank[right.seniority];
+    guestSeniorityRank[effectiveGuestSeniority(left.seniority)] - guestSeniorityRank[effectiveGuestSeniority(right.seniority)];
   if (seniorityDifference !== 0) return seniorityDifference;
 
   const nameDifference = guestNameStrokeCollator.compare(

@@ -32,6 +32,7 @@ const transactionClient = {
 };
 
 import { SeatingPlanDataError, getSeatingPlan } from "./seating-plan";
+import { seatingPrintData } from "@/domain/seating-print";
 
 describe("getSeatingPlan", () => {
   beforeEach(() => {
@@ -60,6 +61,21 @@ describe("getSeatingPlan", () => {
     expect(result.unassignedGuests[0].vegetarianCount).toBe(2);
     expect(result.tables[0].guests[0]).not.toHaveProperty("importRecords");
     expect(result.unassignedGuests[0]).not.toHaveProperty("importRecords");
+  });
+
+  it("keeps unassigned child-seat requirements in the printed roster and respects manual blanks", async () => {
+    const guest = { id: "waiting", name: "待排親友", partySize: 3, side: "SHARED" };
+    const source = { source: "LINEIN", sourceManaged: true, childSeatCount: 2, vegetarianCount: 1 };
+    findGuests.mockResolvedValue([
+      { ...guest, importRecords: [source] },
+      { ...guest, id: "cleared", importRecords: [source, {
+        source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false,
+        childSeatCount: null, vegetarianCount: null,
+      }] },
+    ]);
+    const data = await getSeatingPlan("workspace_1");
+    expect(data.unassignedGuests.map(guest => guest.childSeatCount)).toEqual([2, null]);
+    expect(seatingPrintData(data.tables, data.unassignedGuests).rows.map(row => row.cells[5])).toEqual(["2 張", "-"]);
   });
 
   it("authenticates, then authorizes and scopes both reads in one RepeatableRead snapshot", async () => {
@@ -131,7 +147,7 @@ describe("getSeatingPlan", () => {
         notes: true,
         importRecords: {
           orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-          select: { source: true, sourceInstance: true, sourceManaged: true, vegetarianCount: true },
+          select: { source: true, sourceInstance: true, sourceManaged: true, vegetarianCount: true, childSeatCount: true },
         },
       },
     });

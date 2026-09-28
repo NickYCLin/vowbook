@@ -148,7 +148,7 @@ export function WeddingStaffList({
 
     if (focusTargetId) {
       queueMicrotask(() => {
-        (document.getElementById(focusTargetId) ?? headingRef.current)?.focus();
+        (document.getElementById(focusTargetId) ?? headingRef.current)?.focus({ preventScroll: true });
       });
     }
   }, [canEdit, staff]);

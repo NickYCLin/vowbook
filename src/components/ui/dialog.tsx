@@ -30,7 +30,7 @@ export function useModalDialog<T extends HTMLElement = HTMLButtonElement>({
       .querySelector<HTMLElement>(
         'input:not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)',
       )
-      ?.focus();
+      ?.focus({ preventScroll: true });
   }, []);
 
   const close = useCallback(() => {
@@ -49,11 +49,11 @@ export function useModalDialog<T extends HTMLElement = HTMLButtonElement>({
     }
     const trigger = triggerRef.current;
     if (trigger?.isConnected && trigger.closest("[hidden]") === null) {
-      trigger.focus();
+      trigger.focus({ preventScroll: true });
       return;
     }
     if (fallbackFocusId) {
-      document.getElementById(fallbackFocusId)?.focus();
+      document.getElementById(fallbackFocusId)?.focus({ preventScroll: true });
     }
   }, [fallbackFocusId]);
 
@@ -71,6 +71,7 @@ const sizes = {
   sm: "max-w-md",
   md: "max-w-xl",
   lg: "max-w-3xl",
+  xl: "max-w-6xl",
 } as const;
 
 export function Dialog({
@@ -82,6 +83,7 @@ export function Dialog({
   closeLabel,
   isPending = false,
   size = "md",
+  presentation,
   onClose,
   onRestoreFocus,
   children,
@@ -94,6 +96,7 @@ export function Dialog({
   closeLabel: string;
   isPending?: boolean;
   size?: keyof typeof sizes;
+  presentation?: "panel" | "center";
   onClose: () => void;
   onRestoreFocus?: () => void;
   children: ReactNode;
@@ -102,6 +105,7 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
+      data-dialog-presentation={presentation ?? (size === "sm" ? "center" : "panel")}
       onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
       onCancel={(event) => {
         if (isPending) event.preventDefault();
@@ -170,6 +174,7 @@ export function DialogFooter({
 }) {
   return (
     <div
+      data-dialog-footer
       className={cn(
         "flex flex-col-reverse gap-3 border-t border-line bg-surface-sunken/60 px-5 py-4 sm:flex-row sm:justify-end sm:px-6",
         className,

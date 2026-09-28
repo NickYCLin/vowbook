@@ -9,7 +9,8 @@ describe("Prisma schema contract", () => {
     const schema = fs.readFileSync(schemaPath, "utf8");
 
     expect(schema).toMatch(/model User\s*{/);
-    expect(schema).toMatch(/googleSubject\s+String\s+@unique/);
+    expect(schema).toMatch(/googleSubject\s+String\?\s+@unique/);
+    expect(schema).toMatch(/appleSubject\s+String\?\s+@unique/);
     expect(schema).toMatch(/model WeddingWorkspace\s*{/);
     expect(schema).toMatch(/model Membership\s*{/);
     expect(schema).toMatch(/@@unique\(\[workspaceId, userId\]\)/);

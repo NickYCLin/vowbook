@@ -124,6 +124,7 @@ function writeFailureState(
   error: unknown,
   fallbackMessage: string,
 ): WeddingStaffMutationState {
+  if (error instanceof WeddingStaffValidationError) return validationState(error);
   if (error instanceof WorkspaceAccessDeniedError) {
     return { status: "error", code: "FORBIDDEN", message: error.message };
   }
@@ -165,6 +166,19 @@ function committedSuccessMessage(message: string, revalidated: boolean): string 
   return revalidated
     ? message
     : `${message.replace(/。$/u, "")}；畫面未自動更新，請重新整理。`;
+}
+
+/**
+ * 編輯工作人員存檔後畫面本來就會跟著變，再彈一句「已更新」只是擋住視線。
+ * 只有 revalidate 失敗、使用者非得自己重新整理時才需要出聲。
+ */
+function quietCommittedState(
+  message: string,
+  revalidated: boolean,
+): WeddingStaffMutationState {
+  return revalidated
+    ? { status: "success" }
+    : { status: "success", message: committedSuccessMessage(message, false) };
 }
 
 export async function createWeddingStaffAction(
@@ -239,6 +253,18 @@ export async function updateWeddingStaffAction(
       );
       const staffTransaction =
         transaction as unknown as WeddingStaffPrismaClient;
+      if (details.redEnvelopeAmount === null) {
+        const current = await staffTransaction.weddingStaffAssignment.findFirst({
+          where: { id: staffId, workspaceId },
+          select: { redEnvelopeAmount: true, redEnvelopeSentAt: true, version: true },
+        });
+        if (!current || current.version !== version) return { count: 0 };
+        if (current.redEnvelopeSentAt) {
+          throw new WeddingStaffValidationError(
+            "紅包已標記為發放，請先改回尚未發放，再清空紅包金額。",
+          );
+        }
+      }
       return staffTransaction.weddingStaffAssignment.updateMany({
         where: { id: staffId, workspaceId, version },
         data: { ...details, version: { increment: 1 } },
@@ -255,10 +281,7 @@ export async function updateWeddingStaffAction(
     return staleState();
   }
   const revalidated = await revalidateViews(workspaceId);
-  return {
-    status: "success",
-    message: committedSuccessMessage("已更新婚禮工作人員。", revalidated),
-  };
+  return quietCommittedState("已更新婚禮工作人員。", revalidated);
 }
 
 /**

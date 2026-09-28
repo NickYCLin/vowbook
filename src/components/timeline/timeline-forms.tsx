@@ -270,13 +270,14 @@ function TimelineDialog({
         </span>
       </button>
       <dialog
+        data-dialog-presentation="panel"
         ref={dialogRef}
         aria-labelledby={id}
         onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
         onCancel={(event) => {
           if (pending) event.preventDefault();
         }}
-        onClose={() => triggerRef.current?.focus()}
+        onClose={() => triggerRef.current?.focus({ preventScroll: true })}
         className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-stone-950/35"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">

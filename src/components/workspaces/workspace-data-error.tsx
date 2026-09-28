@@ -36,7 +36,7 @@ export function WorkspaceDataError({
               再試一次
             </Link>
             <Link
-              href="/dashboard"
+              href="/dashboard?view=all"
               className="inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-4 text-sm font-semibold text-clay-strong transition hover:border-clay hover:bg-clay-soft"
             >
               回到所有婚宴

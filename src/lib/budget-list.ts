@@ -1,4 +1,6 @@
 import "server-only";
+import { dateKeyInTimezone } from "@/domain/calendar-date";
+import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import {
@@ -34,6 +36,11 @@ import {
 } from "@/domain/budget-attachment";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
+import { summarizeWeddingStaffRedEnvelopes } from "@/domain/wedding-staff";
+import {
+  budgetDerivedCosts,
+  type BudgetDerivedCost,
+} from "@/domain/budget-derived-cost";
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
 import { fingerprintBudgetDirectChildIds } from "@/lib/budget-direct-child-set";
 import {
@@ -100,12 +107,43 @@ type BudgetItemTransactionClient = {
         | "hasEngagementCeremony"
         | "hasProcessionCeremony"
         | "ceremonyPreferencesVersion"
+        | "staffMealUnitPrice"
+        | "vegetarianMealUnitPrice"
+        | "serviceChargePercent"
       >;
     } | null>;
   };
   budgetItem: {
     findMany(args: unknown): Promise<BudgetItemRecord[]>;
   };
+  weddingStaffAssignment: {
+    findMany(args: unknown): Promise<BudgetStaffRedEnvelope[]>;
+  };
+  guest: {
+    findMany(args: unknown): Promise<BudgetVegetarianGuest[]>;
+  };
+};
+
+/** 素食人數存在匯入明細裡，Guest 本身沒有這個欄位。 */
+export type BudgetVegetarianGuest = {
+  importRecords: Array<{
+    source: string;
+    sourceInstance: string;
+    sourceManaged: boolean;
+    vegetarianCount: number | null;
+  }>;
+};
+
+/** 尾款不只欠廠商，還沒發出去的工作人員紅包同樣是當天要付的錢。 */
+export type BudgetStaffRedEnvelope = {
+  id: string;
+  personName: string;
+  roleName: string;
+  contactPhone: string | null;
+  notes: string | null;
+  mealCount: number | null;
+  redEnvelopeAmount: number | null;
+  redEnvelopeSentAt: Date | null;
 };
 
 type BudgetItemPrismaClient = {
@@ -272,6 +310,10 @@ export function sumTwdAmounts(amounts: Iterable<number>): string {
 }
 
 function compareItems(left: BudgetItemRecord, right: BudgetItemRecord): number {
+  // 決定不準備的項目留著只是備查，擺在要處理的東西上面會擋住真正該看的。
+  const leftSkipped = preparationStatusOf(left) === "NOT_PLANNED" ? 1 : 0;
+  const rightSkipped = preparationStatusOf(right) === "NOT_PLANNED" ? 1 : 0;
+  if (leftSkipped !== rightSkipped) return leftSkipped - rightSkipped;
   const leftSystemIndex =
     left.systemTaxonomyKey === null || left.systemTaxonomyKey === undefined
       ? Number.MAX_SAFE_INTEGER
@@ -740,26 +782,17 @@ function buildTree(items: BudgetItemRecord[]): BudgetItemListItem[] {
   return result;
 }
 
-function dateKeyInTimezone(value: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-  const part = (type: "year" | "month" | "day") =>
-    parts.find((entry) => entry.type === type)?.value;
-  const year = part("year");
-  const month = part("month");
-  const day = part("day");
-  if (!year || !month || !day) throw new BudgetItemDataError();
-  return `${year}-${month}-${day}`;
-}
 
 function summarize(
   items: BudgetItemRecord[],
   workspaceToday: string,
+  staffRedEnvelopes: readonly BudgetStaffRedEnvelope[] = [],
+  derivedCosts: readonly BudgetDerivedCost[] = [],
 ): BudgetSummary {
+  const pendingRedEnvelopes =
+    summarizeWeddingStaffRedEnvelopes(staffRedEnvelopes);
+  // 衍生費用沒有自己的 BudgetItem，總計要另外加，才不會少算便當與素食。
+  const derivedPlanned = derivedCosts.map((cost) => cost.amount);
   const expenseItems = items.filter((item) => item.kind === "EXPENSE");
   const trackedExpenseItems = expenseItems.filter(
     (item) => preparationStatusOf(item) === "NEEDS_ACTION",
@@ -784,22 +817,35 @@ function summarize(
       0,
     ),
     plannedTotal: sumTwdAmounts(
-      trackedExpenseItems.map((item) => item.plannedAmount),
+      trackedExpenseItems
+        .map((item) => item.plannedAmount)
+        .concat(derivedPlanned),
     ),
     actualTotal: sumTwdAmounts(
       trackedExpenseItems.flatMap((item) =>
         item.actualAmount === null ? [] : [item.actualAmount],
       ),
     ),
+    // 加購通常是當天連同尾款一起結給廠商，所以合在同一筆金額裡。
     balanceDueTotal: sumTwdAmounts(
-      balanceDueItems.flatMap((item) =>
-        item.balanceAmount === null ? [] : [item.balanceAmount],
-      ),
+      balanceDueItems
+        .flatMap((item) =>
+          [item.balanceAmount, item.additionalAmount].filter(
+            (amount): amount is number => amount !== null,
+          ),
+        )
+        .concat(
+          pendingRedEnvelopes.pendingAmount === 0
+            ? []
+            : [pendingRedEnvelopes.pendingAmount],
+        ),
     ),
-    balanceDueCount: balanceDueItems.length,
+    balanceDueCount: balanceDueItems.length + pendingRedEnvelopes.pendingCount,
     overdueBalanceDueCount: overdueBalanceDueDates.length,
     balanceDueMissingAmountCount: balanceDueItems.reduce(
-      (total, item) => total + (item.balanceAmount === null ? 1 : 0),
+      (total, item) =>
+        total +
+        (item.balanceAmount === null && item.additionalAmount === null ? 1 : 0),
       0,
     ),
     nearestUpcomingBalanceDueDate:
@@ -904,6 +950,15 @@ export async function getBudgetPageData(
   { now = new Date() }: { now?: Date } = {},
 ) {
   const currentUser = await requireCurrentUser();
+  return loadBudgetPageData(workspaceId, currentUser.id, { now });
+}
+
+/** 手機端沿用同一份花費資料；Membership 仍在交易內驗證。 */
+export async function loadBudgetPageData(
+  workspaceId: string,
+  userId: string,
+  { now = new Date() }: { now?: Date } = {},
+) {
   const budgetPrisma = prisma as unknown as BudgetItemPrismaClient;
 
   try {
@@ -918,8 +973,11 @@ export async function getBudgetPageData(
             | "hasEngagementCeremony"
             | "hasProcessionCeremony"
             | "ceremonyPreferencesVersion"
+            | "staffMealUnitPrice"
+            | "vegetarianMealUnitPrice"
+            | "serviceChargePercent"
           >
-        >(workspaceId, currentUser.id, "read", transaction);
+        >(workspaceId, userId, "read", transaction);
         const workspaceToday = dateKeyInTimezone(
           now,
           access.workspace.timezone,
@@ -936,6 +994,55 @@ export async function getBudgetPageData(
           },
         });
         const permissions = getWorkspacePermissions(access.role);
+        const staffRedEnvelopes =
+          await transaction.weddingStaffAssignment.findMany({
+            where: { workspaceId },
+            select: {
+              id: true,
+              personName: true,
+              roleName: true,
+              contactPhone: true,
+              notes: true,
+              mealCount: true,
+              redEnvelopeAmount: true,
+              redEnvelopeSentAt: true,
+            },
+          });
+        // 只算出席賓客的素食人數，跟總覽頁的口徑一致。
+        const vegetarianGuests = await transaction.guest.findMany({
+          where: { workspaceId, attendanceStatus: "ATTENDING" },
+          select: {
+            importRecords: {
+              orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+              select: {
+                source: true,
+                sourceInstance: true,
+                sourceManaged: true,
+                vegetarianCount: true,
+              },
+            },
+          },
+        });
+        const derivedCosts = budgetDerivedCosts({
+          staffMealUnitPrice: access.workspace.staffMealUnitPrice,
+          vegetarianMealUnitPrice: access.workspace.vegetarianMealUnitPrice,
+          serviceChargePercent: access.workspace.serviceChargePercent,
+          staffMealCount: staffRedEnvelopes.reduce(
+            (total, person) => total + (person.mealCount ?? 0),
+            0,
+          ),
+          vegetarianGuestCount: vegetarianGuests.reduce(
+            (total, guest) =>
+              total +
+              (effectiveGuestDetailValue(
+                guest.importRecords,
+                (record) => record.vegetarianCount,
+              ) ?? 0),
+            0,
+          ),
+          pendingRedEnvelopeAmount:
+            summarizeWeddingStaffRedEnvelopes(staffRedEnvelopes).pendingAmount,
+        });
         const resetSnapshot: BudgetResetSnapshot | null =
           permissions.canManageMembers
             ? summarizeBudgetResetSnapshot(
@@ -973,7 +1080,19 @@ export async function getBudgetPageData(
               })
             : [],
           items: buildTree(records),
-          summary: summarize(records, workspaceToday),
+          staffRedEnvelopes,
+          derivedCosts,
+          mealPricing: {
+            staffMealUnitPrice: access.workspace.staffMealUnitPrice,
+            vegetarianMealUnitPrice: access.workspace.vegetarianMealUnitPrice,
+            serviceChargePercent: access.workspace.serviceChargePercent,
+          },
+          summary: summarize(
+            records,
+            workspaceToday,
+            staffRedEnvelopes,
+            derivedCosts,
+          ),
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

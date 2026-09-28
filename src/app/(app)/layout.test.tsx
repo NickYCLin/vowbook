@@ -4,17 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 const {
   findProfileAvatarUpdatedAt,
   getServerSession,
+  listWorkspaceChoicesForUser,
   redirect,
   resolveCurrentUser,
 } = vi.hoisted(() => ({
   findProfileAvatarUpdatedAt: vi.fn(),
   getServerSession: vi.fn(),
+  listWorkspaceChoicesForUser: vi.fn(),
   redirect: vi.fn(),
   resolveCurrentUser: vi.fn(),
 }));
 
 vi.mock("next-auth", () => ({ getServerSession }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect, usePathname: () => "/dashboard" }));
+vi.mock("@/lib/workspace-choices", () => ({ listWorkspaceChoicesForUser }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 vi.mock("@/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/current-user", () => ({ resolveCurrentUser }));
 vi.mock("@/lib/profile-avatar", () => ({ findProfileAvatarUpdatedAt }));
@@ -38,7 +42,7 @@ vi.mock("@/components/theme/theme-menu", () => ({
 import AppLayout from "./layout";
 
 describe("AppLayout", () => {
-  it("links the authenticated Wordmark to the dashboard in the shared max-w-6xl frame", async () => {
+  function signInSyntheticUser() {
     getServerSession.mockResolvedValue({
       user: {
         googleSubject: "synthetic-subject",
@@ -54,6 +58,11 @@ describe("AppLayout", () => {
       image: "https://lh3.googleusercontent.com/a/synthetic",
     });
     findProfileAvatarUpdatedAt.mockResolvedValue(null);
+  }
+
+  it("links the authenticated Wordmark to the dashboard in the shared application frame", async () => {
+    signInSyntheticUser();
+    listWorkspaceChoicesForUser.mockResolvedValue([]);
 
     const { container } = render(
       await AppLayout({ children: <main>合成內容</main> }),
@@ -63,7 +72,7 @@ describe("AppLayout", () => {
       screen.getByRole("link", { name: "誓約簿 VowBook 所有婚宴" }),
     ).toHaveAttribute("href", "/dashboard");
     expect(container.querySelector("header > div")).toHaveClass(
-      "max-w-6xl",
+      "max-w-[100rem]",
       "px-5",
       "sm:px-8",
     );
@@ -76,5 +85,18 @@ describe("AppLayout", () => {
       "hidden",
       "sm:block",
     );
+  });
+
+  it("takes the Wordmark straight to the wedding the member will land on", async () => {
+    signInSyntheticUser();
+    listWorkspaceChoicesForUser.mockResolvedValue([
+      { workspace: { id: "workspace_synthetic", name: "合成婚宴" }, role: "OWNER" },
+    ]);
+
+    render(await AppLayout({ children: <main>合成內容</main> }));
+
+    expect(
+      screen.getByRole("link", { name: "誓約簿 VowBook 首頁" }),
+    ).toHaveAttribute("href", "/workspaces/workspace_synthetic/overview");
   });
 });

@@ -24,10 +24,10 @@ const standardPreparationPresetItems = BUDGET_PREPARATION_PRESET_STAGES.filter(
 
 function restoreConnectedFocus(trigger: HTMLButtonElement | null) {
   if (trigger?.isConnected && trigger.closest("[hidden]") === null) {
-    trigger.focus();
+    trigger.focus({ preventScroll: true });
     return;
   }
-  document.getElementById("budget-items-heading")?.focus();
+  document.getElementById("budget-items-heading")?.focus({ preventScroll: true });
 }
 
 export function BudgetPreparationPreset({

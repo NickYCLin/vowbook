@@ -104,6 +104,22 @@ describeDatabase.sequential("PostgreSQL wedding gift invariants", () => {
     expect(await prisma.guest.findUnique({ where: { id: guest.id } })).toMatchObject({ giftExemptWithCake: false, version: 2 });
   });
 
+  it("reads the effective relationship from tenant-scoped detail records", async () => {
+    const owner = await createUser("relationship");
+    authState.userId = owner.id;
+    const workspace = await createWorkspace(owner.id, "親屬規則測試");
+    const guest = await createGuest(workspace.id, "測試親友");
+    const detail = await prisma.guestImportRecord.create({ data: {
+      guestId: guest.id, workspaceId: workspace.id,
+      source: "MANUAL", sourceInstance: "guest-details", sourceLabel: "人工明細",
+      sourceManaged: false, managedFields: [], externalId: guest.id, relationshipLabel: "父親",
+    } });
+    await expect(createWeddingGiftAction(workspace.id, guest.id, idleState, giftForm())).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(await prisma.weddingGift.count({ where: { guestId: guest.id } })).toBe(0);
+    await prisma.guestImportRecord.update({ where: { id: detail.id }, data: { relationshipLabel: null } });
+    await expect(createWeddingGiftAction(workspace.id, guest.id, idleState, giftForm())).resolves.toMatchObject({ status: "success" });
+  });
+
   it("enforces direct workspace ownership, same-workspace guests, one record per group, and database checks", async () => {
     const owner = await createUser("owner");
     const first = await createWorkspace(owner.id, "第一工作區");

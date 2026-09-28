@@ -57,7 +57,7 @@ describe("Notion Budget tree query", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transaction.mockImplementation(async (operation) =>
-      operation({ budgetItem: { findMany } }),
+      operation({ budgetItem: { findMany }, weddingStaffAssignment: { findMany: async () => [] }, guest: { findMany: async () => [] } }),
     );
     requireCurrentUser.mockResolvedValue({ id: "synthetic_user" });
     requireWorkspaceAccess.mockResolvedValue({

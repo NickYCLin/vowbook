@@ -63,7 +63,7 @@ describe("createWorkspaceAction", () => {
 
     await expect(
       createWorkspaceAction({ status: "idle" }, formData),
-    ).rejects.toThrow("REDIRECT:/dashboard");
+    ).rejects.toThrow("REDIRECT:/workspaces/workspace_1/overview");
 
     expect(create).toHaveBeenCalledWith({
       data: {
@@ -123,7 +123,7 @@ describe("createWorkspaceAction", () => {
     ).toBe(true);
     expect(revalidatePath).toHaveBeenCalledWith("/dashboard");
     expect(revalidatePath).toHaveBeenCalledWith("/onboarding");
-    expect(redirect).toHaveBeenCalledWith("/dashboard");
+    expect(redirect).toHaveBeenCalledWith("/workspaces/workspace_1/overview");
   });
 
   it("still redirects after commit and attempts every collection view when revalidation fails", async () => {
@@ -141,7 +141,7 @@ describe("createWorkspaceAction", () => {
 
     await expect(
       createWorkspaceAction({ status: "idle" }, formData),
-    ).rejects.toThrow("REDIRECT:/dashboard");
+    ).rejects.toThrow("REDIRECT:/workspaces/workspace_1/overview");
     expect(revalidatePath).toHaveBeenNthCalledWith(1, "/dashboard");
     expect(revalidatePath).toHaveBeenNthCalledWith(2, "/onboarding");
     expect(log).toHaveBeenCalledWith("婚宴工作區清單重新驗證失敗。");
@@ -243,7 +243,7 @@ describe("updateWorkspaceAction", () => {
       "/workspaces/[workspaceId]",
       "layout",
     );
-    expect(revalidatePath).toHaveBeenCalledTimes(2);
+    expect(revalidatePath).toHaveBeenCalledTimes(3);
   });
 
   it("does not read or write a target for a non-owner", async () => {

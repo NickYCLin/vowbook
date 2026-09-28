@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FlowerTulip, HandHeart, Printer } from "@phosphor-icons/react/dist/ssr";
+import { FlowerTulip, HandHeart } from "@phosphor-icons/react/dist/ssr";
 import { buttonClassName } from "@/components/ui/button";
 import { WeddingGameParticipantLists } from "@/components/timeline/game-participants";
 import { CreateWeddingTimelineItemForm } from "@/components/timeline/timeline-forms";
 import { WeddingTimelineList } from "@/components/timeline/timeline-list";
 import { WeddingSpeechCards } from "@/components/timeline/wedding-speeches";
+import { PrintPreviewLink } from "@/components/print/print-preview-link";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
 import {
   getWorkspacePermissions,
@@ -62,13 +62,9 @@ export default async function TimelinePage({
               <HandHeart aria-hidden="true" className="size-5" />
               謝親恩
             </a>
-            <Link
-              href={`/workspaces/${workspaceId}/timeline/print`}
-              className={buttonClassName({ variant: "secondary" })}
-            >
-              <Printer aria-hidden="true" className="size-5" />
+            <PrintPreviewLink href={`/workspaces/${workspaceId}/timeline/print`}>
               主持人流程
-            </Link>
+            </PrintPreviewLink>
             {canEdit && data.items.length > 0 ? (
               <CreateWeddingTimelineItemForm
                 workspaceId={workspaceId}

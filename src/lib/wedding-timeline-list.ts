@@ -158,6 +158,14 @@ function itemViewModel(record: TimelineRecord): WeddingTimelineListItem {
 
 export async function getWeddingTimelinePageData(workspaceId: string) {
   const currentUser = await requireCurrentUser();
+  return loadWeddingTimelinePageData(workspaceId, currentUser.id);
+}
+
+/** 手機端共用同一份總流程；Membership 仍在交易內驗證。 */
+export async function loadWeddingTimelinePageData(
+  workspaceId: string,
+  userId: string,
+) {
   const timelinePrisma = prisma as unknown as TimelinePrismaClient;
 
   try {
@@ -165,7 +173,7 @@ export async function getWeddingTimelinePageData(workspaceId: string) {
       async (transaction) => {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
-        >(workspaceId, currentUser.id, "read", transaction);
+        >(workspaceId, userId, "read", transaction);
         const [items, staff, participants, speechRows] = await Promise.all([
           transaction.weddingTimelineItem.findMany({
             where: { workspaceId },

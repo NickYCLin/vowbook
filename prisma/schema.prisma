@@ -154,10 +154,14 @@ enum BudgetCostCategory {
 
 model User {
   id                        String             @id @default(cuid())
-  googleSubject             String             @unique @map("google_subject")
+  /// Google 與 Apple 各自是獨立帳號，不依 Email 合併；至少要有一個（見 migration 的 CHECK）。
+  googleSubject             String?            @unique @map("google_subject")
+  appleSubject              String?            @unique @map("apple_subject")
   email                     String
   name                      String?
   image                     String?
+  mobileLoginGrants         MobileLoginGrant[]
+  mobileSessions            MobileSession[]
   avatar                    UserAvatar?
   accessStatus              UserAccessStatus   @default(ACTIVE) @map("access_status")
   accessStatusChangedAt     DateTime?          @db.Timestamptz(3) @map("access_status_changed_at")
@@ -201,6 +205,10 @@ model WeddingWorkspace {
   hasEngagementCeremony           Boolean                            @default(false) @map("has_engagement_ceremony")
   hasProcessionCeremony           Boolean                            @default(false) @map("has_procession_ceremony")
   ceremonyPreferencesVersion      Int                                @default(0) @map("ceremony_preferences_version")
+  // 便當、素食套餐的單價與服務費率；數量一律取自現有名單，不另外手動維護。
+  staffMealUnitPrice              Int?                               @map("staff_meal_unit_price")
+  vegetarianMealUnitPrice         Int?                               @map("vegetarian_meal_unit_price")
+  serviceChargePercent            Int                                @default(0) @map("service_charge_percent")
   createdById                     String                             @map("created_by_id")
   createdAt                       DateTime                           @default(now()) @map("created_at")
   updatedAt                       DateTime                           @updatedAt @map("updated_at")
@@ -208,6 +216,7 @@ model WeddingWorkspace {
   memberships                     Membership[]
   guests                          Guest[]
   seatingTables                   SeatingTable[]
+  seatingScenarios                SeatingScenario[]
   tasks                           WeddingTask[]
   budgetItems                     BudgetItem[]
   budgetAttachments               BudgetAttachment[]
@@ -250,6 +259,7 @@ model Guest {
   ceremonyAttendances WeddingCeremonyGuestAttendance[]
   weddingGift         WeddingGift?
   checkIn             GuestCheckIn?
+  seatingScenarioAssignments SeatingScenarioAssignment[]
 
   @@unique([id, workspaceId])
   @@index([workspaceId])
@@ -410,6 +420,65 @@ model SeatingTable {
   @@unique([id, workspaceId])
   @@unique([workspaceId, position])
   @@map("seating_tables")
+}
+
+enum SeatingScenarioKind {
+  DRAFT
+  BACKUP
+}
+
+/// 座位方案：正式安排仍是 seating_tables 與 guests.seating_table_id，
+/// 方案只是沙盒，套用時才整批寫回正式安排。方案不會改到任何賓客的出席回覆。
+model SeatingScenario {
+  id          String              @id @default(cuid())
+  workspaceId String              @map("workspace_id")
+  name        String              @db.VarChar(40)
+  kind        SeatingScenarioKind @default(DRAFT)
+  version     Int                 @default(0)
+  /// 複製當下正式安排的指紋；套用時若不同，代表之後有人改過正式安排，要提醒。
+  baseLiveFingerprint String?     @map("base_live_fingerprint") @db.Char(64)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tables      SeatingScenarioTable[]
+  assignments SeatingScenarioAssignment[]
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, createdAt])
+  @@map("seating_scenarios")
+}
+
+model SeatingScenarioTable {
+  id          String                      @id @default(cuid())
+  scenarioId  String                      @map("scenario_id")
+  workspaceId String                      @map("workspace_id")
+  position    Int
+  name        String
+  capacity    Int
+  layoutX     Int?                        @map("layout_x")
+  layoutY     Int?                        @map("layout_y")
+  notes       String?
+  scenario    SeatingScenario             @relation(fields: [scenarioId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  assignments SeatingScenarioAssignment[]
+
+  @@unique([id, scenarioId])
+  @@unique([scenarioId, position])
+  @@map("seating_scenario_tables")
+}
+
+model SeatingScenarioAssignment {
+  scenarioId  String               @map("scenario_id")
+  workspaceId String               @map("workspace_id")
+  guestId     String               @map("guest_id")
+  tableId     String               @map("table_id")
+  scenario    SeatingScenario      @relation(fields: [scenarioId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  table       SeatingScenarioTable @relation(fields: [tableId, scenarioId], references: [id, scenarioId], onDelete: Cascade)
+  guest       Guest                @relation(fields: [guestId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+
+  @@id([scenarioId, guestId])
+  @@index([tableId])
+  @@index([guestId, workspaceId])
+  @@map("seating_scenario_assignments")
 }
 
 model WeddingTask {
@@ -735,3 +804,26 @@ model WeddingSpeech {
   @@map("wedding_speeches")
 }
 
+// Authentication records are account-scoped, never wedding domain data.
+model MobileLoginGrant {
+  codeHash  String   @id @db.VarChar(64) @map("code_hash")
+  challenge String   @db.VarChar(43)
+  userId    String   @map("user_id")
+  expiresAt DateTime @db.Timestamptz(3) @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("mobile_login_grants")
+}
+
+model MobileSession {
+  tokenHash String   @id @db.VarChar(64) @map("token_hash")
+  userId    String   @map("user_id")
+  expiresAt DateTime @db.Timestamptz(3) @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("mobile_sessions")
+}

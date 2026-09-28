@@ -31,19 +31,23 @@ const unassignedGuestSelect = {
   notes: true,
   importRecords: {
     orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-    select: { source: true, sourceInstance: true, sourceManaged: true, vegetarianCount: true },
+    select: { source: true, sourceInstance: true, sourceManaged: true, vegetarianCount: true, childSeatCount: true },
   },
 } satisfies Prisma.GuestSelect;
 
 export async function getSeatingPlan(workspaceId: string) {
   const currentUser = await requireCurrentUser();
+  return loadSeatingPlanForUser(workspaceId, currentUser.id);
+}
 
+/** 手機端沿用同一份桌次資料；Membership 仍在交易內驗證。 */
+export async function loadSeatingPlanForUser(workspaceId: string, userId: string) {
   try {
     return await prisma.$transaction(
       async (transaction) => {
         const access = await requireWorkspaceAccess<WeddingWorkspace>(
           workspaceId,
-          currentUser.id,
+          userId,
           "read",
           transaction,
         );
@@ -101,6 +105,7 @@ export async function getSeatingPlan(workspaceId: string) {
         const unassignedGuests = unassignedGuestRows.map(({ importRecords, ...guest }) => ({
           ...guest,
           vegetarianCount: effectiveGuestDetailValue(importRecords, (record) => record.vegetarianCount),
+          childSeatCount: effectiveGuestDetailValue(importRecords, (record) => record.childSeatCount),
         }));
 
         // 桌次頁只需要有效的兒童椅與素食人數，不把匯入來源與歷史明細送到瀏覽器。

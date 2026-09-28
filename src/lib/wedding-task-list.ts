@@ -1,4 +1,5 @@
 import "server-only";
+import { dateKeyInTimezone } from "@/domain/calendar-date";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import type {
@@ -25,7 +26,7 @@ type WeddingTaskTransaction = {
   membership: {
     findUnique(args: unknown): Promise<{
       role: string;
-      workspace: Pick<WeddingWorkspace, "id" | "name">;
+      workspace: Pick<WeddingWorkspace, "id" | "name" | "timezone">;
     } | null>;
   };
   weddingTask: {
@@ -88,15 +89,24 @@ function taskViewModel(task: WeddingTaskRecord): WeddingTaskListItem {
   };
 }
 
-export async function getWeddingTaskList(workspaceId: string) {
+export async function getWeddingTaskList(workspaceId: string, now = new Date()) {
   const currentUser = await requireCurrentUser();
+  return loadWeddingTaskList(workspaceId, currentUser.id, now);
+}
+
+/** 手機端沿用同一份任務清單；Membership 仍在交易內驗證。 */
+export async function loadWeddingTaskList(
+  workspaceId: string,
+  userId: string,
+  now = new Date(),
+) {
   const taskPrisma = prisma as unknown as WeddingTaskPrismaClient;
   try {
     return await taskPrisma.$transaction(
       async (transaction) => {
         const access = await requireWorkspaceAccess<
-          Pick<WeddingWorkspace, "id" | "name">
-        >(workspaceId, currentUser.id, "read", transaction);
+          Pick<WeddingWorkspace, "id" | "name" | "timezone">
+        >(workspaceId, userId, "read", transaction);
         const [activeTasks, completedTasks] = await Promise.all([
           transaction.weddingTask.findMany({
             where: {
@@ -115,6 +125,7 @@ export async function getWeddingTaskList(workspaceId: string) {
 
         return {
           role: access.role,
+          workspaceToday: dateKeyInTimezone(now, access.workspace.timezone),
           workspace: { id: access.workspace.id, name: access.workspace.name },
           tasks: [...activeTasks, ...completedTasks].map(taskViewModel),
         };

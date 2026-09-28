@@ -11,6 +11,15 @@ const { getSeatingPlan, notFound, SeatingPlanDataError } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/seating-plan", () => ({ getSeatingPlan, SeatingPlanDataError }));
+vi.mock("@/lib/current-user", () => ({
+  requireCurrentUser: vi.fn(async () => ({ id: "session_user" })),
+}));
+vi.mock("@/lib/seating-scenarios", () => ({
+  loadSeatingScenarioList: vi.fn(async () => ({
+    drafts: [{ id: "scenario_1", name: "王家全到", matchesLive: false }],
+    backups: [],
+  })),
+}));
 vi.mock("next/navigation", () => ({ notFound }));
 vi.mock("@/components/tables/seating-plan", () => ({
   SeatingPlan: ({ canEdit }: { canEdit: boolean }) => (
@@ -41,12 +50,18 @@ describe("TablesPage", () => {
       screen.getByRole("heading", { level: 1, name: "桌次安排" }),
     ).toBeInTheDocument();
     expect(screen.getByText("可編輯桌次")).toBeInTheDocument();
+    const scenarios = screen.getByRole("navigation", { name: "座位方案" });
+    expect(within(scenarios).getByRole("link", { name: /正式安排/ })).toHaveAttribute("aria-current", "page");
+    expect(within(scenarios).getByRole("link", { name: "王家全到" })).toHaveAttribute(
+      "href",
+      "/workspaces/workspace_1/tables/scenarios/scenario_1",
+    );
     expect(screen.getByRole("link", { name: "婚宴桌圖" })).toHaveAttribute(
       "href",
       "/workspaces/workspace_1/tables/chart",
     );
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
     expect(within(navigation).getByRole("link", { name: "桌次" })).toHaveAttribute(
       "aria-current",
       "page",

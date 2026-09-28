@@ -331,7 +331,11 @@ describe("GuestCheckInBoard", () => {
       target: { value: "陳" },
     });
     expect(screen.queryByRole("article", { name: "王小明" })).toBeNull();
+    expect(screen.queryByRole("article", { name: "陳大同" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /全部/u }));
     expect(guestArticle("陳大同")).toBeInTheDocument();
+    expect(within(guestArticle("陳大同")).getByText("不需報到")).toBeVisible();
+    expect(within(guestArticle("陳大同")).queryByRole("button", { name: /報到|其他人數/ })).toBeNull();
   });
 
   it("rolls up arrival against expectation per table behind a collapsed panel", () => {
@@ -351,10 +355,26 @@ describe("GuestCheckInBoard", () => {
 
   it("says a declined guest needs no seat instead of pretending a table is missing", () => {
     renderBoard();
+    fireEvent.click(screen.getByRole("radio", { name: /全部/u }));
 
     expect(
       within(guestArticle("陳大同")).getByText(/不需安排座位/u),
     ).toBeInTheDocument();
+  });
+
+  it("keeps historical inconsistent arrivals visible for review without allowing another update", () => {
+    renderBoard({ guests: [{ ...guests[2], checkIn: { id: "legacy", headcount: 1, notes: null, version: 0 } }] });
+    expect(screen.getByText("報到待核對組數").nextSibling).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("radio", { name: /已報到/u }));
+    expect(within(guestArticle("陳大同")).getByRole("button", { name: "調整人數" })).toBeDisabled();
+    expect(within(guestArticle("陳大同")).getByRole("button", { name: "取消報到" })).toBeEnabled();
+  });
+
+  it("does not label an empty table as fully arrived", () => {
+    renderBoard({ guests: [], tables: [{ ...tables[0], expectedHeadcount: 0, arrivedHeadcount: 0, pendingGroups: 0 }] });
+    fireEvent.click(screen.getByRole("button", { name: "展開逐桌對照" }));
+    expect(screen.getByText("尚無確認出席賓客")).toBeVisible();
+    expect(screen.queryByText("全數到齊")).toBeNull();
   });
 
   it("gives a viewer no check-in controls at all", () => {

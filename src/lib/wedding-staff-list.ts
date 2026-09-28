@@ -81,6 +81,11 @@ const deterministicOrder = [
 
 export async function getWeddingStaffList(workspaceId: string) {
   const currentUser = await requireCurrentUser();
+  return loadWeddingStaffList(workspaceId, currentUser.id);
+}
+
+/** 手機端沿用同一份工作人員名單；Membership 仍在交易內驗證。 */
+export async function loadWeddingStaffList(workspaceId: string, userId: string) {
   const staffPrisma = prisma as unknown as WeddingStaffPrismaClient;
 
   try {
@@ -88,7 +93,7 @@ export async function getWeddingStaffList(workspaceId: string) {
       async (transaction) => {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
-        >(workspaceId, currentUser.id, "read", transaction);
+        >(workspaceId, userId, "read", transaction);
         const records = await transaction.weddingStaffAssignment.findMany({
           where: { workspaceId },
           orderBy: deterministicOrder,

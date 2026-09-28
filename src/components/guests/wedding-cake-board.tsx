@@ -1,6 +1,7 @@
 "use client";
-import {useActionState, useEffect, useState} from "react";
+import {useActionState, useCallback, useEffect, useId, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
+import {Dialog, DialogFooter, useModalDialog} from "@/components/ui/dialog";
 import {Button} from "@/components/ui/button";
 import {Field, Input} from "@/components/ui/field";
 import {saveCakeHouseholdAction,dissolveCakeHouseholdAction,type CakeMutationState} from "@/actions/wedding-cakes";
@@ -10,18 +11,31 @@ import type {WeddingCakeData} from "@/lib/wedding-cakes";
 type Household=WeddingCakeData["households"][number];
 function HouseholdForm({workspaceId,data,household,onClose}:{workspaceId:string;data:WeddingCakeData;household?:Household;onClose:()=>void}){
  const router=useRouter();
+ const titleId=useId();
+ const {dialogRef,open}=useModalDialog();
+ useEffect(()=>{open();},[open]);
  const [state,action,pending]=useActionState(saveCakeHouseholdAction.bind(null,workspaceId,household?.id??null),{status:"idle"} as CakeMutationState);
  const [deleted,deleteAction,deleting]=useActionState(dissolveCakeHouseholdAction.bind(null,workspaceId,household?.id??""),{status:"idle"} as CakeMutationState);
  const [confirmDissolve,setConfirmDissolve]=useState(false);
- const members=data.guests.filter(g=>household&&g.cakeHouseholdId===household.id);
+ const [openingGuests]=useState(()=>data.guests);
+ const members=openingGuests.filter(g=>household&&g.cakeHouseholdId===household.id);
  const [selected,setSelected]=useState(members.filter(g=>g.category!=="COUPLE").map(g=>g.id));
  const [query,setQuery]=useState("");
  const [name,setName]=useState(household?.name??"");
  const [boxes,setBoxes]=useState(String(household?.boxes??1));
+ const latestHousehold=household?data.households.find(h=>h.id===household.id):undefined;
+ const currentMembers=data.guests.filter(g=>household&&g.cakeHouseholdId===household.id);
+ const stale=state.code==="STALE"||deleted.code==="STALE"
+  || (!!household && (!latestHousehold || latestHousehold.version!==household.version
+    || cakeMemberSnapshot(currentMembers)!==cakeMemberSnapshot(members)))
+  || selected.some(id=>{
+    const opening=openingGuests.find(g=>g.id===id);
+    const current=data.guests.find(g=>g.id===id);
+    return !opening||!current||opening.version!==current.version;
+  });
  useEffect(()=>{if(state.status==="success"||deleted.status==="success"){router.refresh();onClose();}},[state.status,deleted.status,router,onClose]);
- const hidden=<><input type="hidden" name="expectedVersion" value={household?.version??0}/><input type="hidden" name="expectedMembers" value={cakeMemberSnapshot(members)}/><input type="hidden" name="expectedGuests" value={JSON.stringify(Object.fromEntries(data.guests.map(g=>[g.id,g.version])))}/></>;
- return <section className="print:hidden my-6 min-w-0 rounded-card border border-line bg-surface p-5" aria-label={household?"編輯發餅家庭":"新增發餅家庭"}>
-  <h2 className="font-serif text-xl font-semibold">{household?"編輯發餅家庭":"設定同一家人"}</h2>
+ const hidden=<><input type="hidden" name="expectedVersion" value={household?.version??0}/><input type="hidden" name="expectedMembers" value={cakeMemberSnapshot(members)}/><input type="hidden" name="expectedGuests" value={JSON.stringify(Object.fromEntries(openingGuests.map(g=>[g.id,g.version])))}/></>;
+ return <Dialog dialogRef={dialogRef} titleId={titleId} title={household?"編輯發餅家庭":"設定同一家人"} closeLabel="關閉家庭設定" onClose={onClose} onRestoreFocus={onClose} isPending={pending||deleting}><section className="print:hidden my-6 min-w-0 rounded-card border border-line bg-surface p-5" aria-label={household?"編輯發餅家庭":"新增發餅家庭"}>
   <p className="mt-2 text-sm text-ink-soft">每戶預設一盒；也可只選一筆名單調整盒數。設為 0 盒代表當日不領餅，仍會列出供核對。</p>
   <form action={action} className="mt-5 space-y-5">
    {hidden}{selected.map(id=><input key={id} type="hidden" name="guestId" value={id}/>)}
@@ -32,32 +46,35 @@ function HouseholdForm({workspaceId,data,household,onClose}:{workspaceId:string;
    <Field htmlFor="cake-guest-search" label="搜尋成員"><Input id="cake-guest-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="輸入姓名或稱謂"/></Field>
    <fieldset className="min-w-0"><legend className="text-sm font-semibold">同一家人的成員（已選 {selected.length} 筆）</legend>
     <div className="mt-2 max-h-80 overflow-y-auto rounded-control border border-line">
-    {data.guests.filter(g=>g.category!=="COUPLE"&&`${g.name} ${cakeRelationshipLabel(g)}`.includes(query.trim())).map(g=>{
+    {openingGuests.filter(g=>g.category!=="COUPLE"&&`${g.name} ${cakeRelationshipLabel(g)}`.includes(query.trim())).map(g=>{
      const occupied=g.cakeHouseholdId!==null&&g.cakeHouseholdId!==household?.id;
      return <label key={g.id} className="flex min-h-11 min-w-0 items-center gap-3 border-b border-line p-3 text-sm last:border-0">
       <input type="checkbox" className="h-5 w-5 shrink-0" checked={selected.includes(g.id)} disabled={occupied||pending||deleting} onChange={e=>setSelected(current=>e.target.checked?[...current,g.id]:current.filter(id=>id!==g.id))}/>
-      <span className="min-w-0 break-words">{g.name} · {cakeRelationshipLabel(g)} · {g.partySize} 人{g.attendanceStatus==="ATTENDING"||g.checkedIn?" · 確認出席":" · 尚未確認出席，不列入發餅名單"}{occupied?" · 已屬其他家庭":""}</span>
+      <span className="min-w-0 break-words">{g.name} · {cakeRelationshipLabel(g)} · {g.partySize} 人{g.checkedIn?" · 已報到":g.attendanceStatus==="ATTENDING"?" · 確認出席":g.attendanceStatus==="DECLINED"?" · 不出席，不列入發餅名單":" · 尚未確認出席，不列入發餅名單"}{occupied?" · 已屬其他家庭":""}</span>
      </label>;
     })}</div>
    </fieldset>
    {state.message?<p role="status" className="text-sm text-danger">{state.message}</p>:null}
-   <div className="flex flex-wrap gap-3"><Button type="submit" disabled={pending||deleting||!selected.length}>{pending?"儲存中…":"儲存家庭設定"}</Button><Button variant="secondary" onClick={onClose} disabled={pending||deleting}>取消</Button></div>
+   {stale?<p role="alert" className="text-sm text-danger">名單或家庭已更新，請保留需要的輸入，再取消並重新開啟確認；尚未覆寫你的修改。</p>:null}
+   <DialogFooter><Button type="submit" disabled={pending||deleting||stale||!selected.length}>{pending?"儲存中…":"儲存家庭設定"}</Button><Button variant="secondary" onClick={onClose} disabled={pending||deleting}>取消</Button></DialogFooter>
   </form>
   {household?<form action={deleteAction} className="mt-5 border-t border-line pt-5">{hidden}
-   {confirmDissolve?<><p className="mb-3 text-sm">解散後，每筆確認出席名單會恢復各領一盒。</p><Button type="submit" variant="danger" disabled={pending||deleting}>確認解散家庭</Button></>:<Button variant="danger" onClick={()=>setConfirmDissolve(true)} disabled={pending||deleting}>解散家庭</Button>}
+   {confirmDissolve?<><p className="mb-3 text-sm">解散後，每筆確認出席名單會恢復各領一盒。</p><Button type="submit" variant="danger" disabled={pending||deleting||stale}>確認解散家庭</Button></>:<Button variant="danger" onClick={()=>setConfirmDissolve(true)} disabled={pending||deleting||stale}>解散家庭</Button>}
    {deleted.message?<p role="status">{deleted.message}</p>:null}
   </form>:null}
- </section>;
+ </section></Dialog>;
 }
 export function WeddingCakeBoard({workspaceId,data,defaultCreateOpen=false}:{workspaceId:string;data:WeddingCakeData;defaultCreateOpen?:boolean}){
  const [editing,setEditing]=useState<Household|null|undefined>(defaultCreateOpen?null:undefined);
+ const triggerRef=useRef<HTMLButtonElement|null>(null);
+ const closeEditor=useCallback(()=>{setEditing(undefined);triggerRef.current?.focus({preventScroll:true});},[]);
  const rows=cakeRows(data.guests,data.households);
  return <>
-  <div className="mt-6 flex flex-wrap items-center gap-3 print:hidden"><Button onClick={()=>setEditing(null)}>設定同一家人</Button><Button variant="secondary" onClick={()=>window.print()}>列印發餅名單／另存 PDF</Button></div>
+  <div className="mt-6 flex flex-wrap items-center gap-3 print:hidden"><Button onClick={event=>{triggerRef.current=event.currentTarget;setEditing(null);}}>設定同一家人</Button><Button variant="secondary" onClick={()=>window.print()}>列印發餅名單／另存 PDF</Button></div>
   <p className="mt-4 text-sm leading-6 text-ink-soft print:hidden">確認出席或已報到的賓客與家人都會列入；新人本人不領取自己的喜餅，不列入名單與盒數。同戶只算一次；未設定家庭時，每筆名單一盒，同行人數不會增加盒數。分類依男／女方、家人身份及已選的親屬稱謂；自訂稱呼的親戚請將名單身份設為「家人」。跨雙方或共同親友另列待確認，同戶不拆開。</p>
-  {editing!==undefined?<HouseholdForm key={editing?.id??"new"} workspaceId={workspaceId} data={data} household={editing??undefined} onClose={()=>setEditing(undefined)}/>:null}
+  {editing!==undefined?<HouseholdForm key={editing?.id??"new"} workspaceId={workspaceId} data={data} household={editing??undefined} onClose={closeEditor}/>:null}
   <section className="mt-6 print:hidden" aria-label="已設定家庭"><h2 className="font-serif text-lg font-semibold">已設定家庭</h2>
-   {!data.households.length?<p className="mt-2 text-sm text-ink-soft">尚未合併家庭；可勾選共同出席的人，設定為同一家。</p>:<div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">{data.households.map(h=><div key={h.id} className="min-w-0 rounded-card border border-line p-4"><p className="break-words font-semibold">{h.name} · {h.boxes} 盒</p><p className="my-2 break-words text-sm text-ink-soft">{data.guests.filter(g=>g.category!=="COUPLE"&&g.cakeHouseholdId===h.id).map(g=>g.name).join("、")||"目前沒有成員"}</p><Button variant="secondary" onClick={()=>setEditing(h)} aria-label={`編輯家庭 ${h.name}`}>編輯家庭</Button></div>)}</div>}
+   {!data.households.length?<p className="mt-2 text-sm text-ink-soft">尚未合併家庭；可勾選共同出席的人，設定為同一家。</p>:<div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">{data.households.map(h=><div key={h.id} className="min-w-0 rounded-card border border-line p-4"><p className="break-words font-semibold">{h.name} · {h.boxes} 盒</p><p className="my-2 break-words text-sm text-ink-soft">{data.guests.filter(g=>g.category!=="COUPLE"&&g.cakeHouseholdId===h.id).map(g=>g.name).join("、")||"目前沒有成員"}</p><Button variant="secondary" onClick={event=>{triggerRef.current=event.currentTarget;setEditing(h);}} aria-label={`編輯家庭 ${h.name}`}>編輯家庭</Button></div>)}</div>}
   </section>
   <HouseholdPrintSheet workspaceName={data.workspace.name} rows={rows} kind="cakes"/>
  </>;

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  guestCheckInBlockReason,
   GuestCheckInValidationError,
   normalizeGuestCheckInDetails,
   normalizeGuestCheckInExpectedVersion,
@@ -47,7 +48,11 @@ type CountResult = { count: number };
 
 type GuestCheckInMutationClient = {
   guest: {
-    findFirst(args: unknown): Promise<{ id: string } | null>;
+    findFirst(args: unknown): Promise<{
+      id: string;
+      category: "GUEST" | "FAMILY" | "COUPLE";
+      attendanceStatus: "ATTENDING" | "DECLINED" | "UNDECIDED";
+    } | null>;
   };
   guestCheckIn: {
     create(args: unknown): Promise<GuestCheckInMutationSnapshot>;
@@ -159,11 +164,13 @@ async function revalidateCheckInPage(workspaceId: string): Promise<boolean> {
 
 async function revalidateViews(workspaceId: string): Promise<boolean> {
   let revalidated = await revalidateCheckInPage(workspaceId);
-  try {
-    await revalidatePath(`/workspaces/${workspaceId}/overview`);
-  } catch {
-    console.error("報到頁面重新驗證失敗。");
-    revalidated = false;
+  for (const view of ["overview", "guests", "gifts", "guests/cakes"]) {
+    try {
+      await revalidatePath(`/workspaces/${workspaceId}/${view}`);
+    } catch {
+      console.error("報到頁面重新驗證失敗。");
+      revalidated = false;
+    }
   }
   return revalidated;
 }
@@ -224,9 +231,11 @@ export async function checkInGuestAction(
       // 複合外鍵是最後一道防線，但這裡先擋掉才能回可讀的訊息。
       const guest = await client.guest.findFirst({
         where: { id: guestId, workspaceId },
-        select: { id: true },
+        select: { id: true, category: true, attendanceStatus: true },
       });
       if (!guest) throw new GuestCheckInStaleError();
+      const blocked = guestCheckInBlockReason(guest);
+      if (blocked) throw new GuestCheckInValidationError(blocked);
 
       return client.guestCheckIn.create({
         data: { workspaceId, guestId, ...details },
@@ -278,6 +287,13 @@ export async function updateGuestCheckInAction(
         transaction,
       );
       const client = transaction as unknown as GuestCheckInMutationClient;
+      const guest = await client.guest.findFirst({
+        where: { workspaceId, checkIn: { is: { id: checkInId, workspaceId } } },
+        select: { id: true, category: true, attendanceStatus: true },
+      });
+      if (!guest) throw new GuestCheckInStaleError();
+      const blocked = guestCheckInBlockReason(guest);
+      if (blocked) throw new GuestCheckInValidationError(blocked);
       const result = await client.guestCheckIn.updateMany({
         where: { id: checkInId, workspaceId, version: expectedVersion },
         data: { ...details, version: { increment: 1 } },

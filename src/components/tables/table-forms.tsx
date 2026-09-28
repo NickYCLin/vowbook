@@ -44,7 +44,7 @@ export function SeatingTableActionFeedback({
 
   useEffect(() => {
     if (state.status !== "idle") {
-      feedbackRef.current?.focus();
+      feedbackRef.current?.focus({ preventScroll: true });
     }
   }, [state]);
 

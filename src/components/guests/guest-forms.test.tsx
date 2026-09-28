@@ -31,6 +31,13 @@ import {
 
 installModalDialogPolyfill();
 
+it.each([['UNSPECIFIED','PEER'],['ELDER','ELDER'],['JUNIOR','JUNIOR']] as const)("opens stored seniority %s as %s", (stored, displayed) => {
+  render(<EditGuestForm workspaceId="w" guestId="g" name="測試親友" category="GUEST" seniority={stored} side="SHARED" attendanceStatus="ATTENDING" partySize={1} notes={null} expectedVersion={0} managedFields={[]} />);
+  openRecordDialogs();
+  expect(screen.getByLabelText("賓客輩份")).toHaveValue(displayed);
+  expect(screen.queryByRole("option", {name:"未設定"})).toBeNull();
+});
+
 /**
  * 編輯與刪除都改成對話框，內容要開啟後才會進入可存取樹。
  * 開啟畫面上所有「編輯 …」「刪除 …」觸發鈕，讓後續斷言照舊查詢。
@@ -70,11 +77,11 @@ describe("guest forms", () => {
     expect(screen.queryByRole("option", { name: "新人一方" })).toBeNull();
     expect(screen.queryByRole("option", { name: "新人另一方" })).toBeNull();
     expect(screen.getByLabelText("出席狀態")).toBeInTheDocument();
-    expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("PEER");
     expect(screen.getByRole("option", { name: "長輩" })).toHaveValue("ELDER");
     expect(screen.getByRole("option", { name: "平輩" })).toHaveValue("PEER");
     expect(screen.getByRole("option", { name: "晚輩" })).toHaveValue("JUNIOR");
-    expect(screen.getByText("名單會先依輩份，再依姓氏筆劃排列；未設定會排在最後。"))
+    expect(screen.getByText("輩份預設為平輩；名單先依輩份，再依姓氏筆劃排列。"))
       .toBeInTheDocument();
     expect(screen.getByLabelText("邀請人數（含本人）")).toHaveAttribute(
       "max",
@@ -169,7 +176,7 @@ describe("guest forms", () => {
     expect(screen.getByLabelText("姓名或稱呼")).toHaveValue("");
     expect(screen.getByLabelText("名單身份")).toHaveValue("GUEST");
     expect(screen.getByLabelText("與新人的關係")).toHaveValue("SHARED");
-    expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+    expect(screen.getByLabelText("賓客輩份")).toHaveValue("PEER");
     expect(screen.getByLabelText("出席狀態")).toHaveValue("UNDECIDED");
     expect(screen.getByLabelText("邀請人數（含本人）")).toHaveValue(1);
     expect(screen.getByLabelText(/聯絡電話/u)).toHaveValue("");
@@ -961,7 +968,7 @@ it("searches family titles in one field while preserving side and seniority", ()
   expect(relation).toHaveValue("舅母");
   expect(screen.queryByLabelText(/關係補充/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("家人所屬")).toHaveValue("PARTNER_B");
-  expect(screen.getByLabelText("賓客輩份")).toHaveValue("UNSPECIFIED");
+  expect(screen.getByLabelText("賓客輩份")).toHaveValue("PEER");
   fireEvent.change(relation, {target:{value:"二舅媽"}});
   fireEvent.change(screen.getByLabelText("名單身份"), { target: { value: "GUEST" } });
   expect(screen.getByLabelText(/關係補充/)).toHaveValue("二舅媽");

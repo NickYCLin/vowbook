@@ -1,4 +1,27 @@
-import type { GuestAttendanceStatusValue } from "@/domain/guest";
+import type {
+  GuestAttendanceStatusValue,
+  GuestCategoryValue,
+} from "@/domain/guest";
+
+type CheckInEligibility = {
+  attendanceStatus: GuestAttendanceStatusValue;
+  category?: GuestCategoryValue;
+};
+
+export function guestCheckInBlockReason(guest: CheckInEligibility): string | null {
+  if (guest.category === "COUPLE") return "新人本人不需報到。";
+  if (guest.attendanceStatus === "DECLINED") {
+    return "不出席者不需報到；若臨時到場，請先在賓客名單改為出席。";
+  }
+  if (guest.attendanceStatus !== "ATTENDING") {
+    return "請先在賓客名單確認出席，再進行報到。";
+  }
+  return null;
+}
+
+export function canGuestCheckIn(guest: CheckInEligibility): boolean {
+  return guestCheckInBlockReason(guest) === null;
+}
 
 /**
  * 報到人數與邀請人數共用同一個上限：報到桌記錄的是「同一組實際到了幾位」，
@@ -89,6 +112,7 @@ export function normalizeGuestCheckInExpectedVersion(value: unknown): number {
 }
 
 export type GuestCheckInSummaryEntry = {
+  category?: GuestCategoryValue;
   attendanceStatus: GuestAttendanceStatusValue;
   partySize: number;
   checkedInHeadcount: number | null;
@@ -106,8 +130,8 @@ export type GuestCheckInSummary = {
 
 /**
  * 「預計」只看回覆出席的賓客，「實到」只看真的報到的那一列，兩邊各自累加。
- * 婚宴當天回覆不出席的人臨時出現是常態，這種人算進實到與 unexpectedGroups，
- * 但不會回頭改寫預計人數，免得報到桌看到的預計值一直跳動。
+ * 新報到必須符合出席與身份規則。舊的矛盾紀錄仍保留在實到統計，並算進
+ * unexpectedGroups 提醒核對；不能只隱藏紀錄就假裝現場人數已經減少。
  */
 export function summarizeGuestCheckIns(
   entries: readonly GuestCheckInSummaryEntry[],
@@ -123,7 +147,7 @@ export function summarizeGuestCheckIns(
   };
 
   for (const entry of entries) {
-    const attending = entry.attendanceStatus === "ATTENDING";
+    const attending = canGuestCheckIn(entry);
     const arrived = entry.checkedInHeadcount !== null;
 
     if (attending) {

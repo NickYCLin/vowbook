@@ -1,5 +1,9 @@
 "use client";
 
+import Link from "next/link";
+
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
 import {
   useActionState,
   useEffect,
@@ -22,6 +26,8 @@ import {
   type GuestSideValue,
 } from "@/domain/guest";
 import {
+  canGuestCheckIn,
+  guestCheckInBlockReason,
   MAX_GUEST_CHECK_IN_HEADCOUNT,
   reconcileGuestCheckIn,
   sameGuestCheckIn,
@@ -76,7 +82,7 @@ export type GuestCheckInBoardTable = {
   pendingGroups: number;
 };
 
-type CheckInFilter = "ALL" | "PENDING" | "ARRIVED";
+type CheckInFilter = "EXPECTED" | "ALL" | "PENDING" | "ARRIVED";
 
 type BoardFeedback = { message: string; revision: number };
 
@@ -341,7 +347,7 @@ function CancelCheckInDialog({
       titleId={`${idPrefix}-title`}
       eyebrow="賓客報到"
       title={`取消 ${guest.name} 的報到`}
-      description="取消後這一組會回到未報到，實到人數也會扣回。可以再次報到。"
+      description="取消後會扣回實到人數；確認出席的賓客會回到未報到名單。"
       closeLabel={`關閉取消 ${guest.name} 的報到`}
       isPending={isPending}
       size="sm"
@@ -434,9 +440,9 @@ export function GuestCheckInBoard({
   canEdit: boolean;
 }) {
   const tableSummaryId = useId();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<CheckInFilter>("ALL");
-  const [tablesExpanded, setTablesExpanded] = useState(false);
+  const [search, setSearch] = useWorkspaceViewState(`${workspaceId}:check-in:search`, "");
+  const [filter, setFilter] = useWorkspaceViewState<CheckInFilter>(`${workspaceId}:check-in:filter`, "EXPECTED");
+  const [tablesExpanded, setTablesExpanded] = useWorkspaceViewState(`${workspaceId}:check-in:tablesExpanded`, false);
   const [feedback, setFeedback] = useState<BoardFeedback | null>(null);
   const [editorSelection, setEditorSelection] = useState<EditorSelection | null>(
     null,
@@ -484,7 +490,7 @@ export function GuestCheckInBoard({
   }, [guests]);
 
   useEffect(() => {
-    if (feedback) feedbackRef.current?.focus();
+    if (feedback) feedbackRef.current?.focus({ preventScroll: true });
   }, [feedback]);
 
   const boardGuests = useMemo(
@@ -505,6 +511,7 @@ export function GuestCheckInBoard({
     () =>
       summarizeGuestCheckIns(
         boardGuests.map((guest) => ({
+          category: guest.category,
           attendanceStatus: guest.attendanceStatus,
           partySize: guest.partySize,
           checkedInHeadcount: guest.checkIn?.headcount ?? null,
@@ -513,10 +520,17 @@ export function GuestCheckInBoard({
     [boardGuests],
   );
 
+  const boardTables = useMemo(() => tables.map(table => {
+    const seated = boardGuests.filter(guest => guest.seatingTable?.number === table.number);
+    const tally = summarizeGuestCheckIns(seated.map(guest => ({ ...guest, checkedInHeadcount: guest.checkIn?.headcount ?? null })));
+    return { ...table, expectedHeadcount: tally.expectedHeadcount, arrivedHeadcount: tally.arrivedHeadcount, pendingGroups: tally.pendingGroups };
+  }), [tables, boardGuests]);
+
   const counts = useMemo(
     () => ({
+      EXPECTED: boardGuests.filter(canGuestCheckIn).length,
       ALL: boardGuests.length,
-      PENDING: boardGuests.filter((guest) => guest.checkIn === null).length,
+      PENDING: boardGuests.filter((guest) => canGuestCheckIn(guest) && guest.checkIn === null).length,
       ARRIVED: boardGuests.filter((guest) => guest.checkIn !== null).length,
     }),
     [boardGuests],
@@ -533,12 +547,14 @@ export function GuestCheckInBoard({
           .includes(normalizedSearch);
       const matchesFilter =
         filter === "ALL" ||
-        (filter === "ARRIVED" ? guest.checkIn !== null : guest.checkIn === null);
+        (filter === "EXPECTED" && canGuestCheckIn(guest)) ||
+        (filter === "ARRIVED" && guest.checkIn !== null) ||
+        (filter === "PENDING" && canGuestCheckIn(guest) && guest.checkIn === null);
       return matchesSearch && matchesFilter;
     });
   }, [boardGuests, filter, search]);
 
-  const hasActiveFilter = search.trim().length > 0 || filter !== "ALL";
+  const hasActiveFilter = search.trim().length > 0 || filter !== "EXPECTED";
   const resultLabel = hasActiveFilter
     ? `符合 ${filteredGuests.length} / ${boardGuests.length} 組`
     : `顯示 ${filteredGuests.length} / ${boardGuests.length} 組`;
@@ -549,7 +565,7 @@ export function GuestCheckInBoard({
 
   function clearFilters() {
     setSearch("");
-    setFilter("ALL");
+    setFilter("EXPECTED");
   }
 
   function recordSavedCheckIn(
@@ -615,9 +631,9 @@ export function GuestCheckInBoard({
               tone={summary.pendingGroups > 0 ? "caution" : "neutral"}
             />
             <Stat
-              label="非預期到場組數"
+              label="報到待核對組數"
               value={summary.unexpectedGroups}
-              hint="回覆不出席或尚未確認卻到場"
+              hint="已有報到，但身份或出席狀態不符"
               tone="neutral"
             />
           </StatRow>
@@ -650,7 +666,7 @@ export function GuestCheckInBoard({
               hidden={!tablesExpanded}
               className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3"
             >
-              {tables.map((table) => (
+              {boardTables.map((table) => (
                 <li key={table.id} className="min-w-0">
                   <div className="flex min-w-0 items-baseline justify-between gap-3 rounded-control border border-line bg-surface-sunken px-3.5 py-2.5">
                     <div className="min-w-0">
@@ -660,7 +676,7 @@ export function GuestCheckInBoard({
                       <p className="text-caption text-ink-faint">
                         {table.pendingGroups > 0
                           ? `${table.pendingGroups} 組未到`
-                          : "全數到齊"}
+                          : table.expectedHeadcount === 0 ? (table.arrivedHeadcount > 0 ? "報到狀態待核對" : "尚無確認出席賓客") : "全數到齊"}
                       </p>
                     </div>
                     <p className="shrink-0 font-serif text-body font-semibold tabular-nums text-clay-strong">
@@ -690,6 +706,7 @@ export function GuestCheckInBoard({
               value={filter}
               onChange={setFilter}
               options={[
+                { value: "EXPECTED", label: "應到", count: counts.EXPECTED },
                 { value: "ALL", label: "全部", count: counts.ALL },
                 { value: "PENDING", label: "未報到", count: counts.PENDING },
                 { value: "ARRIVED", label: "已報到", count: counts.ARRIVED },
@@ -722,15 +739,16 @@ export function GuestCheckInBoard({
             />
           ) : filteredGuests.length === 0 ? (
             <EmptyState
-              title="找不到符合條件的賓客。"
-              description="調整搜尋關鍵字或報到狀態，就能找回其他名單。"
-              action={<Button onClick={clearFilters}>清除報到篩選</Button>}
+              title={!search.trim() && filter === "EXPECTED" ? "目前沒有需要報到的賓客。" : !search.trim() && filter === "PENDING" ? "目前沒有尚未報到的出席賓客。" : "找不到符合條件的賓客。"}
+              description="不出席者與新人不需報到；尚未確認的賓客，請先在名單確認出席。也可以切換全部名單查找。"
+              action={!search.trim() ? <Button onClick={() => setFilter("ALL")}>查看全部名單</Button> : <Button onClick={clearFilters}>清除報到篩選</Button>}
             />
           ) : (
             <div className="overflow-hidden rounded-card border border-line">
               <ul className="min-w-0 divide-y divide-line bg-surface">
                 {filteredGuests.map((guest) => {
                   const checkIn = guest.checkIn;
+                  const blocked = guestCheckInBlockReason(guest);
                   return (
                     <li key={guest.id} className="min-w-0">
                       <article
@@ -778,16 +796,18 @@ export function GuestCheckInBoard({
                             </p>
                           ) : (
                             <p className="text-caption font-semibold text-ink-faint">
-                              尚未報到
+                              {blocked ? (guest.attendanceStatus === "UNDECIDED" && guest.category !== "COUPLE" ? "先確認出席" : "不需報到") : "尚未報到"}
                             </p>
                           )}
                         </div>
 
+                        {blocked && <p className="text-caption text-caution sm:col-span-full">{checkIn ? "已有報到紀錄，請核對或取消報到。" : blocked}{canEdit && guest.category !== "COUPLE" && <Link href={`/workspaces/${workspaceId}/guests`} className="ml-2 inline-flex min-h-11 items-center font-semibold underline underline-offset-4">到賓客名單確認</Link>}</p>}
                         {canEdit ? (
                           <div className="flex min-w-0 flex-wrap items-start gap-1 sm:justify-end">
                             {checkIn ? (
                               <>
                                 <Button
+                                  disabled={blocked !== null}
                                   id={`check-in-adjust-${guest.id}`}
                                   variant="secondary"
                                   size="sm"
@@ -810,7 +830,7 @@ export function GuestCheckInBoard({
                                   取消報到
                                 </Button>
                               </>
-                            ) : (
+                            ) : !blocked ? (
                               <>
                                 <QuickCheckInForm
                                   workspaceId={workspaceId}
@@ -818,6 +838,7 @@ export function GuestCheckInBoard({
                                   onSaved={recordSavedCheckIn}
                                 />
                                 <Button
+                                  disabled={blocked !== null}
                                   id={`check-in-adjust-${guest.id}`}
                                   variant="secondary"
                                   size="sm"
@@ -829,7 +850,7 @@ export function GuestCheckInBoard({
                                   其他人數
                                 </Button>
                               </>
-                            )}
+                            ) : null}
                           </div>
                         ) : null}
                       </article>

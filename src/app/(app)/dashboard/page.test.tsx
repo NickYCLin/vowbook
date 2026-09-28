@@ -3,17 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireCurrentUserContext,
-  listWorkspaceOverviewsForUser,
+  listWorkspaceChoicesForUser,
   redirect,
+  cookie,
 } = vi.hoisted(() => ({
   requireCurrentUserContext: vi.fn(),
-  listWorkspaceOverviewsForUser: vi.fn(),
+  listWorkspaceChoicesForUser: vi.fn(),
   redirect: vi.fn(),
+  cookie: vi.fn(),
 }));
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUserContext }));
-vi.mock("@/lib/workspace-overview", () => ({ listWorkspaceOverviewsForUser }));
+vi.mock("@/lib/workspace-choices", () => ({ listWorkspaceChoicesForUser }));
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: cookie }) }));
 vi.mock("@/components/auth/invitation-accepted-notice", () => ({
   InvitationAcceptedNotice: ({ notice }: { notice: { count: number } }) => (
     <p role="status">
@@ -58,12 +61,14 @@ import DashboardPage from "./page";
 describe("DashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    cookie.mockReturnValue(undefined);
+    redirect.mockImplementation(path => { throw new Error(`REDIRECT:${path}`); });
     requireCurrentUserContext.mockResolvedValue({
       currentUser: { id: "user_1" },
       invitationNotice: null,
       pendingInvitationConfirmation: false,
     });
-    listWorkspaceOverviewsForUser.mockResolvedValue([
+    listWorkspaceChoicesForUser.mockResolvedValue([
       {
         membershipId: "membership_1",
         role: "PARTNER",
@@ -83,8 +88,26 @@ describe("DashboardPage", () => {
     ]);
   });
 
-  it("offers a modal creation entry that reuses the workspace creation form", async () => {
+  it("enters the only wedding without adding a selection screen", async () => {
+    await expect(DashboardPage()).rejects.toThrow("REDIRECT:/workspaces/workspace_1/overview");
+  });
+
+  it("restores the last accessible wedding and ignores a preference from another account", async () => {
+    listWorkspaceChoicesForUser.mockResolvedValue([
+      { id: "a", role: "OWNER", workspace: { id: "a", name: "婚宴甲" } },
+      { id: "b", role: "OWNER", workspace: { id: "b", name: "婚宴乙" } },
+    ]);
+    cookie.mockReturnValue({ value: JSON.stringify({ userId: "user_1", workspaceId: "b" }) });
+    await expect(DashboardPage()).rejects.toThrow("REDIRECT:/workspaces/b/overview");
+    redirect.mockClear();
+    cookie.mockReturnValue({ value: JSON.stringify({ userId: "other", workspaceId: "b" }) });
     render(await DashboardPage());
+    expect(screen.getByRole("heading", { name: "所有婚宴" })).toBeVisible();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("offers a modal creation entry that reuses the workspace creation form", async () => {
+    render(await DashboardPage({ searchParams: Promise.resolve({ view: "all" }) }));
 
     // 改成 modal 之後，清單不會被展開的表單推出畫面。
     expect(
@@ -111,7 +134,7 @@ describe("DashboardPage", () => {
   });
 
   it("does not show invitation instructions when no invitation was accepted", async () => {
-    render(await DashboardPage());
+    render(await DashboardPage({ searchParams: Promise.resolve({ view: "all" }) }));
 
     expect(screen.queryByText(/協作邀請/u)).not.toBeInTheDocument();
   });
@@ -138,9 +161,9 @@ describe("DashboardPage", () => {
       invitationNotice: null,
       pendingInvitationConfirmation: true,
     });
-    listWorkspaceOverviewsForUser.mockResolvedValueOnce([]);
+    listWorkspaceChoicesForUser.mockResolvedValueOnce([]);
 
-    render(await DashboardPage());
+    render(await DashboardPage({ searchParams: Promise.resolve({ view: "all" }) }));
 
     expect(screen.getByRole("status")).toHaveTextContent("有新的協作邀請。");
     expect(

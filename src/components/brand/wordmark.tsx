@@ -6,12 +6,16 @@ type WordmarkProps = {
 };
 
 export function Wordmark({ compact = false, href = "/" }: WordmarkProps) {
-  const ariaLabel =
-    href === "/dashboard" ? "誓約簿 VowBook 所有婚宴" : "誓約簿 VowBook 首頁";
+  const toDashboard = href === "/dashboard" || href.startsWith("/dashboard?");
+  const ariaLabel = toDashboard
+    ? "誓約簿 VowBook 所有婚宴"
+    : "誓約簿 VowBook 首頁";
 
   return (
     <Link
       href={href}
+      // 站內目的地都是登入後才算得出來的頁面，先抓下來只是白跑一趟。
+      prefetch={href === "/" ? undefined : false}
       className="inline-flex min-h-11 items-center gap-2.5 text-ink no-underline"
       aria-label={ariaLabel}
     >

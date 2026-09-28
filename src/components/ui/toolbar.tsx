@@ -17,6 +17,7 @@ export function Toolbar({
 }) {
   return (
     <div
+      data-list-toolbar
       className={cn(
         "flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center",
         className,

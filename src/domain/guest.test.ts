@@ -9,9 +9,21 @@ import {
   GuestValidationError,
   normalizeGuestInput,
   normalizeGuestVersion,
+  effectiveGuestSeniority,
 } from "./guest";
 
 describe("guest domain contract", () => {
+  it.each([undefined, null, "UNSPECIFIED" as const])("defaults missing seniority %s to peers", value => {
+    expect(effectiveGuestSeniority(value)).toBe("PEER");
+  });
+
+  it.each(["ELDER", "PEER", "JUNIOR"] as const)("preserves explicitly selected seniority %s", value => {
+    expect(effectiveGuestSeniority(value)).toBe(value);
+  });
+
+  it.each(["", "UNSPECIFIED"])("treats a submitted blank seniority %s as peers", seniority => {
+    expect(normalizeGuestInput({name:"測試親友",side:"SHARED",attendanceStatus:"ATTENDING",partySize:"1",notes:"",seniority}).seniority).toBe("PEER");
+  });
   it("sorts guests by seniority before Traditional Chinese surname strokes", () => {
     const guests = [
       { id: "junior", name: "王小朋友", seniority: "JUNIOR" as const },
@@ -22,15 +34,15 @@ describe("guest domain contract", () => {
     ];
 
     expect(guests.sort(compareGuestsBySeniorityThenSurnameStroke).map((guest) => guest.id))
-      .toEqual(["elder-wang", "elder-chen", "peer-lin", "junior", "unset"]);
+      .toEqual(["elder-wang", "elder-chen", "unset", "peer-lin", "junior"]);
   });
 
-  it("defines editable seniority labels with unspecified entries last", () => {
+  it("treats legacy unspecified seniority as peers", () => {
     expect(GUEST_SENIORITY_LABELS).toEqual({
       ELDER: "長輩",
       PEER: "平輩",
       JUNIOR: "晚輩",
-      UNSPECIFIED: "未設定",
+      UNSPECIFIED: "平輩",
     });
   });
 

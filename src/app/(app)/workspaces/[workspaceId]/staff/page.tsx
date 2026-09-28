@@ -1,5 +1,4 @@
-import Link from "next/link";
-import {buttonClassName} from "@/components/ui/button";
+import { PrintPreviewLink } from "@/components/print/print-preview-link";
 import { StaffTabs } from "@/components/staff/staff-tabs";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -42,13 +41,13 @@ export default async function StaffPage({
             : "你目前是唯讀成員，可以查看工作人員，但不能新增、編輯或移除。"
         }
         actions={
-          canEdit && data.staff.length > 0 ? (
-            <CreateWeddingStaffForm workspaceId={workspaceId} />
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            <PrintPreviewLink href={`/workspaces/${workspaceId}/staff/print`}>列印工作人員發放清單</PrintPreviewLink>
+            {canEdit && data.staff.length > 0 && <CreateWeddingStaffForm workspaceId={workspaceId} />}
+          </div>
         }
       />
       <StaffTabs workspaceId={workspaceId} active="staff" />
-      <div className="my-5"><Link href={`/workspaces/${workspaceId}/staff/print`} className={buttonClassName({variant:"secondary"})}>列印工作人員發放清單</Link></div>
       <WeddingStaffList workspaceId={workspaceId} staff={data.staff} canEdit={canEdit} />
     </main>
   );

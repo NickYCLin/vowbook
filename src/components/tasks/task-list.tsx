@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { dateKeyInTimezone } from "@/domain/calendar-date";
+
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
+import { useMemo } from "react";
 import {
   WEDDING_TASK_SIDE_LABELS,
   type WeddingTaskSideValue,
@@ -193,16 +197,16 @@ export function WeddingTaskList({
   workspaceId,
   tasks,
   canEdit,
-  today = new Date().toISOString().slice(0, 10),
+  today = dateKeyInTimezone(new Date()),
 }: {
   workspaceId: string;
   tasks: WeddingTaskListItem[];
   canEdit: boolean;
   today?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
-  const [sideFilter, setSideFilter] = useState<SideFilter>("ALL");
+  const [query, setQuery] = useWorkspaceViewState(`${workspaceId}:tasks:query`, "");
+  const [statusFilter, setStatusFilter] = useWorkspaceViewState<StatusFilter>(`${workspaceId}:tasks:statusFilter`, "ALL");
+  const [sideFilter, setSideFilter] = useWorkspaceViewState<SideFilter>(`${workspaceId}:tasks:sideFilter`, "ALL");
 
   const counts = useMemo(
     () => ({

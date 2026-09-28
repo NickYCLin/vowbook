@@ -20,7 +20,7 @@ export default function MembersError({ reset }: { reset: () => void }) {
           重新嘗試
         </button>
         <Link
-          href="/dashboard"
+          href="/dashboard?view=all"
           className="inline-flex min-h-11 items-center font-semibold text-clay-strong underline decoration-line-strong underline-offset-4"
         >
           返回所有婚宴

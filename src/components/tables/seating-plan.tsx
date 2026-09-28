@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
+
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AdjustSeatingTablesForm,
@@ -107,7 +109,7 @@ export function SeatingPlan({
   );
   const [pendingDelete, setPendingDelete] =
     useState<PendingSeatingDelete | null>(null);
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedTableId, setSelectedTableId] = useWorkspaceViewState<string | null>(`${workspaceId}:tables:selectedTableId`, null);
   const moveStatusRef = useRef<HTMLParagraphElement>(null);
   const partnerAHeadingId = useId();
   const partnerBHeadingId = useId();

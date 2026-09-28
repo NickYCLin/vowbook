@@ -6,13 +6,13 @@ describe("LinkifiedText", () => {
   it("turns URLs into links and keeps surrounding text", () => {
     const { container } = render(
       <p>
-        <LinkifiedText text="手機（分貝機網頁 https://example.com/meter/）備好" />
+        <LinkifiedText text="手機（分貝機網頁 https://ycspace.myvnc.com/PocketDB/）備好" />
       </p>,
     );
-    const link = screen.getByRole("link", { name: "https://example.com/meter/" });
-    expect(link).toHaveAttribute("href", "https://example.com/meter/");
+    const link = screen.getByRole("link", { name: "https://ycspace.myvnc.com/PocketDB/" });
+    expect(link).toHaveAttribute("href", "https://ycspace.myvnc.com/PocketDB/");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(container.textContent).toBe("手機（分貝機網頁 https://example.com/meter/）備好");
+    expect(container.textContent).toBe("手機（分貝機網頁 https://ycspace.myvnc.com/PocketDB/）備好");
   });
 
   it("leaves plain text alone", () => {

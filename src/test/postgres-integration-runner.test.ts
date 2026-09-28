@@ -33,7 +33,11 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toMatch(/migrationEntries\.at\(-18\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-19\)/);
     expect(runner).toMatch(/migrationEntries\.at\(-20\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-21\)/);
+    expect(runner).toMatch(/migrationEntries\.at\(-22\)/);
     expect(runner).toContain("budgetBalancePaymentMethodMigration");
+    expect(runner).toContain("seatingScenarioMigration");
+    expect(runner).toContain("mealUnitPricesMigration");
     expect(runner).toContain("familyPartySizeMigration");
     expect(runner).toContain("userAccessMigration");
     expect(runner).toContain("avatarMigration");
@@ -204,7 +208,13 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 52");
+    expect(runner).toContain("migrationEntries.length !== 56");
+    expect(runner).toContain(
+      'appleSignInMigration !== "20260928020000_apple_sign_in"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: Apple subjects backfilled",
+    );
     expect(runner).toContain(
       'speechMigration !== "20260926010000_wedding_speeches"',
     );
@@ -222,8 +232,25 @@ describe("PostgreSQL canonical integration runner", () => {
     );
     expect(runner).toContain("src/test/postgres-wedding-games.integration.test.ts");
     expect(runner).toContain(
+      "budgetBalancePaymentMethodMigration !==\n    \"20260925220000_budget_balance_payment_method\"",
+    );
+    expect(runner).toContain(
       "prior-head upgrade verification failed: balance payment method backfilled",
     );
+    expect(runner).toContain(
+      'seatingScenarioMigration !== "20260923230000_seating_scenarios"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: seating scenarios backfilled",
+    );
+    expect(runner).toContain(
+      'mealUnitPricesMigration !== "20260921130000_meal_unit_prices"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: meal pricing defaults",
+    );
+    expect(runner).toContain('mobileAuthMigration !== "20260914120000_mobile_auth"');
+    expect(runner).toContain("src/test/postgres-mobile-auth.integration.test.ts");
     expect(runner).toContain(
       'dropVendorMigration !== "20260908000000_drop_wedding_vendors"',
     );

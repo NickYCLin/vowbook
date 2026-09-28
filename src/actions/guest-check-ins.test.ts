@@ -73,7 +73,7 @@ describe("guest check-in actions", () => {
       workspace: { id: "workspace_1" },
     });
     mocks.requireLockedWorkspaceAccess.mockResolvedValue("PLANNER");
-    mocks.guestFindFirst.mockResolvedValue({ id: "guest_1" });
+    mocks.guestFindFirst.mockResolvedValue({ id: "guest_1", category: "GUEST", attendanceStatus: "ATTENDING" });
     mocks.checkInCreate.mockResolvedValue({
       id: "check_in_1",
       headcount: 3,
@@ -151,7 +151,7 @@ describe("guest check-in actions", () => {
 
     expect(mocks.guestFindFirst).toHaveBeenCalledWith({
       where: { id: "guest_1", workspaceId: "workspace_1" },
-      select: { id: true },
+      select: { id: true, category: true, attendanceStatus: true },
     });
     expect(mocks.checkInCreate).toHaveBeenCalledWith({
       data: {
@@ -177,6 +177,24 @@ describe("guest check-in actions", () => {
       checkInGuestAction("workspace_1", "other_guest", idleState, checkInForm()),
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
     expect(mocks.checkInCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { category: "GUEST", attendanceStatus: "DECLINED" },
+    { category: "FAMILY", attendanceStatus: "UNDECIDED" },
+    { category: "COUPLE", attendanceStatus: "ATTENDING" },
+  ])("rejects ineligible creation and updates inside the authorized transaction: %j", async (guest) => {
+    mocks.guestFindFirst.mockResolvedValue({ id: "guest_1", ...guest });
+    await expect(checkInGuestAction("workspace_1", "guest_1", idleState, checkInForm())).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    await expect(updateGuestCheckInAction("workspace_1", "check_in_1", idleState, checkInForm({ expectedVersion: "4" }))).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(mocks.checkInCreate).not.toHaveBeenCalled();
+    expect(mocks.checkInUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.guestFindFirst).toHaveBeenLastCalledWith({
+      where: { workspaceId: "workspace_1", checkIn: { is: { id: "check_in_1", workspaceId: "workspace_1" } } },
+      select: { id: true, category: true, attendanceStatus: true },
+    });
+    // Existing inconsistent records remain explicitly cancellable.
+    await expect(cancelGuestCheckInAction("workspace_1", "check_in_1", idleState, checkInForm({ expectedVersion: "4" }))).resolves.toMatchObject({ status: "success" });
   });
 
   it("reports a duplicate check-in as stale instead of leaking the database error", async () => {

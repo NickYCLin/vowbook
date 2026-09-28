@@ -225,7 +225,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
   });
 
   await test.step("建立、修改並永久刪除第二個工作區", async () => {
-    await page.goto("./dashboard");
+    await page.goto("./dashboard?view=all");
     await expect(page.getByRole("heading", { name: "所有婚宴" })).toBeVisible();
     await page.getByRole("button", { name: "新增婚宴" }).click();
     const createWorkspaceDialog = page.getByRole("dialog", {
@@ -238,6 +238,9 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     await createWorkspaceDialog
       .getByRole("button", { name: "建立婚宴工作區" })
       .click();
+
+    await expect(page.getByRole("heading", { name: "婚宴首頁", exact: true })).toBeVisible();
+    await page.goto("./dashboard?view=all");
 
     const temporaryHeading = page.getByRole("heading", {
       name: fixture.temporaryWorkspaceName,
@@ -359,6 +362,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
 
   await test.step("從總覽進入禮金頁並完成登記、修改、重載與移除", async () => {
     await page.goto(`./workspaces/${fixture.workspaceId}/overview`);
+    await page.getByRole("main").getByText("查看完整籌備統計", { exact: true }).click();
     await page.getByRole("link", { name: "查看禮金簿", exact: true }).click();
     await expect(page).toHaveURL(
       new RegExp(`/workspaces/${fixture.workspaceId}/gifts$`, "u"),
@@ -462,7 +466,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     await expect(giftRow).toContainText(updatedFormattedAmount);
     await expect(giftRow).toContainText(updatedNotes);
 
-    // 這位賓客沒有報到，屬於禮到人不到；標記已回禮後待回禮數要歸零。
+    // 這位賓客明確回覆不出席且沒有報到，屬於禮到人不到；標記已回禮後待回禮數要歸零。
     await reloadedLedger
       .getByLabel("禮金登記狀態篩選")
       .selectOption("WITHOUT_ATTENDANCE");
@@ -1442,6 +1446,13 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     ).toBeVisible();
 
     const board = page.getByRole("region", { name: "賓客報到" });
+    await expect(board.getByRole("radio", { name: /^應到/ })).toHaveAttribute("aria-checked", "true");
+    await expect(board.getByRole("article", { name: fixture.declinedGuestName })).toHaveCount(0);
+    await board.getByRole("radio", { name: /^全部/ }).click();
+    const declinedCheckIn = board.getByRole("article", { name: fixture.declinedGuestName });
+    await expect(declinedCheckIn.getByText("不需報到", { exact: true })).toBeVisible();
+    await expect(declinedCheckIn.getByRole("button", { name: /報到|其他人數/ })).toHaveCount(0);
+    await board.getByRole("radio", { name: /^應到/ }).click();
     const expectStat = async (label: string, value: string) => {
       await expect(
         board

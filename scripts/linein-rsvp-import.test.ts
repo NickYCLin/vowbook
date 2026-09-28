@@ -122,6 +122,7 @@ type StoredGuest = {
   partySize: number;
   notes: string | null;
   seatingTableId: string | null;
+  checkIn?: { id: string } | null;
 };
 
 type StoredRsvp = {
@@ -910,6 +911,7 @@ describe("LINEIN RSVP importer", () => {
     ).resolves.toMatchObject({ create: 1, update: 0, unchanged: 0 });
     expect(fake.store.guests).toHaveLength(1);
     expect(fake.store.rsvps).toHaveLength(1);
+    expect(fake.store.guests[0]).toMatchObject({ seniority: "PEER" });
     expect(fake.store.rsvps[0]).toMatchObject({
       workspaceId: "workspace_1",
       guestId: fake.store.guests[0].id,
@@ -1222,6 +1224,24 @@ describe("LINEIN RSVP importer", () => {
     expect(result).toMatchObject({ create: 1, conflict: 1, applied: false });
     expect(fake.store.guests).toHaveLength(1);
     expect(fake.store.rsvps[0].attendanceReply).toBe("會出席");
+  });
+
+  it.each([false, true])("blocks declining a checked-in guest without a seat (apply=%s)", async (apply) => {
+    const existing = importedState(sourceRecord(0), {
+      checkIn: { id: "check_in_1" },
+    });
+    const fake = fakeClient({ guests: [existing.guest], rsvps: [existing.rsvp] });
+    const records = parseNormalizedLineinRsvpJson(JSON.stringify([
+      sourceRecord(1),
+      sourceRecord(0, { attendanceStatus: "DECLINED", attendanceReply: "不克出席" }),
+    ]));
+
+    await expect(importLineinRsvpRecords({
+      client: fake.client, workspaceId: "workspace_1", records, apply,
+    })).resolves.toMatchObject({ create: 1, update: 1, conflict: 1, applied: false });
+    expect(fake.store.guests).toEqual([existing.guest]);
+    expect(fake.store.rsvps).toEqual([existing.rsvp]);
+    expect(fake.store.batches).toHaveLength(0);
   });
 
   it("does not apply source party-size changes to assigned Guest occupancy", async () => {

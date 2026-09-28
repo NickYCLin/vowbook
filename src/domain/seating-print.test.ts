@@ -10,5 +10,13 @@ it("keeps empty tables and lists unassigned guests last without implying they ha
  const data=seatingPrintData([{id:"b",number:3,name:"預備桌",capacity:10,guests:[]},{id:"a",number:1,name:"主桌",capacity:12,guests:[guest]}],[{...guest,id:"u",name:"未排親友",partySize:2,childSeatCount:null}]);
  expect(data.rows.map(r=>r.key)).toEqual(["table:a:guest:g","table:b:empty","unassigned:u"]);
  expect(data.rows[2].cells[0]).toBe("尚未排桌");expect(data.rows[2].cells[6]).toBe("待安排");
+ expect(data.rows[2].cells[5]).toBe("-");
  expect(data.summary).toContain("未排 2 位");
+});
+it("shows no vegetarian or child seat request as a dash when blank or zero",()=>{
+ const data=seatingPrintData([{id:"t",number:1,name:"主桌",capacity:10,guests:[
+  {...guest,id:"blank",vegetarianCount:null,childSeatCount:null},
+  {...guest,id:"zero",vegetarianCount:0,childSeatCount:0},
+ ]}],[]);
+ expect(data.rows.map(row=>row.cells.slice(4,6))).toEqual([["-","-"],["-","-"]]);
 });

@@ -1163,7 +1163,7 @@ it("keeps exempt guests out of the ledger and reachable from the exemption filte
   fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "EXEMPT_WITH_CAKE" } });
   expect(screen.getByText("長輩朋友")).toBeInTheDocument();
   expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
-  expect(screen.queryByText("未有禮金紀錄")).not.toBeInTheDocument();
+  expect(screen.queryByText("未登記")).not.toBeInTheDocument();
   expect(screen.queryByText("禮到人不到・待回禮回喜餅")).not.toBeInTheDocument();
 });
 

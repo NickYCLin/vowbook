@@ -10,11 +10,15 @@ import {
 } from "@/domain/guest-details";
 import {
   GuestValidationError,
+  effectiveGuestSeniority,
   normalizeGuestInput,
   normalizeGuestVersion,
   type NormalizedGuestInput,
 } from "@/domain/guest";
-import { normalizeGuestCheckInExpectedVersion } from "@/domain/guest-check-in";
+import {
+  canGuestCheckIn,
+  normalizeGuestCheckInExpectedVersion,
+} from "@/domain/guest-check-in";
 import { normalizeWeddingGiftExpectedVersion } from "@/domain/wedding-gift";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
@@ -99,6 +103,11 @@ async function revalidateGuestViews(workspaceId: string): Promise<boolean> {
     () => revalidatePath(tablesPath(workspaceId)),
     () => revalidatePath(`/workspaces/${workspaceId}/tables/print`),
     () => revalidatePath(`/workspaces/${workspaceId}/overview`),
+    () => revalidatePath(`/workspaces/${workspaceId}/check-in`),
+    () => revalidatePath(`/workspaces/${workspaceId}/gifts`),
+    () => revalidatePath(`/workspaces/${workspaceId}/guests/cakes`),
+    () => revalidatePath(`/workspaces/${workspaceId}/gifts/print`),
+    () => revalidatePath(`/workspaces/${workspaceId}/tables/chart`),
   ];
   let revalidated = true;
 
@@ -336,7 +345,7 @@ export async function createGuestAction(
         transaction,
       );
       const guest = await transaction.guest.create({
-        data: { workspaceId, ...input },
+        data: { workspaceId, ...input, seniority: effectiveGuestSeniority(input.seniority) },
       });
       if (hasGuestDetails(details)) {
         await upsertManualGuestDetails(
@@ -408,6 +417,7 @@ export async function updateGuestAction(
           version: true,
           partySize: true,
           seatingTableId: true,
+          checkIn: { select: { id: true } },
         },
       });
       if (!guest) {
@@ -415,6 +425,11 @@ export async function updateGuestAction(
       }
       if (guest.version !== expectedVersion) {
         throw new GuestStaleWriteError();
+      }
+      if (guest.checkIn && !canGuestCheckIn(input)) {
+        throw new GuestValidationError(
+          "此名單已有報到紀錄，請先取消報到，再變更為未確認、不出席或新人。",
+        );
       }
 
       if (details === null && input.partySize < guest.partySize) {

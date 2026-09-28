@@ -29,6 +29,7 @@ function offlineStubs() {
       "export const redirect = () => {};",
       "export const useRouter = () => ({ push: () => {}, refresh: () => {} });",
       "export const usePathname = () => '/';",
+      "export const useSearchParams = () => new URLSearchParams();",
     ].join("\n"),
     "next-auth/react": [
       "export const signIn = () => {};",
@@ -39,7 +40,7 @@ function offlineStubs() {
     "next/link": [
       "import { createElement } from 'react';",
       "export const useLinkStatus = () => ({ pending: false });",
-      "export default function Link({ href, children, ...rest }) {",
+      "export default function Link({ href, children, scroll, ...rest }) {",
       "  return createElement('a', { href: typeof href === 'string' ? href : '#', ...rest }, children);",
       "}",
     ].join("\n"),
@@ -214,7 +215,7 @@ async function main() {
       // 真實的 modal 在 top layer、以視窗為基準定位，這裡用 fixed 模擬同樣的幾何。
       // 手機的底部面板幾何（貼底、滿版）由 globals.css 的 dialog 規則負責，這裡只補 display。
       css:
-        "dialog{display:block!important;position:fixed!important;inset:0!important;margin:auto!important;max-height:none!important;}",
+        "[data-guest-planning-details]{display:block!important}dialog{display:block!important;position:fixed!important;inset:0!important;margin:auto!important;max-height:none!important;}",
     },
     {
       key: "more-open",
@@ -238,6 +239,10 @@ async function main() {
       });
       await page.goto(fileUrl, { waitUntil: "load" });
       if (mode.css) await page.addStyleTag({ content: mode.css });
+      if (mode.key === "closed") {
+        const switcher = page.locator("[data-workspace-switcher]");
+        if (await switcher.count()) await switcher.evaluate(element => { element.open = true; });
+      }
       if (mode.mobileOnly) {
         // 桌機沒有「更多」面板；沒有工作區導覽的頁面（首頁、登入、所有婚宴）也沒有。
         const hasPanel =

@@ -229,7 +229,7 @@ describeDatabase.sequential("PostgreSQL workspace invitation invariants", () => 
     await expect(
       resolveCurrentUserIdentity(
         identity(
-          existing.googleSubject,
+          existing.googleSubject!,
           existing.email,
           new Date(now.getTime() - 5 * 60 * 1000 - 1),
         ),
@@ -332,7 +332,7 @@ describeDatabase.sequential("PostgreSQL workspace invitation invariants", () => 
     ]);
 
     const resolution = await resolveCurrentUserIdentityWithClaims(
-      identity(invitee.googleSubject, email, await databaseNow()),
+      identity(invitee.googleSubject!, email, await databaseNow()),
     );
 
     expect(resolution).toMatchObject({
@@ -373,7 +373,7 @@ describeDatabase.sequential("PostgreSQL workspace invitation invariants", () => 
     await invite(workspace.id, owner.id, email, "PLANNER");
 
     await resolveCurrentUserIdentity(
-      identity(oldHolder.googleSubject, email, proofBeforeInvitation),
+      identity(oldHolder.googleSubject!, email, proofBeforeInvitation),
     );
     expect(
       await prisma.membership.count({

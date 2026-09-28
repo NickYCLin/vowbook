@@ -2,7 +2,7 @@ import type { ElementType, ReactNode } from "react";
 import { cn } from "@/lib/class-names";
 
 /**
- * 紙卡：全站列表項目與區塊的基本容器。
+ * 卡片：工作區套用霧面表面，文件列印保留實色。
  * tone="sunken" 用在卡片內的次層區塊（例如展開後的表單）。
  */
 export function Card({
@@ -28,11 +28,12 @@ export function Card({
   return (
     <Tag
       {...rest}
+      data-card-surface={tone}
       className={cn(
         "min-w-0 rounded-card border",
         tones[tone],
         interactive &&
-          "transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raise",
+          "transition hover:border-line-strong hover:shadow-raise",
         className,
       )}
     >

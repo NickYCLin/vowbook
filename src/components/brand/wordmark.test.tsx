@@ -21,4 +21,12 @@ describe("Wordmark", () => {
       screen.getByRole("link", { name: "誓約簿 VowBook 首頁" }),
     ).toHaveAttribute("href", "/");
   });
+
+  it("still reads as the wedding list when the dashboard link carries a view", () => {
+    render(<Wordmark href="/dashboard?view=all" />);
+
+    expect(
+      screen.getByRole("link", { name: "誓約簿 VowBook 所有婚宴" }),
+    ).toHaveAttribute("href", "/dashboard?view=all");
+  });
 });

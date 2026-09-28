@@ -481,7 +481,7 @@ describe("budget taxonomy UI", () => {
         name: "移除項目：婚宴場地",
       }),
     ).not.toBeInTheDocument();
-  }, 10_000);
+  }, 30_000);
 
   it("shows only fixed stages and items that contain workspace data", () => {
     const emptyStage: BudgetItemListItem = {
@@ -945,7 +945,7 @@ describe("budget taxonomy UI", () => {
   });
 
 
-  // 多次展開、導覽與搜尋的完整互動測試；共享 CI runner 曾超過預設 5 秒。
+  // 多次展開、導覽與搜尋的完整互動測試；共享 CI runner 與首次建置的 Mac 曾超過 10 秒。
   it("keeps attire and styling in their Drive item while showing a single-count photography extension reference", () => {
     const relatedSummary: BudgetSummary = {
       ...summary,
@@ -1031,7 +1031,7 @@ describe("budget taxonomy UI", () => {
         "符合 1 / 2 筆花費、0 / 4 個群組，另顯示 2 個上層群組",
       ),
     ).toBeVisible();
-  }, 10_000);
+  }, 30_000);
 
   it("shows photography extension references even before the target item has a direct expense", () => {
     const emptyPhotographyStage: BudgetItemListItem = {

@@ -21,7 +21,7 @@ describe("TasksRouteError", () => {
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.getByRole("link", { name: "回到所有婚宴" })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/dashboard?view=all",
     );
   });
 });

@@ -250,9 +250,9 @@ describe("listGuestsForWorkspace", () => {
     expect(result.guests.map((guest) => guest.id)).toEqual([
       "elder_wang",
       "elder_chen",
+      "unset_li",
       "peer_lin",
       "junior",
-      "unset_li",
     ]);
   });
 

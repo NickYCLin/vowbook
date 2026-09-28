@@ -253,13 +253,21 @@ export async function getWorkspaceMembersData(
   client: WorkspaceMembersClient = prisma as unknown as WorkspaceMembersClient,
 ): Promise<WorkspaceMembersData> {
   const currentUser = await requireCurrentUser();
+  return loadWorkspaceMembersForUser(workspaceId, currentUser.id, client);
+}
 
+/** 手機 API 用：身分由已驗證的 token 帶進來，權限檢查與網站相同。 */
+export async function loadWorkspaceMembersForUser(
+  workspaceId: string,
+  userId: string,
+  client: WorkspaceMembersClient = prisma as unknown as WorkspaceMembersClient,
+): Promise<WorkspaceMembersData> {
   try {
     return await client.$transaction(
       async (transaction) => {
         const access = await requireWorkspaceAccess<
           Pick<WeddingWorkspace, "id" | "name">
-        >(workspaceId, currentUser.id, "read", transaction);
+        >(workspaceId, userId, "read", transaction);
 
         if (access.role === "OWNER") {
           const [memberRows, invitationRows] = await Promise.all([

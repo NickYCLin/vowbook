@@ -14,7 +14,7 @@ import {
   checkInGuestAction,
   updateGuestCheckInAction,
 } from "@/actions/guest-check-ins";
-import { deleteGuestAction } from "@/actions/guests";
+import { deleteGuestAction, updateGuestAction } from "@/actions/guests";
 
 const runDatabaseIntegration = process.env.VOWBOOK_DB_INTEGRATION === "1";
 const describeDatabase = runDatabaseIntegration ? describe : describe.skip;
@@ -62,7 +62,7 @@ async function createWorkspace(userId: string, name: string) {
 
 async function createGuest(workspaceId: string, name: string) {
   return prisma.guest.create({
-    data: { workspaceId, name, side: "SHARED" },
+    data: { workspaceId, name, side: "SHARED", attendanceStatus: "ATTENDING" },
   });
 }
 
@@ -79,6 +79,38 @@ describeDatabase.sequential("PostgreSQL guest check-in invariants", () => {
       await prisma.user.deleteMany();
     }
     await prisma.$disconnect();
+  });
+
+  it("blocks declined, undecided and couple arrivals while keeping legacy records cancellable", async () => {
+    const owner = await createUser("eligibility");
+    const workspace = await createWorkspace(owner.id, "報到狀態驗證");
+    authState.userId = owner.id;
+    for (const attendanceStatus of ["DECLINED", "UNDECIDED"] as const) {
+      const guest = await prisma.guest.create({ data: { workspaceId: workspace.id, name: "不適用報到", side: "SHARED", attendanceStatus } });
+      await expect(checkInGuestAction(workspace.id, guest.id, idleState, checkInForm())).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+      const legacy = await prisma.guestCheckIn.create({ data: { workspaceId: workspace.id, guestId: guest.id, headcount: 1 } });
+      await expect(updateGuestCheckInAction(workspace.id, legacy.id, idleState, checkInForm({ expectedVersion: 0 }))).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+      await expect(cancelGuestCheckInAction(workspace.id, legacy.id, idleState, checkInForm({ expectedVersion: 0 }))).resolves.toMatchObject({ status: "success" });
+    }
+    const couple = await prisma.guest.create({ data: { workspaceId: workspace.id, name: "合成新人", side: "PARTNER_A", category: "COUPLE", partySize: 1, attendanceStatus: "ATTENDING" } });
+    await expect(checkInGuestAction(workspace.id, couple.id, idleState, checkInForm())).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(await prisma.guestCheckIn.count({ where: { workspaceId: workspace.id } })).toBe(0);
+  });
+
+  it("cannot commit both a new arrival and a concurrent decline", async () => {
+    const owner = await createUser("attendance-race");
+    const workspace = await createWorkspace(owner.id, "報到與出席併發");
+    const guest = await createGuest(workspace.id, "合成賓客");
+    authState.userId = owner.id;
+    const decline = new FormData();
+    for (const [key, value] of Object.entries({ name: guest.name, category: "GUEST", side: "SHARED", attendanceStatus: "DECLINED", partySize: "1", expectedVersion: "0" })) decline.set(key, value);
+    const results = await Promise.all([
+      checkInGuestAction(workspace.id, guest.id, idleState, checkInForm({ headcount: "1" })),
+      updateGuestAction(workspace.id, guest.id, idleState, decline),
+    ]);
+    expect(results.filter(result => result.status === "success")).toHaveLength(1);
+    const latest = await prisma.guest.findUniqueOrThrow({ where: { id: guest.id }, include: { checkIn: true } });
+    expect(latest.checkIn !== null && latest.attendanceStatus !== "ATTENDING").toBe(false);
   });
 
   it("enforces one arrival per group, same-workspace guests, and the database checks", async () => {

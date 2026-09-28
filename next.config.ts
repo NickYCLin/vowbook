@@ -6,6 +6,23 @@ const nextConfig: NextConfig = {
   output: "standalone",
   async headers() {
     return [
+      ...["tables/print", "tables/chart", "staff/print", "gifts/print", "budget/print"].map(route => ({
+        source: `/workspaces/:workspaceId/${route}`,
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      })),
+      {
+        source: "/mobile/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
       {
         source:
           "/workspaces/:workspaceId/budget/:budgetItemId/attachments/:attachmentId/preview",

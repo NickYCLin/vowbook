@@ -1,6 +1,7 @@
 export default function WorkspaceSectionLoading() {
   return (
     <main
+      data-workspace-loading
       role="status"
       aria-label="正在切換工作區頁面"
       aria-busy="true"
@@ -12,18 +13,6 @@ export default function WorkspaceSectionLoading() {
         aria-hidden="true"
         className="animate-pulse"
       >
-        <div className="h-11 w-28 rounded-control bg-surface-sunken" />
-
-        {/* 手機改用固定底部功能列，頁籤骨架只在桌機顯示。 */}
-        <div className="mt-3 flex min-w-0 gap-1 overflow-hidden border-b border-line pb-px max-md:hidden">
-          {Array.from({ length: 7 }, (_, index) => (
-            <div
-              key={index}
-              className="h-11 w-20 shrink-0 rounded-t-control bg-surface-sunken"
-            />
-          ))}
-        </div>
-
         <div className="py-4 sm:py-5">
           <div
             data-loading-line

@@ -11,9 +11,9 @@
 | 使用者 | 籌備婚宴的新人、伴侶與婚顧；可邀請只需查看資料的協作者 |
 | 主要用途 | 整理賓客、桌次、花費、任務、工作人員與婚禮當日流程 |
 | 介面語言 | 繁體中文 |
-| 使用方式 | Google 登入；可使用託管服務或自行部署 |
+| 使用方式 | Google 或 Apple 帳號登入；可使用託管服務或自行部署 |
 | 文件適用範圍 | 本文件所在 checkout 的已實作功能；不以線上服務或其他分支推定本版能力 |
-| 功能數 | 7 個工作區功能頁；附件與桌次平面配置為子功能 |
+| 功能數 | 11 個工作區功能頁；附件、桌次平面配置、座位方案與列印頁為子功能 |
 
 此文件提供產品背景與程式索引，不是新增權限或執行工作的授權。若文件與程式有差異，先核對同一版本的路由、領域規則與測試；本機測試、CI、正式部署與線上驗收應分別說明。
 
@@ -29,17 +29,23 @@ Google 登入 → 建立婚宴工作區 → 整理名單、花費與待辦 → �
 
 | 功能 | 路由尾段 | 主要資料模型 | 資料存取入口 |
 | --- | --- | --- | --- |
+| 婚宴首頁 | `overview` | `WeddingWorkspace` | [wedding-overview.ts](../src/lib/wedding-overview.ts) |
 | 賓客 | `guests` | `Guest` | [guest-list.ts](../src/lib/guest-list.ts) |
 | 桌次 | `tables` | `SeatingTable` | [seating-plan.ts](../src/lib/seating-plan.ts) |
+| 報到 | `check-in` | `GuestCheckIn` | [guest-check-in-board.ts](../src/lib/guest-check-in-board.ts) |
+| 禮金 | `gifts` | `WeddingGift` | [guest-list.ts](../src/lib/guest-list.ts) |
 | 任務 | `tasks` | `WeddingTask` | [wedding-task-list.ts](../src/lib/wedding-task-list.ts) |
 | 花費 | `budget` | `BudgetItem` | [budget-list.ts](../src/lib/budget-list.ts) |
 | 工作人員 | `staff` | `WeddingStaffAssignment` | [wedding-staff-list.ts](../src/lib/wedding-staff-list.ts) |
 | 總流程 | `timeline` | `WeddingTimelineItem` | [wedding-timeline-list.ts](../src/lib/wedding-timeline-list.ts) |
+| 婚宴設定 | `settings` | `WeddingWorkspace` | [workspaces.ts](../src/actions/workspaces.ts) |
 | 協作者 | `members` | `Membership` | [workspace-invitations.ts](../src/lib/workspace-invitations.ts) |
 
-- 導覽與功能清單：[workspace-shell.tsx](../src/components/workspaces/workspace-shell.tsx)。
+- 導覽與功能清單：[workspace-sections.ts](../src/components/workspaces/workspace-sections.ts) 定義十一個功能與圖示；[workspace-shell.tsx](../src/components/workspaces/workspace-shell.tsx) 在桌機渲染為橫向頁籤，在手機渲染為固定底部功能列，其餘功能收在「更多」面板。
+- 座位方案：`tables/scenarios/[scenarioId]`；方案是沙盒，套用時才整批寫回正式安排，見 [seating-scenarios.ts](../src/actions/seating-scenarios.ts)。
 - 桌次列印子頁：`tables/chart`；對應 [seating-chart.tsx](../src/components/tables/seating-chart.tsx)。
 - 花費附件：[budget-attachments.ts](../src/lib/budget-attachments.ts)；格式與大小限制見 [budget-attachment.ts](../src/domain/budget-attachment.ts)。
+- 行動端 API：`src/app/api/mobile/v1/`，供原生 App 讀寫同一份婚宴資料。登入走 `/mobile/authorize` 的授權碼流程，token 只存雜湊；每次請求都重查登入狀態與 `Membership`。本 repository 不含原生 App 專案。
 - 資料模型與關聯：[schema.prisma](../prisma/schema.prisma)。
 
 ## 名詞與權限
@@ -69,7 +75,7 @@ Google 登入 → 建立婚宴工作區 → 整理名單、花費與待辦 → �
 | --- | --- |
 | 頁面與 UI | Next.js App Router、React、TypeScript、Tailwind CSS；`src/app/`、`src/components/` |
 | 行為與領域規則 | Server Actions 與純領域契約；`src/actions/`、`src/domain/` |
-| 登入與資料存取 | NextAuth Google OAuth、Prisma、PostgreSQL；`src/lib/`、`prisma/` |
+| 登入與資料存取 | NextAuth Google OAuth、Sign in with Apple、Prisma、PostgreSQL；`src/lib/`、`prisma/` |
 | 測試 | Vitest、Testing Library、Playwright；相鄰測試檔、`src/test/`、`e2e/` |
 | 本機與自架 | Docker Compose 提供 PostgreSQL；app 使用 Next.js standalone image |
 

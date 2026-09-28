@@ -236,13 +236,17 @@ function detailsFromRecords(
 
 export async function listGuestsForWorkspace(workspaceId: string) {
   const currentUser = await requireCurrentUser();
+  return loadGuestsForUser(workspaceId, currentUser.id);
+}
 
+/** 手機端沒有網站 session，但看的是同一份名單；Membership 仍在交易內驗證。 */
+export async function loadGuestsForUser(workspaceId: string, userId: string) {
   try {
     return await prisma.$transaction(
       async (transaction) => {
         const access = await requireWorkspaceAccess<WeddingWorkspace>(
           workspaceId,
-          currentUser.id,
+          userId,
           "read",
           transaction,
         );

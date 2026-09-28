@@ -100,7 +100,7 @@ describe("budget taxonomy view model", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transaction.mockImplementation(async (operation) =>
-      operation({ budgetItem: { findMany } }),
+      operation({ budgetItem: { findMany }, weddingStaffAssignment: { findMany: async () => [] }, guest: { findMany: async () => [] } }),
     );
     requireCurrentUser.mockResolvedValue({ id: "session_user" });
     requireWorkspaceAccess.mockResolvedValue({

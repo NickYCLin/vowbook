@@ -28,6 +28,8 @@ vi.mock("@/lib/prisma", () => ({
 const transactionClient = {
   membership: { findUnique: vi.fn() },
   budgetItem: { findMany },
+  weddingStaffAssignment: { findMany: vi.fn().mockResolvedValue([]) },
+  guest: { findMany: vi.fn().mockResolvedValue([]) },
 };
 
 import {
@@ -198,6 +200,9 @@ describe("getBudgetPageData", () => {
         hasEngagementCeremony: false,
         hasProcessionCeremony: false,
         ceremonyPreferencesVersion: 0,
+        staffMealUnitPrice: null,
+        vegetarianMealUnitPrice: null,
+        serviceChargePercent: 0,
       },
     });
     findMany.mockResolvedValue([]);
@@ -214,6 +219,13 @@ describe("getBudgetPageData", () => {
     ).resolves.toEqual({
       workspaceName: "我們的婚宴",
       workspaceToday: "2028-02-29",
+      staffRedEnvelopes: [],
+      derivedCosts: [],
+      mealPricing: {
+        staffMealUnitPrice: null,
+        vegetarianMealUnitPrice: null,
+        serviceChargePercent: 0,
+      },
       canEdit: false,
       canResetBudget: false,
       resetSnapshot: null,
@@ -1268,4 +1280,183 @@ describe("summarizeBudgetCeremonyStageCleanups", () => {
     );
     expect(unchanged?.snapshotToken).toBe(before?.snapshotToken);
   });
+});
+
+it("puts add-on charges into the balance due total", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+    },
+  });
+  const record = (
+    id: string,
+    balanceAmount: number | null,
+    additionalAmount: number | null,
+  ) => ({
+    id,
+    parentId: null,
+    source: "MANUAL",
+    sourceOrder: null,
+    name: id,
+    kind: "EXPENSE",
+    category: "OTHER_PENDING",
+    plannedAmount: 0,
+    actualAmount: null,
+    dueDate: null,
+    notes: null,
+    paid: false,
+    paidAt: null,
+    bookingStatus: "BOOKED_BALANCE_DUE",
+    preparationStatus: "NEEDS_ACTION",
+    depositAmount: null,
+    balanceAmount,
+    additionalAmount,
+    estimatedRange: null,
+    candidateVendors: null,
+    confirmedVendor: null,
+    vendorContact: null,
+    primaryContact: null,
+    balancePaymentMethod: null,
+    version: 0,
+    createdAt: new Date("2027-01-01T00:00:00.000Z"),
+  });
+  findMany.mockResolvedValue([
+    record("banquet", 60_000, 8_000),
+    record("only_add_on", null, 2_500),
+  ]);
+
+  const data = await getBudgetPageData("workspace_1");
+
+  expect(data.summary).toEqual(
+    expect.objectContaining({
+      balanceDueTotal: "70500",
+      balanceDueCount: 2,
+      // 只登記加購也算報得出金額，不該再被當成漏填尾款。
+      balanceDueMissingAmountCount: 0,
+    }),
+  );
+});
+
+it("counts unsent staff red envelopes into the balance due summary", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+    },
+  });
+  findMany.mockResolvedValue([]);
+  transactionClient.weddingStaffAssignment.findMany.mockResolvedValue([
+    { id: "s1", personName: "乙", roleName: "主持", contactPhone: null, notes: null, redEnvelopeAmount: 2000, redEnvelopeSentAt: null },
+    { id: "s2", personName: "丙", roleName: "接待", contactPhone: null, notes: null, redEnvelopeAmount: 1200, redEnvelopeSentAt: new Date() },
+  ]);
+  const data = await getBudgetPageData("workspace_1");
+  expect(data.summary.balanceDueTotal).toBe("2000");
+  expect(data.summary.balanceDueCount).toBe(1);
+});
+
+it("sinks items nobody plans to prepare below the ones still needing action", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+    },
+  });
+  const leaf = (id: string, name: string, preparationStatus: string) => ({
+    id, parentId: null, source: "MANUAL", sourceOrder: null, name,
+    kind: "EXPENSE", category: "OTHER_PENDING", plannedAmount: 1,
+    actualAmount: null, dueDate: null, notes: null, paid: false, paidAt: null,
+    bookingStatus: "PLANNING", preparationStatus,
+    depositAmount: null, balanceAmount: null, additionalAmount: null,
+    estimatedRange: null, candidateVendors: null, confirmedVendor: null,
+    vendorContact: null, primaryContact: null, balancePaymentMethod: null, version: 0,
+    createdAt: new Date("2027-01-01T00:00:00.000Z"),
+  });
+  findMany.mockResolvedValue([
+    leaf("a", "金飾", "NOT_PLANNED"),
+    leaf("b", "喜餅", "NEEDS_ACTION"),
+    leaf("c", "聘禮", "NOT_PLANNED"),
+    leaf("d", "攝影", "NEEDS_ACTION"),
+  ]);
+  transactionClient.weddingStaffAssignment.findMany.mockResolvedValue([]);
+  const data = await getBudgetPageData("workspace_1");
+  expect(data.items.map((item) => item.name)).toEqual(["喜餅", "攝影", "金飾", "聘禮"]);
+});
+
+it("prices staff meals and vegetarian sets from the live counts", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+      staffMealUnitPrice: 200,
+      vegetarianMealUnitPrice: 1999,
+      serviceChargePercent: 10,
+    },
+  });
+  findMany.mockResolvedValue([]);
+  transactionClient.weddingStaffAssignment.findMany.mockResolvedValue([
+    { id: "s1", personName: "乙", roleName: "主持", contactPhone: null, notes: null, mealCount: 5, redEnvelopeAmount: 2000, redEnvelopeSentAt: null },
+    { id: "s2", personName: "丙", roleName: "接待", contactPhone: null, notes: null, mealCount: 7, redEnvelopeAmount: null, redEnvelopeSentAt: null },
+  ]);
+  transactionClient.guest.findMany.mockResolvedValue([
+    {
+      importRecords: [
+        { source: "LINEIN", sourceInstance: "default", sourceManaged: true, vegetarianCount: 5 },
+      ],
+    },
+    {
+      importRecords: [
+        { source: "LINEIN", sourceInstance: "default", sourceManaged: true, vegetarianCount: 9 },
+        { source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false, vegetarianCount: 3 },
+      ],
+    },
+    { importRecords: [] },
+  ]);
+  const data = await getBudgetPageData("workspace_1");
+  // 素食人數存在匯入明細，且只算出席賓客；查錯模型或漏掉篩選都會在這裡被擋下。
+  expect(transactionClient.guest.findMany).toHaveBeenCalledWith({
+    where: { workspaceId: "workspace_1", attendanceStatus: "ATTENDING" },
+    select: {
+      importRecords: {
+        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+        select: {
+          source: true,
+          sourceInstance: true,
+          sourceManaged: true,
+          vegetarianCount: true,
+        },
+      },
+    },
+  });
+  expect(data.derivedCosts.map((cost) => [cost.name, cost.amount])).toEqual([
+    ["工作人員便當", 2640],
+    ["素食套餐", 17591],
+    ["工作人員紅包", 2000],
+  ]);
+  expect(data.summary.plannedTotal).toBe("22231");
+  expect(data.summary.balanceDueTotal).toBe("2000");
 });

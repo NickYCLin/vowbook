@@ -13,17 +13,32 @@ describe("authenticated app layout contract", () => {
     );
   });
 
+  it("keeps the form-control reset inside the base layer so utilities can override it", () => {
+    const css = source("src/app/globals.css");
+    const reset = css.indexOf("color: inherit;");
+    expect(reset).toBeGreaterThan(-1);
+    const before = css.slice(0, reset);
+    const openedLayer = before.lastIndexOf("@layer base {");
+    expect(openedLayer).toBeGreaterThan(-1);
+    // 同一個 layer 區塊還沒關閉：中間的大括號要保持未平衡。
+    const between = before.slice(openedLayer);
+    const opens = between.split("{").length - 1;
+    const closes = between.split("}").length - 1;
+    expect(opens).toBeGreaterThan(closes + 1);
+  });
+
   it("applies a saved appearance before hydration and keeps theme control global", () => {
     expect(source("src/app/layout.tsx")).toContain("THEME_BOOTSTRAP_SCRIPT");
     expect(source("src/app/layout.tsx")).toContain("ThemeController");
     expect(source("src/app/(app)/layout.tsx")).toContain("ThemeMenu");
   });
 
-  it("keeps the viewport stable and aligns dashboard/workspace content to max-w-6xl", () => {
+  it("keeps the viewport stable and separates the workspace layout from page content", () => {
     expect(source("src/app/globals.css")).toMatch(
       /html\s*\{[^}]*scrollbar-gutter:\s*stable;/u,
     );
-    expect(source("src/app/(app)/layout.tsx")).toContain("max-w-6xl");
+    expect(source("src/app/(app)/workspaces/[workspaceId]/layout.tsx")).toContain("WorkspaceLayoutClient");
+    expect(source("src/components/workspaces/workspace-frame.tsx")).toContain("WorkspaceViewStateProvider");
     expect(source("src/app/(app)/dashboard/page.tsx")).toContain("max-w-6xl");
     for (const section of [
       "guests",

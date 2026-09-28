@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { buttonClassName } from "@/components/ui/button";
+import { WorkspaceSectionTabs } from "@/components/workspaces/workspace-section-tabs";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CreateGuestDialog } from "@/components/guests/guest-forms";
@@ -61,11 +60,14 @@ export default async function GuestsPage({ params }: GuestsPageProps) {
         }
         actions={
           canEdit ? (
-            <div className="flex flex-wrap gap-3"><CreateGuestDialog workspaceId={workspaceId} /><Link href={`/workspaces/${workspaceId}/guests/cakes`} className={buttonClassName({ variant: "secondary" })}>發餅名單</Link></div>
+            <CreateGuestDialog workspaceId={workspaceId} />
           ) : null
         }
       />
-
+      {canEdit && <WorkspaceSectionTabs label="賓客分頁" items={[
+        {label:"婚宴名單",href:`/workspaces/${workspaceId}/guests`,active:true},
+        {label:"發餅名單",href:`/workspaces/${workspaceId}/guests/cakes`,active:false},
+      ]}/>}
       <GuestList
         workspaceId={workspaceId}
         guests={data.guests}

@@ -9,6 +9,7 @@ import {
   UsersThree,
   Wallet,
   Chair,
+  GearSix,
 } from "@phosphor-icons/react/dist/ssr";
 import type { ComponentType } from "react";
 
@@ -22,7 +23,8 @@ export type WorkspaceSection =
   | "budget"
   | "staff"
   | "timeline"
-  | "members";
+  | "members"
+  | "settings";
 
 export type WorkspaceSectionIcon = ComponentType<{
   className?: string;
@@ -47,7 +49,7 @@ export type WorkspaceSectionDefinition = {
  * 快速入口都從這一份定義讀，避免三處各自維護順序與圖示。
  */
 export const workspaceSections: readonly WorkspaceSectionDefinition[] = [
-  { key: "overview", label: "總覽", segment: "overview", icon: House, primaryOnMobile: true },
+  { key: "overview", label: "婚宴首頁", segment: "overview", icon: House, primaryOnMobile: true },
   { key: "guests", label: "賓客", segment: "guests", icon: UsersThree, primaryOnMobile: true },
   { key: "tables", label: "桌次", segment: "tables", icon: Chair, primaryOnMobile: false },
   { key: "check-in", label: "報到", segment: "check-in", icon: ClipboardText, primaryOnMobile: false },
@@ -56,6 +58,7 @@ export const workspaceSections: readonly WorkspaceSectionDefinition[] = [
   { key: "budget", label: "花費", segment: "budget", icon: Wallet, primaryOnMobile: true },
   { key: "staff", label: "工作人員", segment: "staff", icon: IdentificationBadge, primaryOnMobile: false },
   { key: "timeline", label: "總流程", segment: "timeline", icon: Path, primaryOnMobile: false },
+  { key: "settings", label: "婚宴設定", segment: "settings", icon: GearSix, primaryOnMobile: false },
   { key: "members", label: "協作者", segment: "members", icon: Users, primaryOnMobile: false },
 ];
 

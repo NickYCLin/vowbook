@@ -46,10 +46,10 @@ describe("TasksPage", () => {
     expect(screen.getByText("可編輯任務")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回所有婚宴" })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/dashboard?view=all",
     );
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
     expect(within(navigation).getByRole("link", { name: "任務" })).toHaveAttribute(
       "aria-current",
       "page",

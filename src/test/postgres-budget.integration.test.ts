@@ -2565,7 +2565,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
     const bookedPage = await getBudgetPageData(workspace.id);
     expect(bookedPage.summary).toMatchObject({
       actualTotal: "12000",
-      balanceDueTotal: "34000",
+      balanceDueTotal: "34500",
       balanceDueCount: 1,
     });
 
@@ -2601,7 +2601,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
     const editedBookedPage = await getBudgetPageData(workspace.id);
     expect(editedBookedPage.summary).toMatchObject({
       actualTotal: "15000",
-      balanceDueTotal: "36000",
+      balanceDueTotal: "36750",
       balanceDueCount: 1,
     });
 

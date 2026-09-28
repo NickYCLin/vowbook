@@ -1,7 +1,10 @@
 "use server";
 
 import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
-import { MAX_GUEST_CHECK_IN_HEADCOUNT } from "@/domain/guest-check-in";
+import {
+  canGuestCheckIn,
+  MAX_GUEST_CHECK_IN_HEADCOUNT,
+} from "@/domain/guest-check-in";
 import type { Prisma } from "@prisma/client";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { revalidatePath } from "next/cache";
@@ -281,10 +284,10 @@ export async function createWeddingGiftAction(
         select: giftSnapshotSelect,
       });
 
-      // 收到禮金等於人已經到了。只補還沒報到、而且確認出席的人；
-      // 回覆不出席的仍然維持「禮到人不到」。
+      // 收到禮金等於人已經到了。只補還沒報到、而且本來就能報到的人；
+      // 不出席的仍然維持「禮到人不到」，新人也不需要報到。
       const checkedInNow =
-        guest.checkIn === null && guest.attendanceStatus === "ATTENDING";
+        guest.checkIn === null && canGuestCheckIn(guest);
       if (checkedInNow) {
         await client.guestCheckIn.create({
           data: {

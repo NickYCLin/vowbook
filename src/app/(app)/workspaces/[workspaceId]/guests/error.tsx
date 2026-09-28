@@ -29,7 +29,7 @@ export default function GuestRouteError({ reset }: GuestRouteErrorProps) {
             再試一次
           </button>
           <Link
-            href="/dashboard"
+            href="/dashboard?view=all"
             className="inline-flex min-h-11 items-center text-ink-soft underline decoration-line-strong underline-offset-4"
           >
             回到所有婚宴

@@ -470,6 +470,10 @@ describe("GuestList", () => {
       />,
     );
 
+    const summary = screen.getByRole("button", { name: /宴席與喜帖摘要/ });
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "true");
     const requirements = screen.getByRole("region", {
       name: "宴席特殊需求",
     });
@@ -595,6 +599,7 @@ describe("GuestList", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /宴席與喜帖摘要/ }));
     const invitations = screen.getByRole("region", { name: "喜帖安排" });
     expect(
       within(invitations).getByText(

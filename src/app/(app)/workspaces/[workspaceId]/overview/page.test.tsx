@@ -43,12 +43,12 @@ describe("OverviewPage", () => {
 
     expect(getWeddingOverview).toHaveBeenCalledWith("workspace_1");
     expect(
-      screen.getByRole("heading", { level: 1, name: "婚宴總覽" }),
+      screen.getByRole("heading", { level: 1, name: "婚宴首頁" }),
     ).toBeInTheDocument();
     expect(screen.getByText("合成完整婚宴總覽")).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(10);
-    expect(within(navigation).getByRole("link", { name: "總覽" })).toHaveAttribute(
+    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
+    expect(within(navigation).getByRole("link", { name: "婚宴首頁" })).toHaveAttribute(
       "aria-current",
       "page",
     );

@@ -43,10 +43,10 @@ describe("wedding game domain", () => {
 
   it("reads 姓名：介紹詞 lines and still splits plain names", () => {
     expect(
-      normalizeWeddingGameEntries("王大明：大學同學\n李小華: 也是同學\n小美、阿華\n王大明"),
+      normalizeWeddingGameEntries("莊明倫：大學同學\n郭信賢: 也是同學\n小美、阿華\n莊明倫"),
     ).toEqual([
-      { name: "王大明", note: "大學同學" },
-      { name: "李小華", note: "也是同學" },
+      { name: "莊明倫", note: "大學同學" },
+      { name: "郭信賢", note: "也是同學" },
       { name: "小美", note: null },
       { name: "阿華", note: null },
     ]);

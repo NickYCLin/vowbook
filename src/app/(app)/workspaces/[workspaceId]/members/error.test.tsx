@@ -13,6 +13,6 @@ describe("MembersError", () => {
     expect(reset).toHaveBeenCalledOnce();
     expect(
       screen.getByRole("link", { name: "返回所有婚宴" }),
-    ).toHaveAttribute("href", "/dashboard");
+    ).toHaveAttribute("href", "/dashboard?view=all");
   });
 });

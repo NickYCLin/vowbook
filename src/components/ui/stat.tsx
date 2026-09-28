@@ -29,7 +29,7 @@ export function Stat({
   } as const;
 
   return (
-    <div className={cn("min-w-0", className)}>
+    <div data-stat className={cn("min-w-0", className)}>
       <p className="text-caption font-medium text-ink-soft">{label}</p>
       <p
         className={cn(
@@ -61,6 +61,7 @@ export function StatRow({
 }) {
   return (
     <div
+      data-stat-row
       className={cn(
         "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-4",
         className,

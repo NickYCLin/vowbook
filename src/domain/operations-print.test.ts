@@ -11,7 +11,7 @@ it("prints meal splits and separate handout checks, preserving already-sent red 
 });
 it("prints only outstanding arranged expenses using direct recorded balances, never rolled-up totals",()=>{
  const item={id:"a",name:"攝影",kind:"EXPENSE" as const,preparationStatus:"NEEDS_ACTION" as const,bookingStatus:"BOOKED_BALANCE_DUE" as const,paid:false,confirmedVendor:"攝影社",vendorContact:null,balanceAmount:3000,dueDate:null,notes:null,additionalAmount:null};
- const data=balancePrintData([item,{...item,id:"b",name:"造型",balanceAmount:null},{...item,id:"paid",paid:true},{...item,id:"group",kind:"GROUP"},{...item,id:"skip",preparationStatus:"NOT_PLANNED"},{...item,id:"planning",bookingStatus:"PLANNING"}]);
+ const data=balancePrintData([item,{...item,id:"b",name:"造型",balanceAmount:null},{...item,id:"paid",paid:true},{...item,id:"group",kind:"GROUP"},{...item,id:"skip",preparationStatus:"NOT_PLANNED"},{...item,id:"planning",bookingStatus:"PLANNING"}],[]);
  expect(data.rows).toHaveLength(2);expect(data.summary).toContain("NT$3,000");expect(data.summary).toContain("1 筆金額待確認");
  expect(data.rows[1].cells[2]).toBe("待確認");
 });
@@ -22,6 +22,21 @@ it("uses the same helper-first order in the printed staff list",()=>{
  expect(data.rows.map(row=>row.cells[1])).toEqual(["總招","招待","收禮","主持人","拍拍印"]);
 });
 
+it("counts unsent staff red envelopes as money still owed",()=>{
+ const item={id:"a",name:"攝影",kind:"EXPENSE" as const,preparationStatus:"NEEDS_ACTION" as const,bookingStatus:"BOOKED_BALANCE_DUE" as const,paid:false,confirmedVendor:"攝影社",vendorContact:null,balanceAmount:3000,dueDate:null,notes:null,additionalAmount:null};
+ const staffBase={notes:null,mealCount:null,vegetarianMealCount:null,contactPhone:null};
+ const data=balancePrintData([item],[
+  {...staffBase,id:"s1",roleName:"主持",personName:"乙",redEnvelopeAmount:2000,redEnvelopeSentAt:null},
+  {...staffBase,id:"s2",roleName:"接待",personName:"丙",redEnvelopeAmount:1200,redEnvelopeSentAt:new Date()},
+  {...staffBase,id:"s3",roleName:"收禮",personName:"丁",redEnvelopeAmount:null,redEnvelopeSentAt:null},
+ ]);
+ expect(data.rows).toHaveLength(2);
+ expect(data.summary).toContain("2 筆尾款待付");
+ expect(data.summary).toContain("NT$5,000");
+ expect(data.rows[1].cells[0]).toContain("乙");
+ expect(data.rows[1].cells[2]).toBe("NT$2,000");
+});
+
 it("marks cash and red-envelope balances and totals the cash needed on the day",()=>{
  const item={id:"a",name:"攝影",kind:"EXPENSE" as const,preparationStatus:"NEEDS_ACTION" as const,bookingStatus:"BOOKED_BALANCE_DUE" as const,paid:false,confirmedVendor:"攝影社",vendorContact:null,balanceAmount:3000,dueDate:null,notes:null,additionalAmount:null};
  const data=balancePrintData([
@@ -29,10 +44,21 @@ it("marks cash and red-envelope balances and totals the cash needed on the day",
   {...item,id:"b",name:"新秘",balanceAmount:8000,balancePaymentMethod:"RED_ENVELOPE"},
   {...item,id:"c",name:"樂團",balanceAmount:null,balancePaymentMethod:"CASH"},
   {...item,id:"d",name:"花藝",balancePaymentMethod:null},
- ]);
+ ],[{id:"s1",roleName:"主持",personName:"乙",notes:null,contactPhone:null,redEnvelopeAmount:2000,redEnvelopeSentAt:null}]);
  expect(data.columns.map(c=>c.label)).toContain("付款方式");
  expect(data.columns.reduce((sum,c)=>sum+c.width,0)).toBe(100);
- expect(data.rows.map(r=>r.cells[3])).toEqual(["匯款","現金紅包\n當天備現金","現金紅包\n當天備現金","未設定"]);
- expect(data.summary).toContain("當天需備現金 NT$8,000");
+ expect(data.rows.map(r=>r.cells[3])).toEqual(["匯款","現金紅包\n當天備現金","現金紅包\n當天備現金","未設定","現金紅包\n當天備現金"]);
+ expect(data.summary).toContain("當天需備現金 NT$10,000");
  expect(data.summary).toContain("1 筆現金金額待確認");
+});
+
+it("adds the add-on charge to the printed balance and shows how it breaks down",()=>{
+ const item={id:"a",name:"婚宴會館",kind:"EXPENSE" as const,preparationStatus:"NEEDS_ACTION" as const,bookingStatus:"BOOKED_BALANCE_DUE" as const,paid:false,confirmedVendor:"會館",vendorContact:null,balanceAmount:60000,dueDate:null,notes:null,additionalAmount:8000,balancePaymentMethod:"CASH" as const};
+ const data=balancePrintData([item,{...item,id:"b",name:"甜點桌",balanceAmount:null,additionalAmount:2500,notes:null}],[]);
+ expect(data.rows[0].cells[2]).toBe("NT$68,000\n尾款 NT$60,000＋加購 NT$8,000");
+ expect(data.rows[0].cells[6]).toBe("");
+ expect(data.rows[1].cells[2]).toBe("NT$2,500\n全為加購");
+ expect(data.summary).toContain("NT$70,500");
+ expect(data.summary).not.toContain("筆金額待確認");
+ expect(data.summary).toContain("當天需備現金 NT$70,500");
 });
