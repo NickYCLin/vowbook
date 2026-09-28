@@ -1,25 +1,28 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { normalizeCallbackUrl } from "@/lib/base-path";
 
 type SignInButtonProps = {
   callbackUrl?: string;
   className?: string;
   label?: string;
+  // App 轉進來的登入，直接帶去 Google，不必再按一次。
+  autoStart?: boolean;
 };
 
 export function SignInButton({
   callbackUrl = "/dashboard",
   className = "",
   label = "使用 Google 開始規劃",
+  autoStart = false,
 }: SignInButtonProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const errorMessageId = useId();
 
-  async function handleSignIn() {
+  const handleSignIn = useCallback(async () => {
     setIsStarting(true);
     setErrorMessage(null);
 
@@ -37,7 +40,18 @@ export function SignInButton({
       setIsStarting(false);
       setErrorMessage("無法開始 Google 登入，請再試一次。");
     }
-  }
+  }, [callbackUrl]);
+
+  const autoStarted = useRef(false);
+
+  useEffect(() => {
+    if (!autoStart || autoStarted.current) {
+      return;
+    }
+
+    autoStarted.current = true;
+    void handleSignIn();
+  }, [autoStart, handleSignIn]);
 
   return (
     <div>

@@ -97,4 +97,30 @@ describe("SignInButton", () => {
       { prompt: "select_account" },
     );
   });
+
+  it("starts Google straight away for the App sign-in and only once", async () => {
+    signIn.mockResolvedValue(undefined);
+    const view = render(
+      <SignInButton autoStart callbackUrl="/mobile/authorize?state=abc" />,
+    );
+
+    await waitFor(() => expect(signIn).toHaveBeenCalledOnce());
+    expect(signIn).toHaveBeenCalledWith(
+      "google",
+      { callbackUrl: "/mobile/authorize?state=abc" },
+      { prompt: "select_account" },
+    );
+
+    view.rerender(
+      <SignInButton autoStart callbackUrl="/mobile/authorize?state=abc" />,
+    );
+    expect(signIn).toHaveBeenCalledOnce();
+  });
+
+  it("waits for a tap when auto-start is off", async () => {
+    signIn.mockResolvedValue(undefined);
+    render(<SignInButton />);
+
+    await waitFor(() => expect(signIn).not.toHaveBeenCalled());
+  });
 });

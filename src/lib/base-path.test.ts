@@ -65,6 +65,14 @@ describe("base path contract", () => {
     );
   });
 
+  it("marks the App sign-in as auto-start so the user does not tap Google twice", () => {
+    vi.stubEnv("NEXT_PUBLIC_BASE_PATH", "/VowBook");
+
+    expect(getSignInPath("/mobile/authorize?state=abc", { autoStart: true })).toBe(
+      "/signin?callbackUrl=%2FVowBook%2Fmobile%2Fauthorize%3Fstate%3Dabc&auto=1",
+    );
+  });
+
   it.each([
     undefined,
     "https://attacker.example/steal",

@@ -7,6 +7,7 @@ type SignInPageProps = {
   searchParams: Promise<{
     callbackUrl?: string | string[];
     error?: string | string[];
+    auto?: string | string[];
   }>;
 };
 
@@ -64,6 +65,10 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const callbackUrl = normalizeCallbackUrl(params.callbackUrl);
   const authenticationError = getAuthenticationErrorMessage(params.error);
+  // App 端過來的登入直接轉去 Google；登入失敗退回這頁時就停下來，不要一直重試。
+  const autoStart =
+    !authenticationError &&
+    (Array.isArray(params.auto) ? params.auto[0] : params.auto) === "1";
 
   return (
     <main className="grid min-h-screen place-items-center px-5 py-12">
@@ -76,7 +81,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           從同一頁，繼續準備。
         </h1>
         <p className="mx-auto mt-5 max-w-sm leading-7 text-ink-soft">
-          使用 Google 帳號登入。誓約簿只會以登入識別與基本資料建立你的帳號。
+          {autoStart
+            ? "正在帶你前往 Google。沒有自動跳轉的話，按下方按鈕繼續。"
+            : "使用 Google 帳號登入。誓約簿只會以登入識別與基本資料建立你的帳號。"}
         </p>
         {authenticationError ? (
           <p
@@ -87,6 +94,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           </p>
         ) : null}
         <SignInButton
+          autoStart={autoStart}
           callbackUrl={callbackUrl}
           label="使用 Google 登入"
           className="mx-auto mt-9 inline-flex min-h-14 w-full items-center justify-center gap-3 rounded-full bg-clay px-6 py-3 font-semibold text-white transition hover:bg-clay-strong disabled:cursor-wait disabled:opacity-70"

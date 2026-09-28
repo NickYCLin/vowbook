@@ -73,9 +73,17 @@ export function normalizeCallbackUrl(
   return withBasePath(safePath);
 }
 
-export function getSignInPath(callbackUrl = "/dashboard"): string {
+export function getSignInPath(
+  callbackUrl = "/dashboard",
+  options: { autoStart?: boolean } = {},
+): string {
   const normalizedCallbackUrl = normalizeCallbackUrl(callbackUrl);
   const params = new URLSearchParams({ callbackUrl: normalizedCallbackUrl });
+
+  // App 端已經按過一次 Google，登入頁不必再要求使用者按第二次。
+  if (options.autoStart) {
+    params.set("auto", "1");
+  }
 
   // next/navigation redirect() automatically applies Next.js basePath to its
   // destination. Keep the route app-relative while preserving the public
