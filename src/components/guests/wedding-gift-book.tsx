@@ -23,6 +23,8 @@ import {
 } from "@/actions/wedding-gifts";
 import {
   GUEST_CATEGORY_LABELS,
+  GUEST_SIDE_LABELS,
+  GUEST_SIDES,
   guestIdentityLabel,
   type GuestAttendanceStatusValue,
   type GuestCategoryValue,
@@ -754,6 +756,7 @@ export function WeddingGiftBook({
   const [search, setSearch] = useWorkspaceViewState(`${workspaceId}:gifts:search`, "");
   const [filter, setFilter] = useWorkspaceViewState<GiftFilter>(`${workspaceId}:gifts:filter`, DEFAULT_GIFT_FILTER);
   const [sort, setSort] = useWorkspaceViewState<WeddingGiftSort>(`${workspaceId}:gifts:sort`, "ROSTER");
+  const [sideFilter, setSideFilter] = useWorkspaceViewState<GuestSideValue | "ALL">(`${workspaceId}:gifts:sideFilter`, "ALL");
   const [feedback, setFeedback] = useState<GiftFeedback | null>(null);
   const feedbackRef = useRef<HTMLParagraphElement>(null);
   const [editorSelection, setEditorSelection] =
@@ -906,6 +909,7 @@ export function WeddingGiftBook({
         normalizedSearch.length === 0 ||
         guest.name.toLocaleLowerCase("zh-TW").includes(normalizedSearch);
       if (!matchesSearch) return false;
+      if (sideFilter !== "ALL" && guest.side !== sideFilter) return false;
       if (filter === "EXEMPT_WITH_CAKE") return !!guest.giftExemptWithCake;
       // 不收禮金的人不該佔著禮金簿；但已經登記過的紀錄仍要看得到，
       // 想改回收禮金就切到「不收禮金、會送餅」那個篩選。
@@ -923,10 +927,11 @@ export function WeddingGiftBook({
       return guest.weddingGift === null;
     });
     return sortWeddingGiftEntries(matched, sort);
-  }, [filter, ledgerGuests, search, sort]);
+  }, [filter, ledgerGuests, search, sideFilter, sort]);
   const hasActiveFilter =
     search.trim().length > 0 ||
     filter !== DEFAULT_GIFT_FILTER ||
+    sideFilter !== "ALL" ||
     sort !== "ROSTER";
   const resultLabel = hasActiveFilter
     ? `符合 ${filteredGuests.length} / ${ledgerGuests.length} 組`
@@ -943,11 +948,13 @@ export function WeddingGiftBook({
   function showAllGroups() {
     setSearch("");
     setFilter("ALL");
+    setSideFilter("ALL");
   }
 
   function clearFilters() {
     setSearch("");
     setFilter(DEFAULT_GIFT_FILTER);
+    setSideFilter("ALL");
     setSort("ROSTER");
   }
 
@@ -1098,6 +1105,26 @@ export function WeddingGiftBook({
                 <option value="ALL">全部（不含不收禮金）</option>
               </Select>
               <Select
+                aria-label="禮金簿關係篩選"
+                value={sideFilter}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSideFilter(
+                    (GUEST_SIDES as readonly string[]).includes(value)
+                      ? (value as GuestSideValue)
+                      : "ALL",
+                  );
+                }}
+                className="sm:w-auto"
+              >
+                <option value="ALL">所有關係</option>
+                {GUEST_SIDES.map((side) => (
+                  <option key={side} value={side}>
+                    {GUEST_SIDE_LABELS[side]}
+                  </option>
+                ))}
+              </Select>
+              <Select
                 aria-label="禮金簿排序"
                 value={sort}
                 onChange={(event) =>
@@ -1139,7 +1166,7 @@ export function WeddingGiftBook({
               hasActiveFilter ? (
                 <EmptyState
                   title="找不到符合條件的邀請群組。"
-                  description="調整搜尋關鍵字、登記狀態或排序，就能找回其他名單。"
+                  description="調整搜尋關鍵字、登記狀態或關係，就能找回其他名單。"
                   action={
                     <Button onClick={clearFilters}>清除禮金簿篩選</Button>
                   }

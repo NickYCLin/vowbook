@@ -473,6 +473,40 @@ describe("WeddingGiftBook", () => {
     expect(screen.getByText("顯示 1 / 4 組")).toBeInTheDocument();
   });
 
+  it("narrows the ledger by guest side and combines it with the record filter", () => {
+    render(
+      <WeddingGiftBook
+        workspaceId="workspace_side_filter"
+        guests={guests}
+        canEdit
+      />,
+    );
+    expandBook();
+
+    const sideFilter = screen.getByLabelText("禮金簿關係篩選");
+    expect(sideFilter).toHaveValue("ALL");
+    fireEvent.change(sideFilter, { target: { value: "PARTNER_B" } });
+    expect(screen.getByRole("heading", { name: "林小美" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "王小明" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByText("符合 1 / 4 組")).toBeInTheDocument();
+
+    fireEvent.change(sideFilter, { target: { value: "PARTNER_A" } });
+    fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), {
+      target: { value: "RECORDED" },
+    });
+    expect(screen.getByRole("heading", { name: "王小明" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "陳媽媽" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "林小美" }))
+      .not.toBeInTheDocument();
+
+    fireEvent.change(sideFilter, { target: { value: "SHARED" } });
+    expect(screen.getByText("找不到符合條件的邀請群組。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "清除禮金簿篩選" }));
+    expect(screen.getByLabelText("禮金簿關係篩選")).toHaveValue("ALL");
+    expect(screen.getByLabelText("禮金登記狀態篩選")).toHaveValue("UNRECORDED");
+  });
+
   it("allows a declined general guest to receive a gift entry", () => {
     render(
       <WeddingGiftBook
