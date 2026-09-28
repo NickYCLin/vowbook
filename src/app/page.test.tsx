@@ -1,15 +1,23 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { getServerSession, redirect } = vi.hoisted(() => ({
+  getServerSession: vi.fn(),
+  redirect: vi.fn(),
+}));
+
+vi.mock("next-auth", () => ({ getServerSession }));
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("@/auth", () => ({ authOptions: {} }));
 vi.mock("@/components/auth/sign-in-button", () => ({
   SignInButton: ({ className }: { className?: string }) => (
     <button className={className}>使用 Google 登入</button>
   ),
 }));
 
-import HomePage, { dynamic } from "./page";
+import HomePage, { dynamic, HomeLanding } from "./page";
 
 /** 從 globals.css 的 @theme 讀出 design token 的實際色值。 */
 function readColorToken(name: string): string {
@@ -51,12 +59,37 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 describe("HomePage", () => {
+  beforeEach(() => {
+    getServerSession.mockReset();
+    redirect.mockReset();
+  });
+
   it("prevents shared HTML caching across deployment-hashed asset revisions", () => {
     expect(dynamic).toBe("force-dynamic");
   });
 
+  it("sends a signed-in visitor straight into the app instead of the sign-up page", async () => {
+    getServerSession.mockResolvedValue({ user: { googleSubject: "google_1" } });
+
+    await HomePage();
+
+    expect(redirect).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("keeps the sign-up page for visitors who have not signed in", async () => {
+    getServerSession.mockResolvedValue(null);
+
+    const page = await HomePage();
+    render(page);
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "使用 Google 登入" }),
+    ).toBeVisible();
+  });
+
   it("uses AA normal-text contrast for small copy directly on the paper background", () => {
-    render(<HomePage />);
+    render(<HomeLanding />);
 
     // 小字級的次要說明都用 text-ink-soft，直接鋪在 paper 背景上。
     expect(screen.getByText("開放註冊・資料依工作區隔離")).toHaveClass(

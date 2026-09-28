@@ -1,3 +1,6 @@
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/auth";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { Wordmark } from "@/components/brand/wordmark";
 
@@ -12,7 +15,18 @@ const steps = [
   ["03", "保留每個決定", "重要資訊都留在同一處，不必再翻找散落的訊息。"],
 ] as const;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await getServerSession(authOptions);
+
+  // 登入後還停在這張招募頁，看起來就像站上有兩個首頁。
+  if (session?.user?.googleSubject) {
+    redirect("/dashboard");
+  }
+
+  return <HomeLanding />;
+}
+
+export function HomeLanding() {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 sm:px-8 lg:px-10">
