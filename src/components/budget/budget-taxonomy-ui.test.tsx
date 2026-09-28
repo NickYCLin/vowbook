@@ -8,6 +8,10 @@ import {
 } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+// 這份測試要把六個階段、21 個項目整棵樹畫出來，單一個案例就要一秒多；
+// 全量並行時機器搶 CPU，預設的五秒會被壓過去，所以這個檔案放寬時限。
+vi.setConfig({ testTimeout: 30_000 });
+
 const actions = vi.hoisted(() => ({
   addBudgetEngagementSuggestionsAction: vi.fn(),
   addBudgetPreparationSuggestionsAction: vi.fn(),
