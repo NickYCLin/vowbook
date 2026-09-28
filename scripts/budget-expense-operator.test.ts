@@ -19,6 +19,7 @@ function planJson(overrides: Record<string, unknown> = {}): string {
     expenses: [
       {
         name: "合成項目",
+        taxonomyItemKey: "ITEM_WEDDING_DECOR",
         category: "DECOR_GIFTS",
         bookingStatus: "BOOKED_BALANCE_DUE",
         depositAmount: 2000,
@@ -33,6 +34,7 @@ function fakeClient(options: {
   role?: string | null;
   workspaceExists?: boolean;
   existingNames?: string[];
+  taxonomyGroupExists?: boolean;
 }) {
   const created: Array<Record<string, unknown>> = [];
   const client = {
@@ -50,6 +52,8 @@ function fakeClient(options: {
             options.workspaceExists === false ? null : { id: workspaceId },
         },
         budgetItem: {
+          findFirst: async () =>
+            options.taxonomyGroupExists === false ? null : { id: "group_1" },
           findMany: async () =>
             (options.existingNames ?? []).map((name) => ({ name })),
           create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -90,7 +94,13 @@ describe("budget expense operator", () => {
       parseBudgetExpensePlanJson(
         JSON.stringify({
           version: 1,
-          expenses: [{ name: "空的", category: "DECOR_GIFTS" }],
+          expenses: [
+            {
+              name: "空的",
+              taxonomyItemKey: "ITEM_WEDDING_DECOR",
+              category: "DECOR_GIFTS",
+            },
+          ],
         }),
       ),
     ).toThrow(BudgetExpenseValidationError);
@@ -238,5 +248,48 @@ describe("budget expense operator", () => {
     ).toBe(
       "mode=apply applied=true create=1 conflict=0 plannedTotal=7100 balanceDueTotal=5100",
     );
+  });
+
+  it("rejects plans that do not say which taxonomy item the expense belongs to", () => {
+    expect(() =>
+      parseBudgetExpensePlanJson(
+        JSON.stringify({
+          version: 1,
+          expenses: [
+            {
+              name: "沒有分類",
+              category: "DECOR_GIFTS",
+              depositAmount: 100,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(BudgetExpenseValidationError);
+  });
+
+  it("hangs every new expense under its taxonomy group", async () => {
+    const client = fakeClient({ role: "OWNER" });
+    await appendBudgetExpenses({
+      client,
+      workspaceId,
+      actorUserId,
+      plan: parseBudgetExpensePlanJson(planJson()) as BudgetExpensePlan,
+      apply: true,
+    });
+    expect(client.created[0]).toMatchObject({ parentId: "group_1" });
+  });
+
+  it("writes nothing when the workspace has no such taxonomy group", async () => {
+    const client = fakeClient({ role: "OWNER", taxonomyGroupExists: false });
+    await expect(
+      appendBudgetExpenses({
+        client,
+        workspaceId,
+        actorUserId,
+        plan: parseBudgetExpensePlanJson(planJson()) as BudgetExpensePlan,
+        apply: true,
+      }),
+    ).rejects.toBeInstanceOf(BudgetExpenseConflictError);
+    expect(client.created).toHaveLength(0);
   });
 });

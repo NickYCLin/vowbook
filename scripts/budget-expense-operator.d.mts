@@ -15,6 +15,7 @@ export type BudgetExpenseBookingStatus =
 
 export type BudgetExpenseRow = {
   name: string;
+  taxonomyItemKey: string;
   category: BudgetExpenseCategory;
   bookingStatus: BudgetExpenseBookingStatus;
   depositAmount: number | null;

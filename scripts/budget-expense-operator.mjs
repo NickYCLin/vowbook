@@ -118,6 +118,7 @@ export function parseBudgetExpensePlanJson(json) {
   const names = new Set();
   const allowed = new Set([
     "name",
+    "taxonomyItemKey",
     "category",
     "bookingStatus",
     "depositAmount",
@@ -138,6 +139,12 @@ export function parseBudgetExpensePlanJson(json) {
     const name = normalizeName(raw.name);
     if (names.has(name)) invalid("同一份計畫不可有重複的項目名稱。");
     names.add(name);
+    if (
+      typeof raw.taxonomyItemKey !== "string" ||
+      !/^ITEM_[A-Z0-9_]{1,60}$/u.test(raw.taxonomyItemKey)
+    ) {
+      invalid("費用必須指定婚宴分類項目。");
+    }
     if (typeof raw.category !== "string" || !BUDGET_CATEGORIES.has(raw.category)) {
       invalid("費用分類不在允許清單內。");
     }
@@ -158,6 +165,7 @@ export function parseBudgetExpensePlanJson(json) {
     }
     const row = {
       name,
+      taxonomyItemKey: raw.taxonomyItemKey,
       category: raw.category,
       bookingStatus,
       depositAmount: normalizeAmount(raw.depositAmount, "訂金"),
@@ -313,9 +321,22 @@ export async function appendBudgetExpenses({
     );
     if (apply) {
       for (const row of plan.expenses) {
+        // 和網站同一個規則：新項目一律掛在系統分類群組下面，沒有這個分類就不新增。
+        const group = await transaction.budgetItem.findFirst({
+          where: {
+            workspaceId,
+            kind: "GROUP",
+            systemTaxonomyKey: row.taxonomyItemKey,
+          },
+          select: { id: true },
+        });
+        if (!group) {
+          throw new BudgetExpenseConflictError("這場婚宴沒有指定的分類項目。");
+        }
         await transaction.budgetItem.create({
           data: {
             workspaceId,
+            parentId: group.id,
             source: "MANUAL",
             kind: "EXPENSE",
             name: row.name,
