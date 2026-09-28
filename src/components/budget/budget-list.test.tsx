@@ -1034,6 +1034,54 @@ describe("BudgetList", () => {
     ).toBeVisible();
   });
 
+  it("keeps browse counts in step with the rows that are actually listed", () => {
+    const skippedChild: BudgetItemListItem = {
+      ...groupedItems[2],
+      id: "budget_skipped_child_internal",
+      name: "不準備的婚鞋",
+      preparationStatus: "NOT_PLANNED",
+      breadcrumb: ["婚紗方案", "不準備的婚鞋"],
+      plannedAmount: 3000,
+      rolledUpPlannedAmount: "0",
+    };
+    const groupWithSkippedChild: BudgetItemListItem = {
+      ...groupedItems[0],
+      directChildren: [
+        ...groupedItems[0].directChildren,
+        { id: skippedChild.id, name: skippedChild.name, hasChildren: false },
+      ],
+      directChildCount: 3,
+      descendantCount: 3,
+    };
+
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[groupWithSkippedChild, groupedItems[1], groupedItems[2], skippedChild]}
+        summary={{ ...summary, itemCount: 2, notPlannedCount: 1 }}
+        canEdit
+      />,
+    );
+
+    expect(ledgerListItem(skippedChild.id)).toHaveAttribute("hidden");
+    // 看不到的項目不該灌進分母，否則使用者會以為有東西沒列出來。
+    expect(screen.getByText("顯示 0 / 2 筆花費，1 / 1 個群組")).toBeVisible();
+
+    const groupRow = ledgerListItem(groupWithSkippedChild.id);
+    expect(within(groupRow).getByText("2 個直接項目")).toBeVisible();
+    expect(
+      groupRow.querySelector("[data-budget-descendant-count]"),
+    ).toHaveAttribute("data-budget-descendant-count", "2");
+
+    // 拆解與刪除要看真正的結構，管理彈窗仍報實際筆數。
+    fireEvent.click(
+      within(groupRow).getByRole("button", { name: "管理群組：婚紗方案" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("直接子項 3 項")).toBeVisible();
+    expect(within(dialog).getByText("全部下層 3 項")).toBeVisible();
+  });
+
   it("defaults groups to collapsed, controls only descendant rows, and persists explicit workspace state", async () => {
     const firstRender = render(
       <BudgetList

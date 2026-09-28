@@ -778,6 +778,8 @@ function BudgetItemRow({
   isLegacyUnclassified = false,
   isContext = false,
   isHidden = false,
+  visibleDirectChildCount,
+  visibleDescendantCount,
 }: {
   workspaceId: string;
   workspaceToday: string | null;
@@ -801,6 +803,8 @@ function BudgetItemRow({
   isLegacyUnclassified?: boolean;
   isContext?: boolean;
   isHidden?: boolean;
+  visibleDirectChildCount?: number;
+  visibleDescendantCount?: number;
 }) {
   const dialogTitleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -836,6 +840,9 @@ function BudgetItemRow({
   const directChildren = item.directChildren ?? [];
   const directChildCount = item.directChildCount ?? directChildren.length;
   const descendantCount = item.descendantCount ?? 0;
+  // 列表上的說明只講「現在看得到幾筆」；結構筆數留給管理彈窗與拆解、刪除。
+  const browseDirectChildCount = visibleDirectChildCount ?? directChildCount;
+  const browseDescendantCount = visibleDescendantCount ?? descendantCount;
   const isGroup = item.kind === "GROUP";
   const systemTaxonomyKey = systemTaxonomyKeyOf(item);
   const isFixedStage =
@@ -1162,7 +1169,8 @@ function BudgetItemRow({
                   {item.name}
                 </RowHeading>
                 <p className="mt-1 text-xs text-ink-soft">
-                  {directChildCount} 個品項分類 · 共 {descendantCount} 個下層項目
+                  {browseDirectChildCount} 個品項分類 · 共{" "}
+                  {browseDescendantCount} 個下層項目
                 </p>
               </div>
               <p
@@ -1212,7 +1220,8 @@ function BudgetItemRow({
                   {item.name}
                 </RowHeading>
                 <p className="mt-1 text-xs text-ink-soft">
-                  {directChildCount} 個直接項目 · 共 {descendantCount} 個下層項目
+                  {browseDirectChildCount} 個直接項目 · 共{" "}
+                  {browseDescendantCount} 個下層項目
                 </p>
               </div>
               </div>
@@ -1265,9 +1274,9 @@ function BudgetItemRow({
                   >
                     {breadcrumb.join(" › ")}
                   </span>
-                  <span>{directChildCount} 個直接項目</span>
-                  <span data-budget-descendant-count={descendantCount}>
-                    共 {descendantCount} 個下層項目
+                  <span>{browseDirectChildCount} 個直接項目</span>
+                  <span data-budget-descendant-count={browseDescendantCount}>
+                    共 {browseDescendantCount} 個下層項目
                   </span>
                   {isContext && <span>上層脈絡</span>}
                 </p>
@@ -1340,14 +1349,14 @@ function BudgetItemRow({
                       </span>
                     </>
                   )}
-                  {item.hasChildren && (
+                  {browseDescendantCount > 0 && (
                     <span
                       data-budget-rollup-marker="true"
                     >
-                      <span>{directChildCount} 個直接項目</span>
+                      <span>{browseDirectChildCount} 個直接項目</span>
                       <span aria-hidden="true"> · </span>
-                      <span data-budget-descendant-count={descendantCount}>
-                        共 {descendantCount} 個下層項目
+                      <span data-budget-descendant-count={browseDescendantCount}>
+                        共 {browseDescendantCount} 個下層項目
                       </span>
                     </span>
                   )}
@@ -2212,10 +2221,57 @@ function notPlannedSubtrees(items: BudgetItemListItem[]): boolean[] {
   );
 }
 
+/**
+ * 預設檢視會藏起不準備的項目，筆數也要跟著同一套標準，
+ * 不然側欄與篩選列會報出畫面上根本找不到的數字。
+ */
+function hiddenNotPlannedFlags(
+  items: BudgetItemListItem[],
+  search: string,
+  statusFilter: BudgetStatusFilter,
+): boolean[] {
+  return statusFilter === "ALL" && search.trim().length === 0
+    ? notPlannedSubtrees(items)
+    : items.map(() => false);
+}
+
+/**
+ * 瀏覽用的子項筆數。管理彈窗、拆解與刪除仍要用結構上的真實筆數，
+ * 所以這份數字只給列表上的說明文字使用。
+ */
+function visibleChildCounts(
+  items: BudgetItemListItem[],
+  hidden: boolean[],
+): Array<{ directChildCount: number; descendantCount: number }> {
+  const counts = items.map(() => ({
+    directChildCount: 0,
+    descendantCount: 0,
+  }));
+  const ancestors: number[] = [];
+
+  items.forEach((item, index) => {
+    ancestors.length = Math.min(item.depth, ancestors.length);
+    if (!hidden[index]) {
+      const parent = ancestors[item.depth - 1];
+      if (item.depth > 0 && parent !== undefined) {
+        counts[parent].directChildCount += 1;
+      }
+      ancestors.forEach((ancestorIndex) => {
+        counts[ancestorIndex].descendantCount += 1;
+      });
+    }
+    ancestors[item.depth] = index;
+    ancestors.length = item.depth + 1;
+  });
+
+  return counts;
+}
+
 function filterBudgetItems(
   items: BudgetItemListItem[],
   search: string,
   statusFilter: BudgetStatusFilter,
+  hiddenAsNotPlanned: boolean[],
 ): {
   entries: Array<{
     item: BudgetItemListItem;
@@ -2226,13 +2282,9 @@ function filterBudgetItems(
   matchCounts: BudgetKindCounts;
   contextCounts: BudgetKindCounts;
 } {
-  const hiddenAsNotPlanned =
-    statusFilter === "ALL" && search.trim().length === 0
-      ? notPlannedSubtrees(items)
-      : null;
   const directMatches = items.map(
     (item, index) =>
-      !(hiddenAsNotPlanned?.[index] ?? false) &&
+      !hiddenAsNotPlanned[index] &&
       matchesSearch(item, search) &&
       (statusFilter === "ALL" ||
         (item.kind === "EXPENSE" &&
@@ -2386,6 +2438,14 @@ export function BudgetList({
     () => prepareBudgetDisplayItems(items, hiddenCeremonyStageKeys),
     [hiddenCeremonyStageKeys, items],
   );
+  const hiddenNotPlanned = useMemo(
+    () => hiddenNotPlannedFlags(displayItems, search, statusFilter),
+    [displayItems, search, statusFilter],
+  );
+  const browseChildCounts = useMemo(
+    () => visibleChildCounts(displayItems, hiddenNotPlanned),
+    [displayItems, hiddenNotPlanned],
+  );
   const existingSuggestionKeys = useMemo(
     () =>
       new Set(
@@ -2413,9 +2473,9 @@ export function BudgetList({
     const counts = new Map<string, number>();
     const ancestorGroupIds: string[] = [];
 
-    driveItems.forEach((item) => {
+    driveItems.forEach((item, itemIndex) => {
       ancestorGroupIds.length = item.depth;
-      if (item.kind === "EXPENSE") {
+      if (item.kind === "EXPENSE" && !hiddenNotPlanned[itemIndex]) {
         ancestorGroupIds.forEach((groupId) => {
           counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
         });
@@ -2427,7 +2487,7 @@ export function BudgetList({
     });
 
     return counts;
-  }, [driveItems]);
+  }, [driveItems, hiddenNotPlanned]);
   const taxonomyNavigationStages = useMemo<
     BudgetTaxonomyNavigationStage[]
   >(() => {
@@ -2609,8 +2669,8 @@ export function BudgetList({
   }, [groupExpansion, workspaceId]);
 
   const filteredItems = useMemo(
-    () => filterBudgetItems(displayItems, search, statusFilter),
-    [displayItems, search, statusFilter],
+    () => filterBudgetItems(displayItems, search, statusFilter, hiddenNotPlanned),
+    [displayItems, hiddenNotPlanned, search, statusFilter],
   );
   const allVisibility = useMemo(
     () =>
@@ -2681,14 +2741,19 @@ export function BudgetList({
   const selectionForcedExpansion = selectedTaxonomyItemIds !== null;
   const anyForcedExpansion = groupForcedExpansion || selectionForcedExpansion;
   const totalCounts = useMemo(
-    () => countBudgetKinds(displayItems, () => true),
-    [displayItems],
+    () => countBudgetKinds(displayItems, (_item, itemIndex) =>
+      !hiddenNotPlanned[itemIndex],
+    ),
+    [displayItems, hiddenNotPlanned],
   );
   const viewTotalCounts =
     selectedTaxonomyItemIds === null
       ? totalCounts
-      : countBudgetKinds(displayItems, (item) =>
-          selectedTaxonomyItemIds.has(item.id),
+      : countBudgetKinds(
+          displayItems,
+          (item, itemIndex) =>
+            !hiddenNotPlanned[itemIndex] &&
+            selectedTaxonomyItemIds.has(item.id),
         );
   const groupVisibleCounts = countBudgetKinds(
     displayItems,
@@ -2896,6 +2961,8 @@ export function BudgetList({
         isLegacyUnclassified={isLegacyUnclassified}
         isContext={filteredEntry.isContext}
         isHidden={isHidden}
+        visibleDirectChildCount={browseChildCounts[itemIndex].directChildCount}
+        visibleDescendantCount={browseChildCounts[itemIndex].descendantCount}
       />
     );
   };
