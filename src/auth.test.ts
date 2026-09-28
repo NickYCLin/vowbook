@@ -156,6 +156,18 @@ describe("NextAuth base path config", () => {
   });
 });
 
+describe("NextAuth Google provider network settings", () => {
+  it("gives the Google endpoints more than the 3.5 秒 default before giving up", async () => {
+    const { authOptions, GOOGLE_HTTP_TIMEOUT_MS } = await import("./auth");
+
+    expect(GOOGLE_HTTP_TIMEOUT_MS).toBeGreaterThanOrEqual(10_000);
+    const google = authOptions.providers.find(
+      (provider) => provider.id === "google",
+    );
+    expect(google?.options?.httpOptions?.timeout).toBe(GOOGLE_HTTP_TIMEOUT_MS);
+  });
+});
+
 describe("NextAuth Google sign-in verification gate", () => {
   it("allows a Google account with a non-empty verified profile email", async () => {
     await expect(runSignIn()).resolves.toBe(true);

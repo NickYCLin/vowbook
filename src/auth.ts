@@ -8,6 +8,8 @@ import {
 } from "@/lib/current-user-claim";
 import { prisma } from "@/lib/prisma";
 
+export const GOOGLE_HTTP_TIMEOUT_MS = 10_000;
+
 function hasVerifiedGoogleEmail(profile: Profile | undefined): boolean {
   return Boolean(
     profile &&
@@ -91,6 +93,8 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // 預設 3500ms 在對外連線變慢時會直接中斷登入，使用者得重試好幾次才成功。
+      httpOptions: { timeout: GOOGLE_HTTP_TIMEOUT_MS },
     }),
   ],
   pages: {
