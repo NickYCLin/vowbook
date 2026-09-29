@@ -117,7 +117,17 @@ export type SystemUserSummary = {
 };
 
 export async function listSystemUsers(): Promise<SystemUserSummary[]> {
-  await requireSystemAdmin();
+  return listSystemUsersForAdmin(await requireSystemAdmin());
+}
+
+/**
+ * 給沒有網頁 session 的入口（例如手機 App）用：管理者身分由呼叫端已驗證的
+ * 使用者帶進來，這裡仍然自己再判一次，不接受任何 client 傳來的角色。
+ */
+export async function listSystemUsersForAdmin(
+  actor: Pick<User, "email" | "accessStatus">,
+): Promise<SystemUserSummary[]> {
+  if (!isSystemAdmin(actor)) throw new SystemAdminAccessDeniedError();
   const users = await prisma.user.findMany({
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     select: {

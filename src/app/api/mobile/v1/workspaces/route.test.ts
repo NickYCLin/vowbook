@@ -20,7 +20,7 @@ describe("mobile workspace API", () => {
     const response = await GET(new Request("https://example.test?userId=other&workspaceId=other"));
     expect(mocks.list).toHaveBeenCalledWith("server-user");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(await response.json()).toEqual({ workspaces: [] });
+    expect(await response.json()).toEqual({ workspaces: [], systemAdmin: false });
   });
   it("rejects injected ownership, role and workspace fields", async () => {
     for (const field of ["userId", "createdById", "role", "workspaceId"]) {

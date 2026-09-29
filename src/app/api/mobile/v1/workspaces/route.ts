@@ -5,13 +5,15 @@ import { MobileRequestError } from "@/lib/mobile/protocol";
 import { listWorkspaceOverviewsForUser } from "@/lib/workspace-overview";
 import { normalizeWorkspaceDetails } from "@/domain/workspace";
 import { createWorkspaceForUser } from "@/lib/create-workspace";
+import { isSystemAdmin } from "@/lib/system-admin";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
     const user = await requireMobileUser(request);
     const workspaces = await listWorkspaceOverviewsForUser(user.id);
-    return mobileJSON({ workspaces });
+    // App 靠這個旗標決定要不要顯示「使用者管理」，身分完全由伺服器判定。
+    return mobileJSON({ workspaces, systemAdmin: isSystemAdmin(user) });
   } catch (error) { return mobileError(error); }
 }
 
