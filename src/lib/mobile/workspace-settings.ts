@@ -2,7 +2,9 @@ import "server-only";
 
 import type { WeddingWorkspace } from "@prisma/client";
 import {
+  normalizeWorkspaceDeletionConfirmation,
   normalizeWorkspaceDetails,
+  normalizeWorkspaceName,
   normalizeWorkspaceUpdatedAt,
   WorkspaceAccessDeniedError,
   WorkspaceValidationError,
@@ -16,6 +18,7 @@ import { requireWorkspaceAccess } from "@/lib/workspace-access";
 import { requireLockedWorkspaceAccess } from "@/lib/workspace-mutation-access";
 
 export const SETTINGS_FIELDS = ["name", "weddingDate", "expectedUpdatedAt"];
+export const DELETE_FIELDS = ["confirmationName", "expectedUpdatedAt"];
 
 function failure(error: unknown): never {
   if (error instanceof MobileRequestError) throw error;
@@ -88,6 +91,60 @@ export async function mobileUpdateWorkspaceSettings(workspaceId: string, userId:
       };
     });
   } catch (error) {
+    return failure(error);
+  }
+}
+
+export function deleteBody(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== "object" || Array.isArray(body) ||
+      Object.keys(body).some((key) => !DELETE_FIELDS.includes(key))) {
+    throw new MobileRequestError(400, "INVALID_REQUEST", "刪除婚宴的輸入格式有誤。");
+  }
+  return body as Record<string, unknown>;
+}
+
+/**
+ * 刪整場婚宴，規則照網站：只有擁有者能做，要打對現在的婚宴名稱，
+ * 而且 updatedAt 要和畫面上看到的那一版一致，免得刪到別人剛改過的資料。
+ */
+export async function mobileDeleteWorkspace(
+  workspaceId: string,
+  userId: string,
+  fields: Record<string, unknown>,
+) {
+  try {
+    const confirmationName = normalizeWorkspaceDeletionConfirmation(fields.confirmationName);
+    const expectedUpdatedAt = normalizeWorkspaceUpdatedAt(fields.expectedUpdatedAt);
+    return await runSerializableTransaction(async (transaction) => {
+      await requireLockedWorkspaceAccess(workspaceId, userId, "manageMembers", transaction);
+      const client = transaction as unknown as {
+        weddingWorkspace: {
+          findFirst(args: unknown): Promise<{ name: string } | null>;
+          deleteMany(args: unknown): Promise<{ count: number }>;
+        };
+      };
+      const workspace = await client.weddingWorkspace.findFirst({
+        where: { id: workspaceId, updatedAt: expectedUpdatedAt },
+        select: { name: true },
+      });
+      if (!workspace) {
+        throw new MobileRequestError(409, "STALE", "婚宴資料剛剛被更新過，請重新整理後再試。");
+      }
+      if (confirmationName !== normalizeWorkspaceName(workspace.name)) {
+        throw new MobileRequestError(400, "CONFIRMATION", "輸入的名稱和目前的婚宴名稱不一樣。");
+      }
+      const result = await client.weddingWorkspace.deleteMany({
+        where: { id: workspaceId, updatedAt: expectedUpdatedAt },
+      });
+      if (result.count !== 1) {
+        throw new MobileRequestError(409, "STALE", "婚宴資料剛剛被更新過，請重新整理後再試。");
+      }
+      return { deleted: true as const };
+    });
+  } catch (error) {
+    if (error instanceof WorkspaceAccessDeniedError) {
+      throw new MobileRequestError(403, "FORBIDDEN", "只有婚宴的擁有者能刪除整場婚宴。");
+    }
     return failure(error);
   }
 }
