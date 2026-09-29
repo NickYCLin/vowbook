@@ -105,6 +105,8 @@ export async function mobileGuestList(workspaceId: string, userId: string) {
       tableNumber: guest.seatingTable?.number ?? null,
       tableName: guest.seatingTable?.name ?? null,
       checkedIn: guest.checkIn !== null,
+      // 不收禮金、改送喜餅的標記，禮金簿與賓客頁共用同一個值。
+      giftExemptWithCake: guest.giftExemptWithCake,
       details: guest.details,
     })),
   };
@@ -690,6 +692,7 @@ export async function mobileGiftBook(workspaceId: string, userId: string) {
       attendanceStatus: guest.attendanceStatus,
       tableNumber: guest.seatingTable?.number ?? null,
       excluded,
+      giftExemptWithCake: guest.giftExemptWithCake,
       gift: guest.weddingGift
         ? {
             id: guest.weddingGift.id,
