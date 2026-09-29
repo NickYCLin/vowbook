@@ -69,6 +69,29 @@ const GUEST_DETAILS_FORM_FIELDS = [
   "invitationReply",
 ] as const;
 
+/**
+ * 失敗時只留下操作別與 Prisma 錯誤碼，讓線上問題可追查，
+ * 又不會把賓客姓名、聯絡方式或資料庫訊息寫進 log。
+ */
+function logGuestMutationFailure(
+  action: "create" | "update" | "delete",
+  error: unknown,
+): void {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    /^P\d{4}$/u.test(error.code)
+      ? error.code
+      : null;
+  console.error("賓客操作失敗。", {
+    action,
+    error: error instanceof Error ? error.constructor.name : typeof error,
+    code,
+  });
+}
+
 function isUniqueConstraintError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -363,6 +386,10 @@ export async function createGuestAction(
     if (input.category === "COUPLE" && isUniqueConstraintError(error)) {
       return newlywedConflictState(input);
     }
+    if (error instanceof SerializationConflictError) {
+      return { status: "error", message: error.message };
+    }
+    logGuestMutationFailure("create", error);
     return {
       status: "error",
       message: "目前無法新增賓客，請稍後再試。",
@@ -537,6 +564,7 @@ export async function updateGuestAction(
       return { status: "error", message: error.message };
     }
 
+    logGuestMutationFailure("update", error);
     return {
       status: "error",
       message: "目前無法更新賓客，請稍後再試。",
@@ -635,6 +663,7 @@ export async function deleteGuestAction(
         message: "賓客資料已被更新或不存在，請重新整理後再試。",
       };
     }
+    logGuestMutationFailure("delete", error);
     return {
       status: "error",
       message: "目前無法刪除賓客，請稍後再試。",

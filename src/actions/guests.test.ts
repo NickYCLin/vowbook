@@ -1226,6 +1226,44 @@ describe("guest server actions", () => {
     });
   });
 
+  it("tells the operator to retry when the guest write keeps hitting serialization conflicts", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    create.mockRejectedValue(Object.assign(new Error("conflict"), { code: "P2034" }));
+
+    await expect(
+      createGuestAction("workspace_1", idleState, validGuestFormData()),
+    ).resolves.toEqual({
+      status: "error",
+      message: "同時有其他座位變更，請重新確認後再試。",
+    });
+    expect(create).toHaveBeenCalledTimes(3);
+    log.mockRestore();
+  });
+
+  it("records a non-identifying failure code when the guest write fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    create.mockRejectedValue(
+      Object.assign(new Error("database secret"), { code: "P2003" }),
+    );
+
+    await expect(
+      createGuestAction("workspace_1", idleState, validGuestFormData()),
+    ).resolves.toEqual({
+      status: "error",
+      message: "目前無法新增賓客，請稍後再試。",
+    });
+
+    expect(log).toHaveBeenCalledWith("賓客操作失敗。", {
+      action: "create",
+      error: "Error",
+      code: "P2003",
+    });
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).not.toContain("database secret");
+    expect(logged).not.toContain("王小明");
+    log.mockRestore();
+  });
+
   it("sanitizes membership lookup failures without touching guest data", async () => {
     requireWorkspaceAccess.mockRejectedValue(
       new Error("membership database contains secret"),
