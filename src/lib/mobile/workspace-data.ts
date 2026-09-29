@@ -858,6 +858,11 @@ function mobileBudgetItems(items: BudgetListItem[]) {
         confirmedVendor: item.confirmedVendor,
         vendorContact: item.vendorContact,
         balancePaymentMethod: item.balancePaymentMethod === "RED_ENVELOPE" ? "CASH" : item.balancePaymentMethod,
+        // 收據本身的上傳與瀏覽留在網站；App 先讓人知道哪幾筆有存收據。
+        attachments: (item.attachments ?? []).map((attachment) => ({
+          id: attachment.id,
+          originalName: attachment.originalName,
+        })),
       };
     });
 }
