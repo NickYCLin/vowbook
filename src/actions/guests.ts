@@ -27,6 +27,10 @@ import {
   runSerializableTransaction,
   SerializationConflictError,
 } from "@/lib/serializable-transaction";
+import {
+  GUEST_DETAILS_FIELDS,
+  upsertManualGuestDetails,
+} from "@/lib/guest-manual-details";
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
 import { requireLockedWorkspaceAccess } from "@/lib/workspace-mutation-access";
 
@@ -53,21 +57,7 @@ type ExpectedCascadeSnapshot = {
 type LockedGuestDeleteRow = { id: string };
 type LockedCascadeDeleteRow = { id: string; version: number };
 
-const MANUAL_DETAILS_SOURCE = "MANUAL";
-const MANUAL_DETAILS_SOURCE_INSTANCE = "guest-details";
-const MANUAL_DETAILS_SOURCE_LABEL = "自行填寫";
-const GUEST_DETAILS_FORM_FIELDS = [
-  "relationshipLabel",
-  "contactPhone",
-  "contactEmail",
-  "childSeatCount",
-  "vegetarianCount",
-  "invitationDelivery",
-  "mailingAddress",
-  "guestMessage",
-  "attendanceReply",
-  "invitationReply",
-] as const;
+const GUEST_DETAILS_FORM_FIELDS = GUEST_DETAILS_FIELDS;
 
 /**
  * 失敗時只留下操作別與 Prisma 錯誤碼，讓線上問題可追查，
@@ -268,57 +258,6 @@ function cascadeSnapshotMatches(
 
 function includesGuestDetailsFields(formData: FormData): boolean {
   return GUEST_DETAILS_FORM_FIELDS.some((field) => formData.has(field));
-}
-
-async function upsertManualGuestDetails(
-  transaction: Prisma.TransactionClient,
-  workspaceId: string,
-  guestId: string,
-  details: NormalizedGuestDetailsInput,
-) {
-  const identity = {
-    workspaceId,
-    source: MANUAL_DETAILS_SOURCE,
-    sourceInstance: MANUAL_DETAILS_SOURCE_INSTANCE,
-    externalId: guestId,
-  };
-  const provenance = {
-    guestId,
-    workspaceId,
-    source: MANUAL_DETAILS_SOURCE,
-    sourceInstance: MANUAL_DETAILS_SOURCE_INSTANCE,
-    sourceLabel: MANUAL_DETAILS_SOURCE_LABEL,
-    sourceManaged: false,
-    managedFields: [],
-    externalId: guestId,
-    sourcePartySize: null,
-    sourceSubmittedAt: null,
-  };
-
-  // 舊版單一證婚回覆只保留作離線匯入相容資料。互動式表單即使被
-  // crafted FormData 塞入 ceremonyAttendance，也不得再建立或改寫它。
-  const patchedDetails = {
-    ...details,
-    ceremonyAttendance: effectiveGuestDetailValue(
-      await transaction.guestImportRecord.findMany({
-        where: { guestId, workspaceId },
-        orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
-        select: {
-          source: true,
-          sourceInstance: true,
-          sourceManaged: true,
-          ceremonyAttendance: true,
-        },
-      }),
-      (record) => record.ceremonyAttendance,
-    ),
-  };
-
-  await transaction.guestImportRecord.upsert({
-    where: { workspaceId_source_sourceInstance_externalId: identity },
-    create: { ...provenance, ...patchedDetails },
-    update: { ...provenance, ...patchedDetails },
-  });
 }
 
 async function authorizeGuestMutation(

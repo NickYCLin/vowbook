@@ -21,7 +21,10 @@ import {
   resolveSeatingFloorPlanPositions,
   seatingFloorPlanCoordinateToBoardPercent,
 } from "@/domain/seating-floor-plan";
-import { validateGuestRequirementsWithinPartySize } from "@/domain/guest-details";
+import {
+  normalizeGuestDetailsInput,
+  validateGuestRequirementsWithinPartySize,
+} from "@/domain/guest-details";
 import { normalizeWeddingGiftDetails } from "@/domain/wedding-gift";
 import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
 import {
@@ -41,6 +44,10 @@ import {
   type BudgetTaxonomyItemKey,
   type BudgetTaxonomyNodeKey,
 } from "@/domain/budget-item";
+import {
+  GUEST_DETAILS_FIELDS,
+  upsertManualGuestDetails,
+} from "@/lib/guest-manual-details";
 import { loadGuestsForUser } from "@/lib/guest-list";
 import { loadSeatingPlanForUser } from "@/lib/seating-plan";
 import { loadWeddingTaskList } from "@/lib/wedding-task-list";
@@ -80,7 +87,7 @@ function expectedVersionOf(value: unknown): number {
   return value;
 }
 
-/** 手機名單只帶當場要判斷的欄位與備註；聯絡資訊與飲食細節留在網站。 */
+/** 手機名單帶當場要判斷的欄位、備註，以及聯絡與飲食細項。 */
 export async function mobileGuestList(workspaceId: string, userId: string) {
   const data = await loadGuestsForUser(workspaceId, userId);
   return {
@@ -98,6 +105,7 @@ export async function mobileGuestList(workspaceId: string, userId: string) {
       tableNumber: guest.seatingTable?.number ?? null,
       tableName: guest.seatingTable?.name ?? null,
       checkedIn: guest.checkIn !== null,
+      details: guest.details,
     })),
   };
 }
@@ -191,7 +199,21 @@ type GuestEditClient = {
 };
 
 /**
- * 手機改賓客的核心欄位。名單身份與輩份不在手機上改，沿用資料庫現值，
+ * 細項是選填的：有帶任何一個欄位才會動到「自行填寫」那筆紀錄，
+ * 沒帶就完全不碰，免得 App 舊版本送出的請求把網站填好的資料洗掉。
+ */
+function guestDetailsFromFields(fields: Record<string, unknown>, partySize: number) {
+  if (!GUEST_DETAILS_FIELDS.some((field) => field in fields)) return null;
+  const details = normalizeGuestDetailsInput(
+    Object.fromEntries(GUEST_DETAILS_FIELDS.map((field) => [field, fields[field] ?? null])),
+  );
+  validateGuestRequirementsWithinPartySize(details, partySize);
+  // 全部清空也要寫回去，使用者本來就可能是想把填錯的資料刪掉。
+  return details;
+}
+
+/**
+ * 手機改賓客的核心欄位與細項。名單身份與輩份不在手機上改，沿用資料庫現值，
  * 其餘檢查照網站：報到紀錄、兒童座椅／素食人數、桌次容量、不出席移出桌次。
  */
 export async function mobileUpdateGuest(
@@ -223,6 +245,7 @@ export async function mobileUpdateGuest(
         partySize: fields.partySize,
         notes: fields.notes,
       });
+      const details = guestDetailsFromFields(fields, input.partySize);
       if (guest.checkIn && !canGuestCheckIn(input)) {
         throw new MobileRequestError(400, "VALIDATION", "這位已經報到了，要改成未回覆或不出席，請先取消報到。");
       }
@@ -263,6 +286,14 @@ export async function mobileUpdateGuest(
       });
       if (result.count !== 1) {
         throw new MobileRequestError(409, "STALE", "這位賓客剛剛被其他人更新，請重新整理後再試。");
+      }
+      if (details) {
+        await upsertManualGuestDetails(
+          transaction as unknown as Prisma.TransactionClient,
+          workspaceId,
+          guestId,
+          details,
+        );
       }
       return { id: guestId, name: input.name, version: expectedVersion + 1, removedFromTable: removesFromTable };
     });

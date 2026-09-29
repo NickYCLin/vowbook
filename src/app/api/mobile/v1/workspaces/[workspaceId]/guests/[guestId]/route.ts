@@ -1,12 +1,16 @@
 import { requireMobileUser } from "@/lib/mobile/session";
 import { mobileError, mobileJSON, readMobileJSON } from "@/lib/mobile/http";
 import { MobileRequestError } from "@/lib/mobile/protocol";
+import { GUEST_DETAILS_FIELDS } from "@/lib/guest-manual-details";
 import { mobileSetGuestAttendance, mobileUpdateGuest } from "@/lib/mobile/workspace-data";
 
 export const runtime = "nodejs";
 
 const ATTENDANCE_FIELDS = ["attendanceStatus", "expectedVersion"];
-const DETAIL_FIELDS = ["name", "side", "attendanceStatus", "partySize", "notes", "expectedVersion"];
+const DETAIL_FIELDS = [
+  "name", "side", "attendanceStatus", "partySize", "notes", "expectedVersion",
+  ...GUEST_DETAILS_FIELDS,
+];
 
 function objectBody(body: unknown, allowed: string[], message: string) {
   if (!body || typeof body !== "object" || Array.isArray(body) ||
