@@ -181,3 +181,42 @@ export async function mobileUpdateSeatingTable(
     return failure(error);
   }
 }
+
+/**
+ * 刪一桌。和網站一樣只讓空桌被刪：桌上還有人就先請他們換桌，
+ * 免得一個誤觸就把整桌的安排清掉。
+ */
+export async function mobileDeleteSeatingTable(
+  workspaceId: string,
+  userId: string,
+  tableId: string,
+  fields: Record<string, unknown>,
+) {
+  try {
+    const version = versionOf(fields.expectedVersion);
+    return await runSerializableTransaction(async (transaction) => {
+      await lockSeating(transaction, workspaceId);
+      await requireLockedWorkspaceAccess(workspaceId, userId, "edit", transaction);
+      const tables = await snapshot(transaction, workspaceId);
+      const table = tables.find((candidate) => candidate.id === tableId);
+      if (!table || table.version !== version) throw new MobileRequestError(409, "STALE", STALE_MESSAGE);
+      const seated = await transaction.guest.aggregate({
+        where: { workspaceId, seatingTableId: tableId },
+        _sum: { partySize: true },
+        _count: { _all: true },
+      });
+      if ((seated._count._all ?? 0) > 0) {
+        throw new MobileRequestError(409, "OCCUPIED",
+          `這桌還坐著 ${seated._sum.partySize ?? 0} 位，請先把他們換到別桌再刪。`);
+      }
+      const removed = await transaction.seatingTable.deleteMany({
+        where: { id: tableId, workspaceId, version },
+      });
+      if (removed.count !== 1) throw new MobileRequestError(409, "STALE", STALE_MESSAGE);
+      await advanceSeating(transaction, workspaceId);
+      return { deleted: true };
+    });
+  } catch (error) {
+    return failure(error);
+  }
+}
