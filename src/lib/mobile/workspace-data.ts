@@ -1117,12 +1117,27 @@ export async function mobileMembers(workspaceId: string, userId: string) {
       displayName: member.displayName,
       role: member.role,
       email: isOwner ? member.email ?? null : null,
+      // 只有擁有者拿得到這組值，App 拿它做改角色與移除的樂觀鎖。
+      membershipId: isOwner ? member.management?.membershipId ?? null : null,
+      updatedAt: isOwner ? member.management?.updatedAt ?? null : null,
     })),
     pendingInvitations: isOwner
       ? (data.pendingInvitations ?? []).map((invitation) => ({
           id: invitation.id,
           email: invitation.email,
           role: invitation.role,
+          version: invitation.version,
+          expiresAt: invitation.expiresAt,
+        }))
+      : [],
+    // 已撤銷或過期的邀請要能在 App 直接重新邀請。
+    renewableInvitations: isOwner
+      ? (data.renewableInvitations ?? []).map((invitation) => ({
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          version: invitation.version,
+          reason: invitation.reason,
           expiresAt: invitation.expiresAt,
         }))
       : [],

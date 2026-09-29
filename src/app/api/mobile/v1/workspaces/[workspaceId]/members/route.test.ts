@@ -27,11 +27,14 @@ describe("手機協作者 API", () => {
     });
     const body = await (await GET(request(), context)).json();
     expect(mocks.load).toHaveBeenCalledWith("workspace_1", "server-user");
-    expect(body.members).toEqual([{ displayName: "阿倫", role: "OWNER", email: "a@example.test" }]);
-    expect(body.pendingInvitations).toEqual([
-      { id: "i1", email: "b@example.test", role: "PLANNER", expiresAt: "2026-10-01T00:00:00.000Z" },
+    // 擁有者要拿得到 membershipId 與 updatedAt，才能在 App 改角色或移除協作者。
+    expect(body.members).toEqual([
+      { displayName: "阿倫", role: "OWNER", email: "a@example.test", membershipId: "m1", updatedAt: "x" },
     ]);
-    expect(JSON.stringify(body)).not.toContain("m1");
+    expect(body.pendingInvitations).toEqual([
+      { id: "i1", email: "b@example.test", role: "PLANNER", version: 0, expiresAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    expect(body.renewableInvitations).toEqual([]);
   });
 
   it("不是擁有者就只有名字與角色", async () => {
@@ -42,7 +45,9 @@ describe("手機協作者 API", () => {
       pendingInvitations: [{ id: "i1", email: "leak2@example.test", role: "PLANNER", version: 0, createdAt: "c", expiresAt: "e" }],
     });
     const body = await (await GET(request(), context)).json();
-    expect(body.members).toEqual([{ displayName: "阿倫", role: "OWNER", email: null }]);
+    expect(body.members).toEqual([
+      { displayName: "阿倫", role: "OWNER", email: null, membershipId: null, updatedAt: null },
+    ]);
     expect(body.pendingInvitations).toEqual([]);
     expect(JSON.stringify(body)).not.toContain("leak");
   });
