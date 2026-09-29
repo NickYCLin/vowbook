@@ -868,6 +868,17 @@ export async function mobileBudget(workspaceId: string, userId: string) {
   return {
     canEdit: data.canEdit,
     workspaceToday: data.workspaceToday,
+    // 這兩組設定會決定花費頁列出哪些分類、以及衍生費用怎麼算。
+    ceremony: {
+      hasEngagementCeremony: data.hasEngagementCeremony,
+      hasProcessionCeremony: data.hasProcessionCeremony,
+      version: data.ceremonyPreferencesVersion,
+    },
+    mealPricing: {
+      staffMealUnitPrice: data.mealPricing.staffMealUnitPrice,
+      vegetarianMealUnitPrice: data.mealPricing.vegetarianMealUnitPrice,
+      serviceChargePercent: data.mealPricing.serviceChargePercent,
+    },
     summary: {
       plannedTotal: Number(data.summary.plannedTotal),
       actualTotal: Number(data.summary.actualTotal),
