@@ -17,6 +17,10 @@ import {
   MAX_GUEST_CHECK_IN_HEADCOUNT,
 } from "@/domain/guest-check-in";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
+import {
+  resolveSeatingFloorPlanPositions,
+  seatingFloorPlanCoordinateToBoardPercent,
+} from "@/domain/seating-floor-plan";
 import { validateGuestRequirementsWithinPartySize } from "@/domain/guest-details";
 import { normalizeWeddingGiftDetails } from "@/domain/wedding-gift";
 import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
@@ -453,9 +457,49 @@ export async function mobileSetTaskStatus(
   }
 }
 
+type MobileSeatingChartPoint = { x: number; y: number };
+
+type MobileSeatingChartInput = {
+  id: string;
+  position: number;
+  name: string | null;
+  layoutX: number | null;
+  layoutY: number | null;
+};
+
+/**
+ * App 的桌圖用百分比定位，換算留在伺服器：擺位規則和網站同一份 domain，
+ * 手機端只要照著百分比畫圓點就好。座標排不出來時回空的，桌次清單照樣能看。
+ */
+function resolveMobileSeatingChart(
+  tables: readonly MobileSeatingChartInput[],
+): Map<string, MobileSeatingChartPoint> {
+  const chart = new Map<string, MobileSeatingChartPoint>();
+  if (tables.length === 0) return chart;
+  try {
+    const positions = resolveSeatingFloorPlanPositions(
+      tables.map((table) => ({
+        id: table.id,
+        position: table.position,
+        name: table.name ?? "",
+        layoutX: table.layoutX,
+        layoutY: table.layoutY,
+      })),
+    );
+    for (const position of positions) {
+      const percent = seatingFloorPlanCoordinateToBoardPercent(position);
+      chart.set(position.tableId, { x: percent.x, y: percent.y });
+    }
+  } catch {
+    return new Map();
+  }
+  return chart;
+}
+
 /** 桌次：找人坐哪桌、看還有幾個位子，臨時有人加入也能當場安排。 */
 export async function mobileSeatingPlan(workspaceId: string, userId: string) {
   const plan = await loadSeatingPlanForUser(workspaceId, userId);
+  const chart = resolveMobileSeatingChart(plan.tables);
   return {
     role: plan.role,
     canEdit: EDITOR_ROLES.has(plan.role),
@@ -463,6 +507,7 @@ export async function mobileSeatingPlan(workspaceId: string, userId: string) {
       const seated = table.guests.reduce((total, guest) => total + guest.partySize, 0);
       return {
         id: table.id,
+        chart: chart.get(table.id) ?? null,
         version: table.version,
         number: table.number,
         name: table.name,
