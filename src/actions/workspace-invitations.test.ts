@@ -219,23 +219,6 @@ describe("workspace invitation actions", () => {
     expect(revalidatePath).toHaveBeenNthCalledWith(2, "/dashboard");
   });
 
-  it("requires explicit reinvite for an expired pending generation", async () => {
-    createWorkspaceInvitation.mockResolvedValueOnce({
-      outcome: "REINVITE_REQUIRED",
-    });
-    await expect(
-      createWorkspaceInvitationAction(
-        "workspace_1",
-        idleState,
-        createForm("renew@example.com", "PLANNER"),
-      ),
-    ).resolves.toEqual({
-      status: "error",
-      code: "REINVITE_REQUIRED",
-      message: "這個 Email 的舊邀請已失效，請在「需重新邀請」選擇角色。",
-    });
-  });
-
   it("passes id plus positive version to revoke and reports stale replay safely", async () => {
     await revokeWorkspaceInvitationAction(
       "workspace_1",

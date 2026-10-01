@@ -71,7 +71,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 
@@ -99,7 +98,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 
@@ -118,56 +116,6 @@ describe("WorkspaceMembersPanel", () => {
     await screen.findByRole("status");
   });
 
-  it("locks the reinvite role and submit together while request is pending", async () => {
-    let resolveAction:
-      | ((state: { status: "success"; message: string }) => void)
-      | undefined;
-    actions.reinviteWorkspaceInvitationAction.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveAction = resolve;
-        }),
-    );
-    render(
-      <WorkspaceMembersPanel
-        workspaceId="workspace_1"
-        operationKey="8d7fcdcf-2bea-4aa4-89b3-47158efcb40d"
-        role="OWNER"
-        members={[]}
-        pendingInvitations={[]}
-        renewableInvitations={[
-          {
-            id: "invitation_expired",
-            email: "expired@example.com",
-            role: "VIEWER",
-            version: 3,
-            createdAt: "2026-07-20T01:00:00.000Z",
-            expiresAt: "2026-07-27T01:00:00.000Z",
-            reason: "EXPIRED",
-          },
-        ]}
-      />,
-    );
-
-    const role = screen.getByLabelText("重新邀請 expired@example.com 的角色");
-    const submit = screen.getByRole("button", {
-      name: "重新邀請 expired@example.com",
-    });
-    fireEvent.submit(submit.closest("form")!);
-
-    await waitFor(() => expect(submit).toBeDisabled());
-    expect(role).toBeDisabled();
-    expect(submit.closest("fieldset")).toHaveAttribute("aria-busy", "true");
-
-    resolveAction?.({ status: "success", message: "已重新建立邀請。" });
-    await screen.findByRole("status");
-    await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "需重新邀請" }),
-      ).toHaveFocus(),
-    );
-  });
-
   it("connects email validation to fixed help and feedback, omits duplicate alert live region, and focuses it", async () => {
     actions.createWorkspaceInvitationAction.mockResolvedValue({
       status: "error",
@@ -182,7 +130,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 
@@ -226,7 +173,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
     const role = screen.getByLabelText("協作角色");
@@ -248,7 +194,7 @@ describe("WorkspaceMembersPanel", () => {
     expect(status).toHaveAttribute("aria-live", "polite");
   });
 
-  it("shows only unexpired pending revoke and explicit expired/revoked reinvite generations", () => {
+  it("shows only unexpired pending invitations without a separate reinvite section", () => {
     render(
       <WorkspaceMembersPanel
         workspaceId="workspace_1"
@@ -256,26 +202,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[activeInvitation]}
-        renewableInvitations={[
-          {
-            id: "invitation_expired",
-            email: "expired@example.com",
-            role: "VIEWER",
-            version: 3,
-            createdAt: "2026-07-20T01:00:00.000Z",
-            expiresAt: "2026-07-27T01:00:00.000Z",
-            reason: "EXPIRED",
-          },
-          {
-            id: "invitation_revoked",
-            email: "revoked@example.com",
-            role: "PLANNER",
-            version: 4,
-            createdAt: "2026-07-21T01:00:00.000Z",
-            expiresAt: "2026-07-28T01:00:00.000Z",
-            reason: "REVOKED",
-          },
-        ]}
       />,
     );
 
@@ -287,41 +213,10 @@ describe("WorkspaceMembersPanel", () => {
     const expiry = screen.getByText(/台北時間/u);
     expect(expiry).toHaveAttribute("datetime", activeInvitation.expiresAt);
     expect(expiry).toHaveTextContent(/2026.*8.*5.*9:00.*台北時間/u);
-    expect(screen.getByText("已過期")).toBeInTheDocument();
-    expect(screen.getByText("已撤銷")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", {
-        name: "接受 expired@example.com 的邀請",
-      }),
+      screen.queryByRole("heading", { name: "需重新邀請" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", {
-        name: "撤銷給 expired@example.com 的邀請",
-      }),
-    ).not.toBeInTheDocument();
-
-    const expiredRow = screen.getByText("expired@example.com").closest("li")!;
-    const role = within(expiredRow).getByLabelText(
-      "重新邀請 expired@example.com 的角色",
-    );
-    expect(within(role).getByRole("option", { name: "伴侶" })).toBeEnabled();
-    expect(within(role).getByRole("option", { name: "婚顧" })).toBeEnabled();
-    expect(within(role).getByRole("option", { name: "檢視者" })).toBeEnabled();
-    expect(
-      within(expiredRow).getByRole("button", {
-        name: "重新邀請 expired@example.com",
-      }),
-    ).toHaveClass("min-h-11");
-    expect(
-      within(expiredRow).getByText(
-        "重新邀請 expired@example.com 的角色",
-      ),
-    ).toHaveClass(
-      "block",
-      "min-w-0",
-      "break-all",
-      "[overflow-wrap:anywhere]",
-    );
+    expect(screen.queryByText(/重新邀請/u)).not.toBeInTheDocument();
   });
 
   it("submits revoke id plus version and keeps stable feedback/focus", async () => {
@@ -336,7 +231,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[activeInvitation]}
-        renewableInvitations={[]}
       />,
     );
     fireEvent.click(
@@ -363,7 +257,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[ownerMember, partnerMember]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 
@@ -403,7 +296,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[partnerMember]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
     const trigger = screen.getByRole("button", { name: "編輯 小安 的角色" });
@@ -430,7 +322,6 @@ describe("WorkspaceMembersPanel", () => {
           },
         ]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 
@@ -473,7 +364,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[partnerMember]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
     const trigger = screen.getByRole("button", { name: "編輯 小安 的角色" });
@@ -546,7 +436,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[partnerMember]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "移除 小安" }));
@@ -625,7 +514,6 @@ describe("WorkspaceMembersPanel", () => {
         role="OWNER"
         members={[]}
         pendingInvitations={[]}
-        renewableInvitations={[]}
       />,
     );
 

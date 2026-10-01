@@ -1132,17 +1132,6 @@ const surfaces: { name: string; element: ReactNode }[] = [
               expiresAt: "2026-08-20T00:00:00.000Z",
             },
           ]}
-          renewableInvitations={[
-            {
-              id: "invitation_2",
-              email: LONG_EMAIL,
-              role: "VIEWER",
-              version: 1,
-              createdAt: "2026-07-01T00:00:00.000Z",
-              expiresAt: "2026-07-20T00:00:00.000Z",
-              reason: "EXPIRED",
-            },
-          ]}
         />
       </WorkspacePage>
     ),

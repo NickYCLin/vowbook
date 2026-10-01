@@ -50,7 +50,6 @@ export default async function MembersPage({
         role={data.role}
         members={data.members}
         pendingInvitations={data.pendingInvitations}
-        renewableInvitations={data.renewableInvitations}
       />
     </main>
   );

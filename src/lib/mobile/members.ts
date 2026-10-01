@@ -63,13 +63,6 @@ export async function mobileInviteMember(
       email: fields.email,
       role: fields.role,
     });
-    if (result.outcome === "REINVITE_REQUIRED") {
-      throw new MobileRequestError(
-        409,
-        "REINVITE_REQUIRED",
-        "這個 Email 的舊邀請已失效，請在下面的邀請清單重新邀請。",
-      );
-    }
     if (result.outcome === "ALREADY_PENDING") {
       return { outcome: result.outcome, message: "這個 Email 已有等待接受的邀請，角色與期限都沒變。" };
     }

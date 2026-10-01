@@ -497,8 +497,7 @@ export async function removeWorkspaceMember(
 export type CreateWorkspaceInvitationOutcome =
   | { outcome: "CREATED" }
   | { outcome: "REPLAYED" }
-  | { outcome: "ALREADY_PENDING" }
-  | { outcome: "REINVITE_REQUIRED" };
+  | { outcome: "ALREADY_PENDING" };
 
 type ExistingPendingRow = {
   status: WorkspaceInvitationStatus;
@@ -536,8 +535,8 @@ export async function createWorkspaceInvitation(
       ) AS "acquired_lock"
     `;
 
-    const invitationId = randomUUID();
-    const inserted = await transaction.$queryRaw<Array<{ id: string }>>`
+    const insertInvitation = () =>
+      transaction.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "workspace_invitations" (
         "id",
         "workspace_id",
@@ -552,7 +551,7 @@ export async function createWorkspaceInvitation(
         "updated_at"
       )
       VALUES (
-        ${invitationId},
+        ${randomUUID()},
         ${input.workspaceId},
         ${email},
         ${role}::"MembershipRole",
@@ -567,6 +566,8 @@ export async function createWorkspaceInvitation(
       ON CONFLICT DO NOTHING
       RETURNING "id"
     `;
+
+    const inserted = await insertInvitation();
     if (inserted.length === 1) {
       return { outcome: "CREATED" };
     }
@@ -596,7 +597,25 @@ export async function createWorkspaceInvitation(
       return { outcome: "ALREADY_PENDING" };
     }
     if (pending[0]?.status === "PENDING") {
-      return { outcome: "REINVITE_REQUIRED" };
+      const expired = await transaction.$queryRaw<Array<{ id: string }>>`
+        UPDATE "workspace_invitations"
+        SET
+          "status" = 'EXPIRED'::"WorkspaceInvitationStatus",
+          "version" = "version" + 1,
+          "updated_at" = CURRENT_TIMESTAMP
+        WHERE "workspace_id" = ${input.workspaceId}
+          AND "email" = ${email}
+          AND "status" = 'PENDING'::"WorkspaceInvitationStatus"
+          AND "superseded_by_invitation_id" IS NULL
+          AND "expires_at" <= CURRENT_TIMESTAMP
+        RETURNING "id"
+      `;
+      if (expired.length === 1) {
+        const renewed = await insertInvitation();
+        if (renewed.length === 1) {
+          return { outcome: "CREATED" };
+        }
+      }
     }
 
     throw new Error("Invitation create conflict could not be resolved.");

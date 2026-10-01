@@ -179,7 +179,7 @@ describe("immutable and replay-safe workspace invitation mutations", () => {
     expect(pendingSql).not.toMatch(/\bUPDATE\b/u);
   });
 
-  it("requires explicit reinvite for an expired unsuperseded pending generation", async () => {
+  it("expires a stale pending generation and creates a fresh invitation for the same email", async () => {
     const tx = transactionClient();
     tx.$queryRaw
       .mockResolvedValueOnce([{ locked: null }])
@@ -187,7 +187,9 @@ describe("immutable and replay-safe workspace invitation mutations", () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         { status: "PENDING", active: false },
-      ]);
+      ])
+      .mockResolvedValueOnce([{ id: "old_invitation" }])
+      .mockResolvedValueOnce([{ id: "new_invitation" }]);
 
     await expect(
       createWorkspaceInvitation(
@@ -200,7 +202,12 @@ describe("immutable and replay-safe workspace invitation mutations", () => {
         },
         serializableClient(tx),
       ),
-    ).resolves.toEqual({ outcome: "REINVITE_REQUIRED" });
+    ).resolves.toEqual({ outcome: "CREATED" });
+    const expireSql = queryText(tx.$queryRaw, 4);
+    expect(expireSql).toMatch(/UPDATE "workspace_invitations"/u);
+    expect(expireSql).toMatch(/'EXPIRED'::"WorkspaceInvitationStatus"/u);
+    expect(expireSql).toMatch(/"expires_at" <= CURRENT_TIMESTAMP/u);
+    expect(queryText(tx.$queryRaw, 5)).toMatch(/INSERT INTO "workspace_invitations"/u);
   });
 
   it("CAS-revokes only the current unexpired pending generation", async () => {

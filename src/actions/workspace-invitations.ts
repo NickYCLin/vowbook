@@ -24,7 +24,6 @@ export type WorkspaceInvitationMutationCode =
   | "VALIDATION"
   | "FORBIDDEN"
   | "ALREADY_PENDING"
-  | "REINVITE_REQUIRED"
   | "STALE"
   | "UNAVAILABLE";
 
@@ -175,13 +174,6 @@ export async function createWorkspaceInvitationAction(
       status: "success",
       code: "ALREADY_PENDING",
       message: "這個 Email 已有等待接受的邀請；角色與期限都沒有變更。",
-    };
-  }
-  if (result.outcome === "REINVITE_REQUIRED") {
-    return {
-      status: "error",
-      code: "REINVITE_REQUIRED",
-      message: "這個 Email 的舊邀請已失效，請在「需重新邀請」選擇角色。",
     };
   }
   if (result.outcome === "REPLAYED") {

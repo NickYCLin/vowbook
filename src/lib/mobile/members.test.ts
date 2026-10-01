@@ -64,14 +64,6 @@ describe("手機端的協作者管理", () => {
     });
   });
 
-  it("舊邀請已失效要改走重新邀請", async () => {
-    mocks.create.mockResolvedValue({ outcome: "REINVITE_REQUIRED" });
-    await expect(mobileInviteMember("workspace_1", "user_1", {})).rejects.toMatchObject({
-      status: 409,
-      code: "REINVITE_REQUIRED",
-    });
-  });
-
   it("重複送出同一次邀請不會再建一筆", async () => {
     mocks.create.mockResolvedValue({ outcome: "REPLAYED" });
     await expect(mobileInviteMember("workspace_1", "user_1", {})).resolves.toMatchObject({

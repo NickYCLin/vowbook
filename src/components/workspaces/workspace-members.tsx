@@ -2,7 +2,6 @@
 
 import {
   createWorkspaceInvitationAction,
-  reinviteWorkspaceInvitationAction,
   removeWorkspaceMemberAction,
   revokeWorkspaceInvitationAction,
   updateWorkspaceMemberRoleAction,
@@ -15,7 +14,6 @@ import {
 } from "@/domain/workspace-invitation";
 import type {
   PendingWorkspaceInvitationItem,
-  RenewableWorkspaceInvitationItem,
   WorkspaceMemberItem,
 } from "@/lib/workspace-invitations";
 import {
@@ -162,113 +160,6 @@ function PendingInvitationsPanel({
       ) : (
         <p className="mt-4 rounded-card border border-dashed border-line-strong bg-surface/60 px-5 py-6 text-caption leading-6 text-ink-soft sm:px-6">
           目前沒有等待接受的邀請。
-        </p>
-      )}
-    </section>
-  );
-}
-
-function ReinviteFields({
-  invitation,
-}: {
-  invitation: RenewableWorkspaceInvitationItem;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <fieldset
-      disabled={pending}
-      aria-busy={pending}
-      className="grid min-w-0 gap-3 border-0 p-0 sm:grid-cols-[minmax(12rem,1fr)_auto] sm:items-end"
-    >
-      <input type="hidden" name="invitationId" value={invitation.id} />
-      <input type="hidden" name="version" value={invitation.version} />
-      <div className="min-w-0">
-        <label
-          htmlFor={`reinvite-role-${invitation.id}`}
-          className="block min-w-0 break-all text-sm font-medium text-ink [overflow-wrap:anywhere]"
-        >
-          重新邀請 {invitation.email} 的角色
-        </label>
-        <select
-          id={`reinvite-role-${invitation.id}`}
-          name="role"
-          defaultValue={invitation.role}
-          required
-          className="mt-2 min-h-11 w-full min-w-0 rounded-lg border border-line bg-surface px-4 text-ink outline-none focus:border-clay"
-        >
-          <option value="PARTNER">伴侶</option>
-          <option value="PLANNER">婚顧</option>
-          <option value="COORDINATOR">總召</option>
-          <option value="VIEWER">檢視者</option>
-        </select>
-      </div>
-      <button
-        type="submit"
-        disabled={pending}
-        aria-label={`重新邀請 ${invitation.email}`}
-        className="min-h-11 rounded-full border border-clay bg-surface px-4 py-2 text-sm font-semibold text-clay-strong disabled:cursor-wait disabled:opacity-60"
-      >
-        {pending ? "重新邀請中…" : "重新邀請"}
-      </button>
-    </fieldset>
-  );
-}
-
-function RenewableInvitationsPanel({
-  workspaceId,
-  invitations,
-}: {
-  workspaceId: string;
-  invitations?: RenewableWorkspaceInvitationItem[];
-}) {
-  const action = reinviteWorkspaceInvitationAction.bind(null, workspaceId);
-  const [state, formAction] = useActionState(action, initialState);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    if (state.status === "success") headingRef.current?.focus();
-  }, [state]);
-
-  return (
-    <section aria-labelledby="renewable-invitations-title" className="min-w-0">
-      <h2
-        ref={headingRef}
-        id="renewable-invitations-title"
-        tabIndex={-1}
-        className="font-serif text-2xl font-semibold text-ink outline-none"
-      >
-        需重新邀請
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-ink-soft">
-        已過期或已撤銷的邀請不會自動重開。重新送出後，請再把 VowBook
-        網址傳給對方。
-      </p>
-      <div className="mt-4 min-w-0">
-        <Feedback state={state} />
-      </div>
-
-      {invitations?.length ? (
-        <ul className="mt-4 min-w-0 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface shadow-card">
-          {invitations.map((invitation) => (
-            <li key={invitation.id} className="min-w-0 px-5 py-4 sm:px-7">
-              <div className="min-w-0">
-                <p className="min-w-0 break-all font-semibold text-ink [overflow-wrap:anywhere]">
-                  {invitation.email}
-                </p>
-                <p className="mt-1 text-sm font-medium text-ink-soft">
-                  {invitation.reason === "EXPIRED" ? "已過期" : "已撤銷"}
-                </p>
-              </div>
-              <form action={formAction} className="mt-4 min-w-0">
-                <ReinviteFields invitation={invitation} />
-              </form>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="mt-4 rounded-card border border-dashed border-line-strong bg-surface/60 px-5 py-6 text-caption leading-6 text-ink-soft sm:px-6">
-          目前沒有需要重新邀請的帳號。
         </p>
       )}
     </section>
@@ -727,14 +618,12 @@ export function WorkspaceMembersPanel({
   role,
   members,
   pendingInvitations,
-  renewableInvitations,
 }: {
   workspaceId: string;
   operationKey: string;
   role: WorkspaceRole;
   members: WorkspaceMemberItem[];
   pendingInvitations?: PendingWorkspaceInvitationItem[];
-  renewableInvitations?: RenewableWorkspaceInvitationItem[];
 }) {
   const isOwner = role === "OWNER";
   const membersHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -878,16 +767,10 @@ export function WorkspaceMembersPanel({
       </section>
 
       {isOwner && (
-        <>
-          <PendingInvitationsPanel
-            workspaceId={workspaceId}
-            pendingInvitations={pendingInvitations}
-          />
-          <RenewableInvitationsPanel
-            workspaceId={workspaceId}
-            invitations={renewableInvitations}
-          />
-        </>
+        <PendingInvitationsPanel
+          workspaceId={workspaceId}
+          pendingInvitations={pendingInvitations}
+        />
       )}
     </div>
   );
