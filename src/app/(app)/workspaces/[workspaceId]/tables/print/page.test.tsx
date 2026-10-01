@@ -29,6 +29,10 @@ it("prints guests grouped by table with relationship titles for editors",async()
  expect(screen.getByRole("cell",{name:"素 1"})).toBeInTheDocument();
  expect(screen.queryByRole("columnheader",{name:"所屬親友"})).toBeNull();
  expect(screen.queryByRole("columnheader",{name:"備註"})).toBeNull();
+ // 帶位名單只看座位，不需要勾選框。
+ expect(screen.queryByRole("img",{name:/勾選框/u})).toBeNull();
+ expect(screen.queryByRole("columnheader",{name:"帶位勾選"})).toBeNull();
+ expect(screen.queryByText(/打勾/u)).toBeNull();
 });
 it("does not read or print relationship titles for viewers",async()=>{
  get.mockResolvedValue({...plan,role:"VIEWER"});
