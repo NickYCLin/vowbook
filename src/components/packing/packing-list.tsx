@@ -105,6 +105,8 @@ function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const titleId = useId();
   const sideId = useId();
+  const [destination, setDestination] = useState<string>("SHARED");
+  const isSupplyDestination = destination === "WEDDING_SUPPLY";
   const [state, formAction, isPending] = useActionState(
     async (previous: PackingItemMutationState, formData: FormData) => {
       const result = await createPackingItemAction(
@@ -112,7 +114,10 @@ function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
         previous,
         formData,
       );
-      if (result.status === "success") formRef.current?.reset();
+      if (result.status === "success") {
+        formRef.current?.reset();
+        setDestination("SHARED");
+      }
       return result;
     },
     initialState,
@@ -124,7 +129,16 @@ function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
       action={formAction}
       className="flex min-w-0 flex-col gap-2 rounded-card border border-line bg-surface p-3 sm:flex-row sm:items-center print:hidden"
     >
-      <input type="hidden" name="category" value="PERSONAL" />
+      <input
+        type="hidden"
+        name="category"
+        value={isSupplyDestination ? "WEDDING_SUPPLY" : "PERSONAL"}
+      />
+      <input
+        type="hidden"
+        name="side"
+        value={isSupplyDestination ? "SHARED" : destination}
+      />
       <label htmlFor={titleId} className="sr-only">
         物品名稱
       </label>
@@ -133,18 +147,24 @@ function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
         name="title"
         required
         maxLength={80}
-        placeholder="例：隱形眼鏡藥水、西裝、充電器"
+        placeholder="例：隱形眼鏡藥水、西裝、充電器、喜糖"
         className="min-w-0 flex-1"
       />
       <label htmlFor={sideId} className="sr-only">
-        誰要帶
+        放在哪一區
       </label>
-      <Select id={sideId} name="side" defaultValue="SHARED" className="sm:w-28">
+      <Select
+        id={sideId}
+        value={destination}
+        onChange={(event) => setDestination(event.target.value)}
+        className="sm:w-32"
+      >
         {PACKING_SIDE_ORDER.map((side) => (
           <option key={side} value={side}>
             {PACKING_SIDE_LABELS[side]}
           </option>
         ))}
+        <option value="WEDDING_SUPPLY">宴客用品</option>
       </Select>
       <SubmitButton isPending={isPending} pendingLabel="加入中…">
         加入
@@ -643,10 +663,14 @@ export function PackingList({
           列印清單
         </Button>
       </div>
-      <h2 className="font-serif text-lg font-semibold text-ink print:text-base">
-        個人物品
-      </h2>
-      {canEdit ? <AddPackingItemForm workspaceId={workspaceId} /> : null}
+      {canEdit ? (
+        <>
+          <h2 className="font-serif text-lg font-semibold text-ink print:hidden">
+            新增物品
+          </h2>
+          <AddPackingItemForm workspaceId={workspaceId} />
+        </>
+      ) : null}
       {moveState.status === "error" ? (
         <ActionFeedback state={moveState} className="print:hidden" />
       ) : null}

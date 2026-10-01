@@ -2,14 +2,14 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/actions/packing-items", () => ({
-  createPackingItemAction: vi.fn(),
+  createPackingItemAction: vi.fn(async () => ({ status: "success", message: "已加入。" })),
   setPackingItemPackedAction: vi.fn(),
   deletePackingItemAction: vi.fn(),
   updatePackingItemAction: vi.fn(),
   movePackingItemAction: vi.fn(async () => ({ status: "success", message: "已移到宴客用品。" })),
 }));
 
-import { movePackingItemAction } from "@/actions/packing-items";
+import { createPackingItemAction, movePackingItemAction } from "@/actions/packing-items";
 import { PackingList, type PackingListItem } from "./packing-list";
 
 const items: PackingListItem[] = [
@@ -39,6 +39,27 @@ describe("PackingList", () => {
     );
     expect(screen.getByRole("textbox", { name: "物品名稱" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "列印清單" })).toBeInTheDocument();
+  });
+
+  it("adds from one form into a side or the wedding-supply section", async () => {
+    render(<PackingList workspaceId="ws" items={items} canEdit />);
+    expect(screen.getByRole("heading", { name: "新增物品" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "個人物品" })).toBeNull();
+    const where = screen.getByRole("combobox", { name: "放在哪一區" });
+    expect(
+      within(where).getAllByRole("option").map((option) => option.textContent),
+    ).toEqual(["新郎", "新娘", "共用", "宴客用品"]);
+    fireEvent.change(where, { target: { value: "WEDDING_SUPPLY" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "物品名稱" }), {
+      target: { value: "喜糖" },
+    });
+    await act(async () => {
+      fireEvent.submit(where.closest("form")!);
+    });
+    const formData = vi.mocked(createPackingItemAction).mock.calls[0][2] as FormData;
+    expect(formData.get("title")).toBe("喜糖");
+    expect(formData.get("category")).toBe("WEDDING_SUPPLY");
+    expect(formData.get("side")).toBe("SHARED");
   });
 
   it("lets an added item be edited inline and cancelled", () => {
