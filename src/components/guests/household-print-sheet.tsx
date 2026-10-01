@@ -11,7 +11,7 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
  const countLabel=(entries:readonly HouseholdPrintRow[])=>`${entries.length} 戶／筆${cake?`，共 ${entries.reduce((sum,row)=>sum+(row.boxes??0),0)} 盒`:""}`;
  return <>
   <style>{`@media print {
- @page { size: A4 portrait; margin: 12mm; }
+ @page { size: A4 portrait; margin: ${cake?"8mm":"12mm"}; }
  html:has([data-household-print]), body:has([data-household-print]), body:has([data-household-print]) * { background-color: white !important; background-image: none !important; box-shadow: none !important; }
  [data-household-print] { color: black !important; margin: 0 !important; font-size: 11pt; }
  [data-household-print] * { color: black !important; background: transparent !important; }
@@ -21,11 +21,19 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
  [data-household-print] tr { break-inside: avoid; page-break-inside: avoid; }
  [data-household-print] th, [data-household-print] td { border: 1px solid black; padding: 3mm; }
  [data-household-print] .cake-check-box { width: 6mm; height: 6mm; border: 1px solid black; }
- [data-household-print] .gift-amount-blank { min-height: 9mm; }
+ [data-household-print] .gift-amount-blank { min-height: 9mm; }${cake?`
+ [data-cake-print] { columns: 2; column-gap: 5mm; font-size: 9pt; }
+ [data-cake-print] > p, [data-cake-print] > h2 { column-span: all; margin: 0 0 1.5mm !important; font-size: 10pt; }
+ [data-cake-print] > section { margin-top: 0 !important; }
+ [data-cake-print] .household-table-wrap { margin: 0 0 2mm !important; }
+ [data-cake-print] thead tr:last-child { display: none; }
+ [data-cake-print] th, [data-cake-print] td { padding: 0.6mm 1.5mm; line-height: 1.25; }
+ [data-cake-print] td:last-child { white-space: nowrap; font-size: 8pt; }
+ [data-cake-print] .cake-check-box { width: 3.5mm; height: 3.5mm; }`:""}
 }`}</style>
   <section data-print-document data-household-print data-cake-print={cake?true:undefined} data-gift-print={!cake?true:undefined} className="mt-8 print:mt-0" aria-label={cake?"發餅匯出預覽":"紙本禮金簿預覽"}>
    <p className="hidden print:block font-semibold">{workspaceName}｜{title}</p>
-   <p className="hidden print:block my-2 text-sm">{cake?"請核對姓名與盒數，發放後在「領取勾選」欄打勾。0 盒表示當日不領取，不需打勾。同戶只領一次，新人本人不領餅。":"同一家人合併登記，請在金額欄手寫收到的禮金。未登記者金額欄留白；已登記者標示「禮金已收訖」，不列印金額。已排除不收禮金者。"}</p>
+   <p className="hidden print:block my-2 text-sm">{cake?"欄位依序為姓名（稱謂）、盒數、領取勾選；發放後打勾。0 盒＝當日不領取。":"同一家人合併登記，請在金額欄手寫收到的禮金。未登記者金額欄留白；已登記者標示「禮金已收訖」，不列印金額。已排除不收禮金者。"}</p>
    <h2 className="font-serif text-lg font-semibold">{title} · {countLabel(rows)}</h2>
    {groups.map(group=><section key={group.id} aria-label={group.label} className={`mt-6 ${group.rows.length?"":"print:hidden"}`}>
     <h3 className="font-serif text-lg font-semibold print:hidden">{group.label} · {countLabel(group.rows)}</h3>

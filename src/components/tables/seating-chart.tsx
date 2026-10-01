@@ -127,9 +127,10 @@ export function SeatingChart({
 
   const positions = resolveSeatingFloorPlanPositions(tables);
   const density = chartDensity(tables.length);
-  // 和帶位名單一起印時，沒人坐的空桌連桌號都不畫；位置仍照全部桌次推算，其他桌不會移動。
-  const shownTables = paper === "a4" ? tables.filter((table) => table.guests.length > 0) : tables;
-  const sides = shownTables.map((table) => seatingTableSide(table.guests));
+  // 和帶位名單一起印時，沒人坐的空桌照樣畫出來但不標桌號；預備桌仍標桌號，方便臨時加位。
+  const isUnnumbered = (table: SeatingChartTable) =>
+    paper === "a4" && table.guests.length === 0 && !table.name.includes("預備");
+  const sides = tables.map((table) => seatingTableSide(table.guests));
   const legendSides = SIDE_ORDER.filter((side) => sides.includes(side));
 
   return (
@@ -165,10 +166,23 @@ export function SeatingChart({
           >
             舞台
           </div>
-          {shownTables.map((table) => {
+          {tables.map((table) => {
             const position = positions.find((item) => item.tableId === table.id);
             if (!position) return null;
             const percent = seatingFloorPlanCoordinateToBoardPercent(position);
+            if (isUnnumbered(table)) {
+              return (
+                <article
+                  key={table.id}
+                  aria-label="空桌"
+                  className={cn(
+                    "absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-line-strong bg-surface",
+                    density.marker,
+                  )}
+                  style={{ left: `${percent.x}%`, top: `${percent.y}%` }}
+                />
+              );
+            }
             const side = seatingTableSide(table.guests);
             const vegetarianCount = table.guests.reduce((sum, guest) => sum + (guest.vegetarianCount ?? 0), 0);
             const childSeats = table.guests.reduce(
@@ -256,7 +270,7 @@ export function SeatingChart({
               {GUEST_SIDE_LABELS[side]}
             </span>
           ))}
-          <span className="font-semibold tabular-nums">共 {shownTables.length} 桌</span>
+          <span className="font-semibold tabular-nums">共 {tables.length} 桌</span>
         </footer>
       </div>
       {/*

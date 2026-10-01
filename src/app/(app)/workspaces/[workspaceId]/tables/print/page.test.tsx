@@ -5,7 +5,7 @@ const {get,labels}=vi.hoisted(()=>({get:vi.fn(),labels:vi.fn()}));
 vi.mock("@/lib/seating-plan",()=>({getSeatingPlan:get,getSeatingPrintDetails:labels}));
 vi.mock("next/navigation",()=>({notFound:()=>{throw new Error("NOT_FOUND");}}));
 import SeatingPrintPage from "./page";
-const plan={workspace:{name:"婚宴",weddingDate:null,timezone:"Asia/Taipei"},tables:[{id:"t",number:1,position:0,layoutX:null,layoutY:null,name:"主桌",capacity:10,guests:[{id:"a",name:"王大明",side:"PARTNER_A",partySize:2,vegetarianCount:1,childSeatCount:null}]},{id:"e",number:2,position:1,layoutX:null,layoutY:null,name:"空桌",capacity:10,guests:[]}],unassignedGuests:[{id:"g",name:"待安排親友",partySize:2}]};
+const plan={workspace:{name:"婚宴",weddingDate:null,timezone:"Asia/Taipei"},tables:[{id:"t",number:1,position:0,layoutX:null,layoutY:null,name:"主桌",capacity:10,guests:[{id:"a",name:"王大明",side:"PARTNER_A",partySize:2,vegetarianCount:1,childSeatCount:null}]},{id:"e",number:2,position:1,layoutX:null,layoutY:null,name:"空桌",capacity:10,guests:[]},{id:"r",number:3,position:2,layoutX:null,layoutY:null,name:"預備桌",capacity:10,guests:[]}],unassignedGuests:[{id:"g",name:"待安排親友",partySize:2}]};
 beforeEach(()=>{vi.clearAllMocks();labels.mockResolvedValue({relationships:new Map([["a","大舅"]]),households:new Map()});});
 it("prints guests grouped by table with relationship titles for editors",async()=>{
  get.mockResolvedValue({...plan,role:"OWNER"});
@@ -28,8 +28,13 @@ it("prints guests grouped by table with relationship titles for editors",async()
  expect(chart.querySelector("[data-testid=seating-chart-poster]")).not.toBeNull();
  expect(printCss).not.toContain("406.4mm");
  expect(chart.querySelector('[aria-label^="1 號桌"]')).not.toBeNull();
+ // 空桌照樣畫在桌圖上，只是不標桌號；預備桌要標桌號，招待才知道臨時加位去哪桌。
  expect(chart.querySelector('[aria-label^="2 號桌"]')).toBeNull();
- expect(chart.textContent).toContain("共 1 桌");
+ const blank=chart.querySelectorAll('[aria-label="空桌"]');
+ expect(blank).toHaveLength(1);
+ expect(blank[0].textContent).toBe("");
+ expect(chart.querySelector('[aria-label^="3 號桌 預備桌"]')?.textContent).toContain("3");
+ expect(chart.textContent).toContain("共 3 桌");
  const sheet=document.querySelector("[data-seating-print]")!;
  expect(sheet.textContent).not.toContain("空桌");
  expect(sheet.textContent).toContain("1 桌 · 2 位");
