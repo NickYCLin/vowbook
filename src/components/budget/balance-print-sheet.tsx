@@ -55,13 +55,28 @@ export function BalancePrintSheet({workspaceName,data}:{workspaceName:string;dat
  [data-balance-print] .print-check {width:5mm;height:5mm;border:1px solid black!important}
 }`}</style>
   <header className="border-b-2 border-ink pb-2"><h2 className="font-serif text-xl font-semibold">{workspaceName}｜尾款待付清單</h2></header>
-  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-   {[{label:"還要付",value:data.remaining,hint:data.counts},{label:"當天備現金",value:data.cash,hint:"廠商尾款紅包＋工作人員紅包"},{label:"已先分批付款",value:data.prepaid,hint:"已從上面金額扣除"}].map(card=>
-    <div key={card.label} className="balance-total rounded-card border border-line-strong bg-surface px-4 py-3">
-     <p className="text-sm text-ink-soft">{card.label}</p>
-     <p className="font-serif text-2xl font-semibold tabular-nums">{card.value}</p>
-     <p className="text-xs text-ink-faint">{card.hint}</p>
+  <div data-balance-summary className="balance-total mt-4 rounded-card border border-line-strong bg-surface px-4 py-4">
+   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div>
+     <p className="text-sm text-ink-soft">還要付</p>
+     <p className="font-serif text-3xl font-semibold tabular-nums">{data.remaining}</p>
+    </div>
+    <p className="text-sm text-ink-soft">{data.counts}</p>
+   </div>
+   <div aria-hidden="true" className="mt-3 flex h-2 overflow-hidden rounded-full bg-surface-sunken print:border print:border-ink">
+    {data.split.map(part=>part.percent>0?<span key={part.id} style={{width:`${part.percent}%`}} className={part.id==="CASH"?"bg-clay":"bg-ink-faint"}/>:null)}
+   </div>
+   <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+    {data.split.map(part=><div key={part.id} data-balance-split={part.id} className="flex items-start gap-2">
+     <span aria-hidden="true" className={`mt-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${part.id==="CASH"?"bg-clay":"bg-ink-faint"}`}/>
+     <div>
+      <dt className="text-sm text-ink-soft">{part.label}</dt>
+      <dd className="font-serif text-xl font-semibold tabular-nums">{part.amount}</dd>
+      <dd className="text-xs text-ink-faint">{part.id==="CASH"?"廠商尾款紅包＋工作人員紅包":"期限前付清"}</dd>
+     </div>
     </div>)}
+   </dl>
+   {data.prepaid!=="NT$0"?<p className="mt-3 border-t border-line pt-2 text-xs text-ink-soft">另已先分批付 {data.prepaid}，已從還要付扣除。</p>:null}
   </div>
   {data.warnings.length?<ul className="mt-3 flex flex-wrap gap-2">{data.warnings.map(w=><li key={w} className="rounded-full bg-caution-soft px-3 py-1 text-xs font-semibold text-caution">{w}</li>)}</ul>:null}
   <p className="mt-3 text-sm text-ink-soft">還要付＝尾款＋加購－已先分批付的款項。尾款預設用現金紅包付；現金紅包（廠商尾款與工作人員紅包）當天交給對方時勾「已交」。匯款或刷卡付清後打勾，並回網站記錄；紙本勾選不會自動更新網站。</p>

@@ -37,6 +37,11 @@ it("splits sections by payment method and counts unsent staff envelopes as day-o
  expect(data.sections[1].staffEnvelopes).toBeNull();
  expect(data.remaining).toBe("NT$13,500");
  expect(data.warnings).toEqual(["1 項金額待確認，未算進合計"]);
+ // 還要付拆成「當天備現金」與「事先匯款／刷卡」兩塊，加起來就是還要付。
+ expect(data.split).toEqual([
+  {id:"CASH",label:"當天備現金",amount:"NT$10,500",percent:78},
+  {id:"ADVANCE",label:"事先匯款／刷卡",amount:"NT$3,000",percent:22},
+ ]);
 });
 
 it("skips paid, income, not-planned and still-planning items and never goes below zero",()=>{

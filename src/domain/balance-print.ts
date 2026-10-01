@@ -15,7 +15,9 @@ export type BalanceStaffEnvelope={key:string;name:string;role:string;amount:stri
 export type BalanceStaffEnvelopes={count:number;total:string;people:BalanceStaffEnvelope[]};
 export type BalanceSectionId="CASH"|"ADVANCE"|"UNSET";
 export type BalanceSection={id:BalanceSectionId;title:string;hint:string;total:string;vendors:BalanceVendor[];staffEnvelopes:BalanceStaffEnvelopes|null};
-export type BalanceSheetData={remaining:string;cash:string;prepaid:string;counts:string;warnings:string[];sections:BalanceSection[]};
+/** 還要付的組成：當天備現金＋事先匯款／刷卡，percent 用來畫比例條。 */
+export type BalanceSplit={id:"CASH"|"ADVANCE";label:string;amount:string;percent:number};
+export type BalanceSheetData={remaining:string;cash:string;prepaid:string;counts:string;warnings:string[];split:BalanceSplit[];sections:BalanceSection[]};
 
 const ZERO=BigInt(0);
 const SECTIONS:Record<BalanceSectionId,{title:string;hint:string}>={
@@ -109,8 +111,14 @@ export function balanceSheetData(items:readonly Balance[],staff:readonly Balance
  const prepaid=pending.reduce((sum,i)=>sum+paid(i),ZERO);
  const missing=vendors.reduce((sum,v)=>sum+v.missing,0);
  const unset=vendors.filter(v=>v.section==="UNSET").length;
+ const advance=remaining-cash;
+ const percent=(part:bigint)=>remaining>ZERO?Number((part*BigInt(100)+remaining/BigInt(2))/remaining):0;
+ const split:BalanceSplit[]=[
+  {id:"CASH",label:"當天備現金",amount:money(cash),percent:percent(cash)},
+  {id:"ADVANCE",label:"事先匯款／刷卡",amount:money(advance),percent:remaining>ZERO?100-percent(cash):0},
+ ];
  return {
-  remaining:money(remaining),cash:money(cash),prepaid:money(prepaid),
+  remaining:money(remaining),cash:money(cash),prepaid:money(prepaid),split,
   counts:`${vendors.length} 家廠商${envelopes.length?`・${envelopes.length} 份工作人員紅包`:""}`,
   warnings:[
    ...(missing?[`${missing} 項金額待確認，未算進合計`]:[]),
