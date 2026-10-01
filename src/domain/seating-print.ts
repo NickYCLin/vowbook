@@ -1,12 +1,13 @@
 import {seatingTableLabel} from "./seating-table";
-type Guest={id:string;name:string;partySize:number;vegetarianCount?:number|null;childSeatCount?:number|null};
+type Guest={id:string;name:string;partySize:number;category?:string|null;vegetarianCount?:number|null;childSeatCount?:number|null};
 type Table={id:string;number:number;name:string;capacity:number;guests:readonly Guest[]};
 export type SeatingPrintGuest={key:string;name:string;relationship:string;partySize:number;needs:string};
 /**
  * 同一戶通常一起到，同桌的同戶成員共用一個勾選框；沒設定同一戶的人各自一組。
  * 同一戶分坐不同桌時，勾選框跟著「這一桌的這一戶」，elsewhere 提醒招待其他人要帶到哪一桌。
+ * 新人本人一定會到，照樣列出座位但不需要帶位勾選（needsCheck=false）。
  */
-export type SeatingPrintParty={key:string;guests:SeatingPrintGuest[];elsewhere:string};
+export type SeatingPrintParty={key:string;guests:SeatingPrintGuest[];elsewhere:string;needsCheck:boolean};
 export type SeatingPrintGroup={key:string;title:string;meta:string;assigned:boolean;full:boolean;parties:SeatingPrintParty[]};
 export type SeatingPrintDetails={relationships:ReadonlyMap<string,string>;households:ReadonlyMap<string,string>};
 export type SeatingPrintData={summary:string;showRelationship:boolean;groups:SeatingPrintGroup[]};
@@ -36,8 +37,8 @@ export function seatingPrintData(tables:readonly Table[],unassigned:readonly Gue
   for(const g of guests){
    const household=details?.households.get(g.id);
    const key=household?`${prefix}:household:${household}`:`${prefix}:guest:${g.id}`;
-   const party=byKey.get(key)??{key,guests:[],elsewhere:"",household};
-   party.guests.push(guest(prefix)(g));byKey.set(key,party);
+   const party=byKey.get(key)??{key,guests:[],elsewhere:"",needsCheck:false,household};
+   party.guests.push(guest(prefix)(g));if(g.category!=="COUPLE")party.needsCheck=true;byKey.set(key,party);
   }
   return [...byKey.values()].map(({household,...party})=>{
    const others=household?(members.get(household)??[]).filter(m=>m.place!==place(table)):[];

@@ -45,3 +45,8 @@ it("leaves needs blank when nothing is required and drops side-only titles",()=>
  expect(seatingRelationship("男方親友")).toBe("");
  expect(seatingRelationship(" 阿姨 ")).toBe("阿姨");
 });
+it("lists the couple without an ushering check, keeping their seats in the head count",()=>{
+ const data=seatingPrintData([{id:"t",number:1,name:"主桌",capacity:10,guests:[{...guest,id:"groom",name:"新郎",partySize:1,category:"COUPLE"},{...guest,id:"bride",name:"新娘",partySize:1,category:"COUPLE"},{...guest,id:"p",name:"王爸",partySize:2,category:"FAMILY"}]}],[],details([],[["groom","h1"],["bride","h1"]]));
+ expect(data.groups[0].parties.map(p=>[p.guests.map(g=>g.name),p.needsCheck])).toEqual([[["新郎","新娘"],false],[["王爸"],true]]);
+ expect(data.groups[0].meta).toBe("4／10 位");
+});

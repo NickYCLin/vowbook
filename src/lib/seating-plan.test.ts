@@ -111,6 +111,7 @@ describe("getSeatingPlan", () => {
             id: true,
             version: true,
             name: true,
+            category: true,
             partySize: true,
             side: true,
             notes: true,
