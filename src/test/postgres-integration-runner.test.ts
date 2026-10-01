@@ -208,7 +208,10 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 61");
+    expect(runner).toContain("migrationEntries.length !== 62");
+    expect(runner).toContain(
+      'weddingRecordLabelMigration !== "20261001140000_budget_wedding_record_label"',
+    );
     expect(runner).toContain(
       'packingItemsMigration !== "20261001120000_packing_items"',
     );

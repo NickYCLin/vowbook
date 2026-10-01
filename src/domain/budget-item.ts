@@ -99,7 +99,7 @@ export const BUDGET_TAXONOMY_STAGES = [
     items: [
       { key: "ITEM_WEDDING_CAKES", label: "喜餅", defaultCategory: "DECOR_GIFTS" },
       { key: "ITEM_BRIDAL_STYLIST", label: "新娘秘書", defaultCategory: "ATTIRE_STYLING" },
-      { key: "ITEM_WEDDING_PHOTOGRAPHY", label: "婚禮攝影", defaultCategory: "PHOTOGRAPHY_VIDEO" },
+      { key: "ITEM_WEDDING_PHOTOGRAPHY", label: "婚禮紀錄", defaultCategory: "PHOTOGRAPHY_VIDEO" },
       { key: "ITEM_WEDDING_VIDEOGRAPHY", label: "婚禮錄影", defaultCategory: "PHOTOGRAPHY_VIDEO" },
       { key: "ITEM_WEDDING_HOST", label: "婚禮主持", defaultCategory: "PEOPLE_SERVICES" },
       { key: "ITEM_WEDDING_BAND", label: "婚禮樂團", defaultCategory: "PEOPLE_SERVICES" },

@@ -238,13 +238,13 @@ export const BUDGET_PREPARATION_PRESET_GROUPS: readonly BudgetPreparationPresetG
         key: KEYS.WEDDING_PHOTOGRAPHY,
         taxonomyItemKey: "ITEM_WEDDING_PHOTOGRAPHY",
         name: "婚禮攝影",
-        coverageAliases: ["婚禮攝影", "婚禮攝影廠商", "平面"],
+        coverageAliases: ["婚禮紀錄", "婚禮攝影", "婚禮攝影廠商", "平面"],
       },
       {
         key: KEYS.WEDDING_VIDEOGRAPHY,
         taxonomyItemKey: "ITEM_WEDDING_VIDEOGRAPHY",
         name: "婚禮錄影",
-        coverageAliases: ["婚禮錄影", "婚禮錄影廠商", "動態"],
+        coverageAliases: ["婚禮錄影", "婚禮錄影廠商", "動態", "錄影"],
       },
       {
         key: KEYS.WEDDING_HOST,
