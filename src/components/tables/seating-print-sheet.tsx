@@ -1,5 +1,5 @@
 import type {SeatingPrintData} from "@/domain/seating-print";
-/** 帶位名單濃縮成一張 A4：直式三欄，每桌一塊不切開；只印姓名、人數與素食／兒童椅。 */
+/** 帶位名單濃縮成一張 A4：直式三欄，每桌一塊不切開；只印姓名；人數、素食與兒童椅看桌圖。 */
 export function SeatingPrintSheet({workspaceName,data}:{workspaceName:string;data:SeatingPrintData}) {
  return <section data-print-document data-seating-print aria-label="招待帶位名單" className="mt-6 print:mt-0">
   <style>{`@media print {
@@ -20,8 +20,8 @@ export function SeatingPrintSheet({workspaceName,data}:{workspaceName:string;dat
     <h3 className="font-semibold">{group.title}</h3>
     <span className={`shrink-0 text-xs tabular-nums ${group.full?"text-positive":"text-ink-soft"}`}>{group.meta}</span>
    </div>
-   <ul className="px-2 py-1 text-sm">{group.parties.map(party=><li key={party.key} className="py-0.5">
-    {party.guests.map((g,index)=><span key={g.key}>{index?"、":""}<span className="font-medium">{g.name}</span>{g.partySize>1?<span className="text-ink-soft tabular-nums"> {g.partySize} 位</span>:null}{g.needs?<span className="text-caution"> {g.needs}</span>:null}</span>)}
+   <ul className="px-2 py-1 text-sm">{group.parties.map(party=><li key={party.key} className="py-0.5 font-medium">
+    {party.guests.map(g=>g.name).join("、")}
     {party.elsewhere?<span className="block text-xs text-caution">{party.elsewhere}</span>:null}
    </li>)}</ul>
   </article>)}</div>:<p className="py-6 text-ink-soft">目前沒有已排桌的賓客。</p>}

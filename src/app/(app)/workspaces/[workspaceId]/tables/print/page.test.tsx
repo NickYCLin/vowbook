@@ -20,8 +20,8 @@ it("prints guests grouped by table with relationship titles for editors",async()
  expect(printCss).toMatch(/\.seating-group \{[^}]*break-inside:avoid/u);
  const card=screen.getByRole("heading",{name:"1 號桌 主桌"}).closest("article")!;
  expect(card.textContent).toContain("王大明");
- expect(card.textContent).toContain("2 位");
- expect(card.textContent).toContain("素 1");
+ // 名單只列姓名；人數、素食與兒童椅看桌圖。
+ expect(card.querySelector("ul")?.textContent).toBe("王大明");
  // 桌圖和帶位名單一起印，各一張 A4；空桌照樣出現在桌圖上，但不印進帶位名單。
  const chart=document.querySelector("[data-seating-print-chart]")!;
  expect(chart.className).toContain("print:break-after-page");
