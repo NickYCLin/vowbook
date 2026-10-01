@@ -3049,6 +3049,193 @@ describe("BudgetList", () => {
     expect(screen.getByRole("heading", { name: "花費明細" })).toHaveFocus();
   });
 
+  it("renders nested expenses as one compact line and marks add-ons of a priced expense", () => {
+    const parent: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_florist_internal",
+      name: "日安花所",
+      depth: 2,
+      hasChildren: true,
+      breadcrumb: ["日安花所"],
+      directChildCount: 1,
+      descendantCount: 1,
+      plannedAmount: 2800,
+      rolledUpPlannedAmount: "2920",
+      bookingStatus: "PAID",
+      paid: true,
+    };
+    const child: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_sunflower_internal",
+      parentId: parent.id,
+      name: "粉色太陽花",
+      depth: 3,
+      breadcrumb: ["日安花所", "粉色太陽花"],
+      plannedAmount: 120,
+      rolledUpPlannedAmount: "120",
+      bookingStatus: "PAID",
+      paid: true,
+      depositAmount: 50,
+      balanceAmount: 70,
+    };
+    const { container } = render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[parent, child]}
+        summary={summary}
+        canEdit
+      />,
+    );
+    const childRow = container.querySelector<HTMLElement>(
+      '[data-budget-item-id="budget_sunflower_internal"]',
+    );
+    const line = childRow?.querySelector<HTMLElement>(
+      '[data-budget-scan-layout="child-line"]',
+    );
+    expect(line).not.toBeNull();
+    expect(
+      childRow?.querySelector('[data-budget-scan-layout="expense-row"]'),
+    ).toBeNull();
+    expect(within(line!).getByText("加購")).toHaveAttribute(
+      "data-budget-add-on",
+      "true",
+    );
+    expect(line).not.toHaveTextContent("訂金");
+    expect(line).not.toHaveTextContent("尾款");
+    expect(within(line!).queryByText("已付清", { selector: ":not(.sr-only)" })).toBeNull();
+    expect(
+      within(line!).getByRole("button", { name: "編輯花費：粉色太陽花" }),
+    ).toBeInTheDocument();
+  });
+
+  it("collects sibling expenses sharing a name prefix into one series with a total", () => {
+    const base: BudgetItemListItem = {
+      ...items[1],
+      bookingStatus: "PAID",
+      paid: true,
+    };
+    const seriesItems: BudgetItemListItem[] = [
+      {
+        ...base,
+        id: "favor_main",
+        name: "位上禮",
+        breadcrumb: ["位上禮"],
+        confirmedVendor: "美國八卦小報",
+        plannedAmount: 6300,
+        rolledUpPlannedAmount: "6300",
+      },
+      {
+        ...base,
+        id: "candy",
+        name: "喜糖",
+        breadcrumb: ["喜糖"],
+        plannedAmount: 1000,
+        rolledUpPlannedAmount: "1000",
+      },
+      {
+        ...base,
+        id: "favor_sticker",
+        name: "位上禮客製化貼紙",
+        breadcrumb: ["位上禮客製化貼紙"],
+        plannedAmount: 467,
+        rolledUpPlannedAmount: "467",
+      },
+      {
+        ...base,
+        id: "favor_bag",
+        name: "位上禮禮物包裝袋",
+        breadcrumb: ["位上禮禮物包裝袋"],
+        plannedAmount: 918,
+        rolledUpPlannedAmount: "918",
+      },
+    ];
+    const { container } = render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={seriesItems}
+        summary={summary}
+        canEdit
+      />,
+    );
+    const header = container.querySelector<HTMLElement>(
+      '[data-budget-series="位上禮"]',
+    );
+    expect(header).not.toBeNull();
+    expect(header).toHaveTextContent("位上禮");
+    expect(header).toHaveTextContent("3 項");
+    expect(header).toHaveTextContent("7,685");
+    expect(header).toHaveTextContent("全部已付清");
+
+    const order = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-budget-series], [data-budget-item-id]',
+      ),
+    ).map(
+      (element) =>
+        element.getAttribute("data-budget-series") ??
+        element.getAttribute("data-budget-item-id"),
+    );
+    expect(order).toEqual([
+      "位上禮",
+      "favor_main",
+      "favor_sticker",
+      "favor_bag",
+      "candy",
+    ]);
+
+    const sticker = container.querySelector<HTMLElement>(
+      '[data-budget-item-id="favor_sticker"] [data-budget-scan-layout="child-line"]',
+    );
+    expect(sticker).not.toBeNull();
+    expect(sticker).toHaveTextContent("客製化貼紙");
+    expect(
+      within(sticker!).getByRole("button", { name: "編輯花費：位上禮客製化貼紙" }),
+    ).toBeInTheDocument();
+    const main = container.querySelector<HTMLElement>(
+      '[data-budget-item-id="favor_main"] [data-budget-scan-layout="child-line"]',
+    );
+    expect(main).toHaveTextContent("主禮");
+    expect(main).toHaveTextContent("美國八卦小報");
+    expect(
+      container.querySelector(
+        '[data-budget-item-id="candy"] [data-budget-scan-layout="child-line"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("shows status filters as one row of pills with excluded statuses set apart", () => {
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={items}
+        summary={summary}
+        canEdit={false}
+      />,
+    );
+    const filterGroup = screen.getByRole("group", {
+      name: "依準備、下訂與付款狀態篩選",
+    });
+    expect(filterGroup).toHaveAttribute("data-budget-status-filter", "pills");
+    expect(filterGroup).toHaveClass("flex", "overflow-x-auto");
+    expect(filterGroup).not.toHaveClass("grid", "grid-cols-3");
+    const buttons = within(filterGroup).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "全部",
+      "規劃中",
+      "已下訂",
+      "已付清",
+      "已有／自備",
+      "廠商提供",
+      "不準備",
+    ]);
+    for (const button of buttons) {
+      expect(button).toHaveClass("rounded-full", "whitespace-nowrap");
+    }
+    expect(
+      filterGroup.querySelectorAll('[data-budget-status-filter-divider="true"]'),
+    ).toHaveLength(1);
+  });
+
   it("locks the management dialog while an embedded mutation is pending", () => {
     render(
       <BudgetList

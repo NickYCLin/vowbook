@@ -4,6 +4,7 @@ import { effectiveDueDate } from "@/domain/budget-due-date";
 import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -811,6 +812,8 @@ function BudgetItemRow({
   visibleDirectChildCount,
   visibleDescendantCount,
   childProgress,
+  isAddOn = false,
+  seriesLabel,
 }: {
   workspaceId: string;
   workspaceToday: string | null;
@@ -837,6 +840,8 @@ function BudgetItemRow({
   visibleDirectChildCount?: number;
   visibleDescendantCount?: number;
   childProgress?: { paid: number; total: number };
+  isAddOn?: boolean;
+  seriesLabel?: string;
 }) {
   const dialogTitleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -934,7 +939,10 @@ function BudgetItemRow({
     visualDepth 原本只拿來決定標題階層，畫面上看不出父子關係。
     一般花費列在「階段 › 品項分類」底下是第 2 層，再深就是子項，往右縮排。
   */
-  const nestedDepth = Math.min(Math.max(visualDepth - 2, 0), 3);
+  const nestedDepth = Math.min(
+    Math.max(visualDepth - 2, 0) + (seriesLabel !== undefined ? 1 : 0),
+    3,
+  );
   const attachmentSourceKey = (item.attachments ?? [])
     .map((attachment) => attachment.id)
     .join(",");
@@ -1097,6 +1105,16 @@ function BudgetItemRow({
       ? formatTwdAmount(item.balanceAmount)
       : "—";
   const rollupScopeDescriptionId = rowId + "-rollup-scope";
+  /*
+    子項（群組底下第二層以後的花費）改成單行：名稱、廠商、金額；
+    已付清不再重複列出訂金、尾款與狀態，付款進度看上層即可。
+  */
+  const isCompactChild =
+    !isGroup &&
+    nestedDepth > 0 &&
+    tracksCost &&
+    !isPassThrough &&
+    !item.hasChildren;
 
   const groupToggle = isGroup && groupControlsIds !== null ? (
     <button
@@ -1345,6 +1363,97 @@ function BudgetItemRow({
                 </p>
               </div>
               <span data-budget-mobile-row="action">{disclosureButton}</span>
+            </div>
+          ) : isCompactChild ? (
+            <div
+              data-budget-scan-layout="child-line"
+              data-budget-nested-level={nestedDepth}
+              style={{ "--budget-indent": nestedDepth * 1.25 + "rem" } as CSSProperties}
+              className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line/70 bg-white py-2 pr-4 pl-[calc(3.75rem+var(--budget-indent,0px))] hover:bg-surface sm:pl-[calc(5.25rem+var(--budget-indent,0px))]"
+            >
+              <div
+                data-budget-mobile-row="primary"
+                data-budget-ledger-content-name="true"
+                className="flex min-w-0 flex-1 items-baseline gap-2"
+              >
+                <span aria-hidden="true" className="shrink-0 text-line-strong">
+                  └
+                </span>
+                {isAddOn ? (
+                  <span
+                    data-budget-add-on="true"
+                    className="shrink-0 rounded-full border border-clay/30 bg-clay-soft px-1.5 py-px text-[0.68rem] font-semibold text-clay-strong"
+                  >
+                    加購
+                  </span>
+                ) : null}
+                <RowHeading className="min-w-0 break-words font-sans text-sm font-medium leading-5 text-ink">
+                  {seriesLabel !== undefined ? (
+                    <>
+                      <span aria-hidden="true">{seriesLabel}</span>
+                      <span className="sr-only">{item.name}</span>
+                    </>
+                  ) : (
+                    item.name
+                  )}
+                </RowHeading>
+                {ledgerBrand ? (
+                  <span
+                    data-budget-ledger-column="brand"
+                    className="min-w-0 truncate text-xs text-ink-soft"
+                  >
+                    <span className="sr-only">廠商：</span>
+                    {ledgerBrand}
+                  </span>
+                ) : null}
+                <span data-budget-hierarchy-breadcrumb="true" className="sr-only">
+                  {breadcrumb.join(" › ")}
+                </span>
+              </div>
+              <span
+                data-budget-mobile-row="amounts"
+                data-budget-ledger-column="total"
+                className="shrink-0 font-sans text-sm font-semibold tabular-nums text-ink"
+              >
+                <span
+                  role="group"
+                  aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
+                >
+                  {scanPlannedAmount}
+                </span>
+              </span>
+              {item.bookingStatus !== "PAID" ? (
+                <span
+                  className={[
+                    "inline-flex shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold",
+                    isPendingPreparationSuggestion
+                      ? "border-positive bg-positive-soft text-positive"
+                      : statusTagClass(item.bookingStatus),
+                  ].join(" ")}
+                >
+                  {isPendingPreparationSuggestion
+                    ? "待準備"
+                    : STATUS_SCAN_LABELS[item.bookingStatus]}
+                  {dueDate ? (
+                    <time dateTime={dueDate.date} className="ml-1 font-normal">
+                      · {dueDate.date}
+                      {balanceDueIsOverdue ? "（已逾期）" : ""}
+                    </time>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="sr-only">已付清</span>
+              )}
+              <span id={attachmentDescriptionId} className="sr-only">
+                {attachmentDescription}
+              </span>
+              <span
+                data-budget-mobile-row="action"
+                className="flex shrink-0 items-center gap-1.5"
+              >
+                {disclosureButton}
+                {attachmentButton}
+              </span>
             </div>
           ) : (
             <div
@@ -2263,6 +2372,80 @@ function BudgetItemRow({
   );
 }
 
+/**
+ * 上層本身是有金額的花費（例如花店 2,800），掛在底下的子項就是加購；
+ * 上層金額為 0 的花費只是用來收納的標題，不算加購。
+ */
+function isAddOnOfPricedExpense(
+  items: BudgetItemListItem[],
+  itemIndex: number,
+): boolean {
+  const item = items[itemIndex];
+  if (item.kind === "GROUP" || item.parentId === null) {
+    return false;
+  }
+  const parent = items.find((candidate) => candidate.id === item.parentId);
+  return (
+    parent !== undefined &&
+    parent.kind === "EXPENSE" &&
+    parent.plannedAmount > 0
+  );
+}
+
+type BudgetExpenseSeries = {
+  key: string;
+  memberIndexes: number[];
+};
+
+/*
+  同一層、名稱以另一筆花費為開頭的花費（例：位上禮、位上禮客製化貼紙）
+  只在畫面上收成一組，資料仍是各自獨立的花費。
+*/
+function budgetExpenseSeries(
+  items: BudgetItemListItem[],
+): Map<number, BudgetExpenseSeries> {
+  const leavesByParent = new Map<string, number[]>();
+  items.forEach((item, index) => {
+    if (item.kind !== "EXPENSE" || item.hasChildren) return;
+    const parentKey = item.parentId ?? "";
+    const siblings = leavesByParent.get(parentKey) ?? [];
+    siblings.push(index);
+    leavesByParent.set(parentKey, siblings);
+  });
+
+  const seriesByIndex = new Map<number, BudgetExpenseSeries>();
+  for (const siblings of leavesByParent.values()) {
+    const anchors = siblings
+      .filter((index) => items[index].name.trim().length > 0)
+      .sort(
+        (left, right) =>
+          items[left].name.trim().length - items[right].name.trim().length,
+      );
+    for (const anchorIndex of anchors) {
+      if (seriesByIndex.has(anchorIndex)) continue;
+      const key = items[anchorIndex].name.trim();
+      const followers = siblings.filter(
+        (index) =>
+          index !== anchorIndex &&
+          !seriesByIndex.has(index) &&
+          items[index].name.trim().length > key.length &&
+          items[index].name.trim().startsWith(key),
+      );
+      if (followers.length === 0) continue;
+      const series = { key, memberIndexes: [anchorIndex, ...followers] };
+      for (const index of series.memberIndexes) {
+        seriesByIndex.set(index, series);
+      }
+    }
+  }
+  return seriesByIndex;
+}
+
+function seriesMemberLabel(item: BudgetItemListItem, key: string): string {
+  const rest = item.name.trim().slice(key.length).trim();
+  return rest.length > 0 ? rest : "主禮";
+}
+
 function matchesSearch(item: BudgetItemListItem, search: string): boolean {
   const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
   if (!normalizedSearch) {
@@ -3027,6 +3210,10 @@ export function BudgetList({
     () => driveItems.map((_item, itemIndex) => ({ itemIndex })),
     [driveItems],
   );
+  const expenseSeries = useMemo(
+    () => budgetExpenseSeries(driveItems),
+    [driveItems],
+  );
   const visibleDriveDisplayEntries =
     selectedTaxonomyItemIds === null
       ? driveDisplayEntries
@@ -3128,9 +3315,16 @@ export function BudgetList({
     resetFilters();
     window.setTimeout(() => selectionHeadingRef.current?.focus(), 0);
   };
+  const isEntryHidden = (itemIndex: number): boolean =>
+    !filteredItems.entries[itemIndex].isVisible ||
+    (!hasActiveFilter &&
+      !selectionForcedExpansion &&
+      !allVisibility[itemIndex]);
+
   const renderBudgetItemEntry = (
     itemIndex: number,
     isLegacyUnclassified: boolean,
+    seriesLabel?: string,
   ) => {
     const item = displayItems[itemIndex];
     const systemTaxonomyKey = systemTaxonomyKeyOf(item);
@@ -3144,11 +3338,7 @@ export function BudgetList({
       (selectedTaxonomyItemIds?.has(item.id) ?? false)
         ? true
         : savedExpanded;
-    const isHidden =
-      !filteredEntry.isVisible ||
-      (!hasActiveFilter &&
-        !selectionForcedExpansion &&
-        !allVisibility[itemIndex]);
+    const isHidden = isEntryHidden(itemIndex);
 
     return (
       <BudgetItemRow
@@ -3191,8 +3381,88 @@ export function BudgetList({
         visibleDirectChildCount={browseChildCounts[itemIndex].directChildCount}
         visibleDescendantCount={browseChildCounts[itemIndex].descendantCount}
         childProgress={childProgressByIndex[itemIndex]}
+        isAddOn={isAddOnOfPricedExpense(displayItems, itemIndex)}
+        seriesLabel={seriesLabel}
       />
     );
+  };
+
+  const renderDriveEntries = () => {
+    const visibleIndexes = new Set(
+      visibleDriveDisplayEntries.map(({ itemIndex }) => itemIndex),
+    );
+    const renderedSeries = new Set<BudgetExpenseSeries>();
+    return visibleDriveDisplayEntries.flatMap(({ itemIndex }) => {
+      const series = expenseSeries.get(itemIndex);
+      if (!series) return [renderBudgetItemEntry(itemIndex, false)];
+      if (renderedSeries.has(series)) return [];
+      renderedSeries.add(series);
+      const members = series.memberIndexes.filter((index) =>
+        visibleIndexes.has(index),
+      );
+      const shownMembers = members.filter((index) => !isEntryHidden(index));
+      const memberItems = series.memberIndexes.map(
+        (index) => displayItems[index],
+      );
+      const total = memberItems.reduce(
+        (sum, member) => sum + Number(member.rolledUpPlannedAmount || 0),
+        0,
+      );
+      const unpaidCount = memberItems.filter(
+        (member) => member.bookingStatus !== "PAID",
+      ).length;
+      const anchor = displayItems[series.memberIndexes[0]];
+      const headerIndent = Math.min(Math.max(anchor.depth - 2, 0), 3);
+      return [
+        <li
+          key={"series:" + anchor.id}
+          hidden={shownMembers.length === 0}
+          className="min-w-0"
+        >
+          <div
+            data-budget-series={series.key}
+            style={
+              { "--budget-indent": headerIndent * 1.25 + "rem" } as CSSProperties
+            }
+            className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface/60 py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))]"
+          >
+            <div
+              className={
+                "flex min-w-0 flex-1 items-baseline gap-2" +
+                (anchor.depth >= 2 ? " pl-11 sm:pl-[4.25rem]" : "")
+              }
+            >
+              <p className="min-w-0 break-words font-serif text-base font-semibold text-ink">
+                {series.key}
+              </p>
+              <span className="shrink-0 text-xs text-ink-soft">
+                {series.memberIndexes.length} 項
+              </span>
+            </div>
+            <span className="shrink-0 font-sans text-sm font-semibold tabular-nums text-ink">
+              {formatTwdAmount(String(total))}
+            </span>
+            <span
+              className={[
+                "inline-flex shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold",
+                unpaidCount === 0
+                  ? statusTagClass("PAID")
+                  : statusTagClass("BOOKED_BALANCE_DUE"),
+              ].join(" ")}
+            >
+              {unpaidCount === 0 ? "全部已付清" : unpaidCount + " 項未付清"}
+            </span>
+          </div>
+        </li>,
+        ...members.map((index) =>
+          renderBudgetItemEntry(
+            index,
+            false,
+            seriesMemberLabel(displayItems[index], series.key),
+          ),
+        ),
+      ];
+    });
   };
 
   return (
@@ -3556,28 +3826,38 @@ export function BudgetList({
                   <div
                     role="group"
                     aria-label="依準備、下訂與付款狀態篩選"
-                    className="col-start-1 row-start-2 grid min-w-0 grid-cols-3 overflow-hidden rounded-lg border border-line-strong bg-surface lg:col-start-2 lg:row-start-1"
+                    data-budget-status-filter="pills"
+                    className="col-start-1 row-start-2 -mx-4 flex min-w-0 items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] lg:col-start-2 lg:row-start-1 lg:mx-0 lg:flex-wrap lg:px-0"
                   >
                     {STATUS_FILTERS.map((filter) => {
                       const selected = statusFilter === filter.value;
                       return (
-                        <button
-                          key={filter.value}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => {
-                            setStatusFilter(filter.value);
-                            setTaxonomySelection({ workspaceId, itemId: null });
-                          }}
-                          className={[
-                            "min-h-11 min-w-0 border-b border-r border-line-strong px-2.5 py-1.5 text-xs font-semibold transition [&:nth-child(3n)]:border-r-0 [&:nth-last-child(-n+3)]:border-b-0 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay lg:px-3",
-                            selected
-                              ? "bg-clay-strong text-white"
-                              : "bg-transparent text-ink-soft hover:bg-surface-sunken",
-                          ].join(" ")}
-                        >
-                          {filter.label}
-                        </button>
+                        <Fragment key={filter.value}>
+                          {/* 已有／自備以後三種不列入計算，用細線和付款進度分開。 */}
+                          {filter.value === "ALREADY_OWNED" ? (
+                            <span
+                              aria-hidden="true"
+                              data-budget-status-filter-divider="true"
+                              className="mx-1 h-5 w-px shrink-0 bg-line-strong"
+                            />
+                          ) : null}
+                          <button
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => {
+                              setStatusFilter(filter.value);
+                              setTaxonomySelection({ workspaceId, itemId: null });
+                            }}
+                            className={[
+                              "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-1",
+                              selected
+                                ? "border-clay-strong bg-clay-strong text-white"
+                                : "border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink",
+                            ].join(" ")}
+                          >
+                            {filter.label}
+                          </button>
+                        </Fragment>
                       );
                     })}
                   </div>
@@ -3605,9 +3885,7 @@ export function BudgetList({
                 ) : null}
 
                 <ul data-budget-view="group" className="min-w-0">
-                  {visibleDriveDisplayEntries.map(({ itemIndex }) =>
-                    renderBudgetItemEntry(itemIndex, false),
-                  )}
+                  {renderDriveEntries()}
                 </ul>
 
                 {legacyItems.length > 0 &&
