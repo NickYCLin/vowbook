@@ -21,6 +21,7 @@ import {
   PencilSimple,
   Plus,
   PlusSquare,
+  Storefront,
 } from "@phosphor-icons/react";
 import {
   BUDGET_BALANCE_PAYMENT_METHOD_LABELS,
@@ -1063,11 +1064,8 @@ function BudgetItemRow({
       ? "尚未記錄"
       : formatTwdAmount(item.actualAmount);
   const ledgerBrand = item.confirmedVendor;
-  const ledgerBrandSummary = ledgerBrand
-    ? `廠商：${ledgerBrand}`
-    : item.candidateVendors
-      ? "已有候選廠商，尚未確認"
-      : "尚未設定廠商";
+  const ledgerHasCandidateVendors = !ledgerBrand && Boolean(item.candidateVendors);
+  const scanActualEmpty = scanActualAmount === "尚未記錄";
   const ledgerDepositAmount = amountsIncludeChildren
     ? !(item.rolledUpDepositAmountRecorded ?? item.rolledUpDepositAmount !== "0")
       ? "—"
@@ -1342,7 +1340,7 @@ function BudgetItemRow({
                   : undefined
               }
               className={
-                "grid min-w-0 grid-cols-1 gap-2 border-b border-line border-l-[3px] bg-white py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
+                "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-line border-l-[3px] bg-white py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
                 (nestedDepth > 0
                   ? " border-l-line-strong"
                   : " border-l-transparent")
@@ -1364,12 +1362,24 @@ function BudgetItemRow({
                 <RowHeading className="break-words font-serif text-base font-semibold leading-6 text-ink">
                   {item.name}
                 </RowHeading>
-                {tracksCost ? (
+                {/* 廠商是輔助資訊：有才顯示成小標籤，沒設定就不佔版面。 */}
+                {tracksCost && ledgerBrand ? (
                   <p
                     data-budget-ledger-column="brand"
-                    className="min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft"
+                    data-budget-vendor-chip="true"
+                    className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-surface-sunken px-2 py-0.5 text-xs leading-5 text-ink-soft"
                   >
-                    {ledgerBrandSummary}
+                    <Storefront aria-hidden="true" size={13} weight="regular" className="shrink-0" />
+                    <span className="sr-only">廠商：</span>
+                    <span className="min-w-0 break-words">{ledgerBrand}</span>
+                  </p>
+                ) : tracksCost && ledgerHasCandidateVendors ? (
+                  <p
+                    data-budget-ledger-column="brand"
+                    className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full border border-dashed border-line-strong px-2 py-0.5 text-xs leading-5 text-ink-soft"
+                  >
+                    <Storefront aria-hidden="true" size={13} weight="regular" className="shrink-0" />
+                    已有候選廠商，尚未確認
                   </p>
                 ) : null}
                 <p
@@ -1436,7 +1446,7 @@ function BudgetItemRow({
                 <p
                   data-budget-mobile-row="amounts"
                   data-budget-non-cost="true"
-                  className="min-w-0 border-y border-line py-3 text-sm font-semibold leading-6 text-ink-soft md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
+                  className="min-w-0 self-start text-right text-xs font-semibold leading-6 text-ink-soft md:self-auto md:border-l md:border-line md:pl-5 md:text-left md:text-sm"
                 >
                   不列入計算
                 </p>
@@ -1444,7 +1454,7 @@ function BudgetItemRow({
                 <p
                   data-budget-mobile-row="amounts"
                   data-budget-pass-through="true"
-                  className="min-w-0 border-y border-line py-3 text-sm leading-6 text-ink-soft md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
+                  className="min-w-0 self-start text-right text-sm leading-6 text-ink-soft md:self-auto md:border-l md:border-line md:pl-5 md:text-left"
                 >
                   <span className="font-semibold tabular-nums text-ink">
                     子項合計 {formatTwdAmount(item.rolledUpPlannedAmount)}
@@ -1459,20 +1469,20 @@ function BudgetItemRow({
               ) : (
               <dl
                 data-budget-mobile-row="amounts"
-                className="grid min-w-0 grid-cols-3 gap-x-3 gap-y-1 border-t border-line pt-2 md:border-t-0 md:border-l md:border-line md:pt-0 md:pl-5"
+                className="flex min-w-0 flex-col items-end gap-0.5 self-start text-right md:grid md:grid-cols-3 md:items-stretch md:gap-x-3 md:gap-y-1 md:self-auto md:border-l md:border-line md:pl-5 md:text-left"
               >
                 {amountsIncludeChildren && (
                   <div
                     data-budget-amount-scope="rolled-up"
-                    className="col-span-3 flex flex-wrap items-center gap-x-2 gap-y-1"
+                    className="col-span-3 flex flex-wrap items-center justify-end gap-x-2 gap-y-1 md:justify-start"
                   >
                     <span className="inline-flex rounded-full border border-clay/30 bg-clay-soft px-2 py-0.5 text-eyebrow font-semibold text-clay-strong">
                       含子項
                     </span>
                   </div>
                 )}
-                <div data-budget-ledger-column="total" className="col-span-3 flex flex-wrap items-baseline gap-x-2">
-                  <dt className="text-xs text-ink-soft">預計總價</dt>
+                <div data-budget-ledger-column="total" className="col-span-3 flex flex-wrap items-baseline justify-end gap-x-2 md:justify-start">
+                  <dt className="text-xs text-ink-soft max-md:sr-only">預計總價</dt>
                   <dd className="font-sans text-base font-semibold tabular-nums text-ink">
                     <span
                       role="group"
@@ -1496,7 +1506,12 @@ function BudgetItemRow({
                     </p>
                   )}
                 </div>
-                <div>
+                {/* 手機只留有值的金額，一行一筆靠右；空的「—」只在寬版表格中顯示。 */}
+                <div
+                  data-budget-ledger-column="actual"
+                  data-budget-ledger-empty={scanActualEmpty ? "true" : undefined}
+                  className={ledgerSubAmountClassName(scanActualEmpty)}
+                >
                   <dt className="text-[0.68rem] leading-4 text-ink-soft">實付</dt>
                   <dd className="font-sans text-xs font-semibold tabular-nums text-ink">
                     <span
@@ -1508,13 +1523,27 @@ function BudgetItemRow({
 
                   </dd>
                 </div>
-                <div data-budget-ledger-column="deposit">
+                <div
+                  data-budget-ledger-column="deposit"
+                  data-budget-ledger-empty={ledgerDepositAmount === "—" ? "true" : undefined}
+                  className={ledgerSubAmountClassName(ledgerDepositAmount === "—")}
+                >
                   <dt className="text-[0.68rem] leading-4 text-ink-soft">訂金</dt>
                   <dd className="font-sans text-xs font-medium tabular-nums text-ink-soft">
                     {ledgerDepositAmount}
                   </dd>
                 </div>
-                <div data-budget-ledger-column="balance">
+                <div
+                  data-budget-ledger-column="balance"
+                  data-budget-ledger-empty={
+                    ledgerBalanceAmount === "—" && !(!amountsIncludeChildren && (item.paidAmount ?? 0) > 0)
+                      ? "true"
+                      : undefined
+                  }
+                  className={ledgerSubAmountClassName(
+                    ledgerBalanceAmount === "—" && !(!amountsIncludeChildren && (item.paidAmount ?? 0) > 0),
+                  )}
+                >
                   <dt className="text-[0.68rem] leading-4 text-ink-soft">尾款</dt>
                   <dd className="font-sans text-xs font-medium tabular-nums text-ink-soft">
                     {ledgerBalanceAmount}
@@ -1533,7 +1562,7 @@ function BudgetItemRow({
 
               <span
                 data-budget-mobile-row="action"
-                className="flex min-w-0 flex-row flex-wrap items-center justify-end gap-2"
+                className="col-span-2 flex min-w-0 flex-row flex-wrap items-center gap-2 md:col-span-1 md:justify-end"
               >
                 {isPassThrough ? (
                   childProgress && childProgress.total > 0 ? (
@@ -1603,7 +1632,7 @@ function BudgetItemRow({
                 <span id={attachmentDescriptionId} className="sr-only">
                   {attachmentDescription}
                 </span>
-                <span className="flex min-w-0 flex-wrap gap-2">
+                <span className="ml-auto flex min-w-0 flex-wrap justify-end gap-2">
                   {disclosureButton}
                   {attachmentButton}
                 </span>
@@ -3604,5 +3633,12 @@ export function BudgetList({
         />
       ) : null}
     </div>
+  );
+}
+
+function ledgerSubAmountClassName(empty: boolean): string {
+  return (
+    "flex items-baseline justify-end gap-1.5 md:block" +
+    (empty ? " max-md:hidden" : "")
   );
 }

@@ -2172,6 +2172,49 @@ describe("BudgetList", () => {
     }
   });
 
+  it("keeps expense rows compact: vendor as a quiet chip, no empty-vendor hint, empty amounts collapsible", () => {
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[
+          { ...items[0], id: "budget_no_vendor", name: "捧花禮" },
+          {
+            ...items[1],
+            id: "budget_with_vendor",
+            name: "位上禮",
+            confirmedVendor: "合成小物店",
+          },
+        ]}
+        summary={{ ...summary, itemCount: 2 }}
+        canEdit
+      />,
+    );
+
+    const noVendorRow = ledgerListItem("budget_no_vendor");
+    expect(noVendorRow).not.toHaveTextContent("尚未設定廠商");
+    expect(
+      noVendorRow.querySelector('[data-budget-ledger-column="brand"]'),
+    ).toBeNull();
+
+    const vendorRow = ledgerListItem("budget_with_vendor");
+    const brand = vendorRow.querySelector<HTMLElement>(
+      '[data-budget-ledger-column="brand"]',
+    );
+    expect(brand).toHaveAttribute("data-budget-vendor-chip", "true");
+    expect(brand).toHaveTextContent("合成小物店");
+    expect(brand).toHaveTextContent("廠商：合成小物店");
+
+    const deposit = vendorRow.querySelector<HTMLElement>(
+      '[data-budget-ledger-column="deposit"]',
+    );
+    expect(deposit).toHaveAttribute("data-budget-ledger-empty", "true");
+    const actual = vendorRow.querySelector<HTMLElement>(
+      '[data-budget-ledger-column="actual"]',
+    );
+    expect(actual).not.toHaveAttribute("data-budget-ledger-empty");
+    expect(actual).toHaveTextContent("NT$118,000");
+  });
+
   it("renders compact scan-critical rows and keeps rich content in native dialogs for VIEWER", () => {
     const longName = "這是一筆需要在窄畫面完整換行的花費項目".repeat(8);
     const longNotes = "這段備註也必須安全換行".repeat(20);
@@ -2315,7 +2358,7 @@ describe("BudgetList", () => {
       );
       expect(expenseRow).toHaveClass(
         "grid",
-        "grid-cols-1",
+        "grid-cols-[minmax(0,1fr)_auto]",
         "md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem]",
       );
 
