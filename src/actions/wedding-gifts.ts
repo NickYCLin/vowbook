@@ -277,7 +277,7 @@ export async function createWeddingGiftAction(
       });
       if (!guest) throw new WeddingGiftStaleError();
       const relationshipLabel = effectiveGuestDetailValue(guest.importRecords, record => record.relationshipLabel);
-      if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足或已設定不收禮金），無法新增登記。");
+      if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足及其配偶或已設定不收禮金），無法新增登記。");
 
       const created = await client.weddingGift.create({
         data: { workspaceId, guestId, ...details },

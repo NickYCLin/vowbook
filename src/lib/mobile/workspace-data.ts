@@ -672,7 +672,7 @@ export async function mobileAssignGuestToTable(
 }
 
 /**
- * 禮金簿：收禮桌上就是照名字找人、填金額。不收禮金的親友（新人、雙方父母手足、
+ * 禮金簿：收禮桌上就是照名字找人、填金額。不收禮金的親友（新人、雙方父母手足及其配偶、
  * 已設定不收）不列出來，和網站一致；但已經登記過的仍要留著，才能查看或更正。
  */
 export async function mobileGiftBook(workspaceId: string, userId: string) {

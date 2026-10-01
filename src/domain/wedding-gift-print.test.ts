@@ -29,10 +29,11 @@ it("retains other household members, classification and exemptions after excludi
   guest("sibling",{relationshipLabel:"妹妹",cakeHouseholdId:"only"}),
   guest("cousin",{relationshipLabel:"堂兄"}),guest("inlaw",{relationshipLabel:"姊夫"}),guest("unknown"),
  ]);
- expect(rows).toHaveLength(4);
+ expect(rows).toHaveLength(3);
  expect(rows.find(r=>r.key==="household:h")).toMatchObject({group:"SHARED",names:"relative",exempt:false,notes:""});
  expect(rows.some(r=>r.key==="household:only")).toBe(false);
- expect(rows.map(r=>r.names)).toEqual(expect.arrayContaining(["cousin","inlaw","unknown"]));
+ expect(rows.map(r=>r.names)).toEqual(expect.arrayContaining(["cousin","unknown"]));
+ expect(rows.some(r=>r.names==="inlaw")).toBe(false);
 });
 
 it("marks a household received once without exposing amounts, and leaves unrecorded households blank",()=>{
