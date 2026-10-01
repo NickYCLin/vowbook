@@ -812,7 +812,6 @@ function BudgetItemRow({
   visibleDirectChildCount,
   visibleDescendantCount,
   childProgress,
-  isAddOn = false,
   seriesLabel,
 }: {
   workspaceId: string;
@@ -840,7 +839,6 @@ function BudgetItemRow({
   visibleDirectChildCount?: number;
   visibleDescendantCount?: number;
   childProgress?: { paid: number; total: number };
-  isAddOn?: boolean;
   seriesLabel?: string;
 }) {
   const dialogTitleId = useId();
@@ -1108,13 +1106,14 @@ function BudgetItemRow({
   /*
     子項（群組底下第二層以後的花費）改成單行：名稱、廠商、金額；
     已付清不再重複列出訂金、尾款與狀態，付款進度看上層即可。
+    已有／自備的小物也同樣單行，只標準備方式；本身有金額的廠商列
+    （例如花店）即使底下還掛著東西也維持單行，金額為 0 的收納列才保留大標。
   */
   const isCompactChild =
     !isGroup &&
     nestedDepth > 0 &&
-    tracksCost &&
     !isPassThrough &&
-    !item.hasChildren;
+    (!item.hasChildren || item.plannedAmount > 0);
 
   const groupToggle = isGroup && groupControlsIds !== null ? (
     <button
@@ -1379,14 +1378,6 @@ function BudgetItemRow({
                 <span aria-hidden="true" className="shrink-0 text-line-strong">
                   └
                 </span>
-                {isAddOn ? (
-                  <span
-                    data-budget-add-on="true"
-                    className="shrink-0 rounded-full border border-clay/30 bg-clay-soft px-1.5 py-px text-[0.68rem] font-semibold text-clay-strong"
-                  >
-                    加購
-                  </span>
-                ) : null}
                 <RowHeading className="min-w-0 break-words font-sans text-sm font-medium leading-5 text-ink">
                   {seriesLabel !== undefined ? (
                     <>
@@ -1410,19 +1401,39 @@ function BudgetItemRow({
                   {breadcrumb.join(" › ")}
                 </span>
               </div>
-              <span
-                data-budget-mobile-row="amounts"
-                data-budget-ledger-column="total"
-                className="shrink-0 font-sans text-sm font-semibold tabular-nums text-ink"
-              >
+              {!tracksCost ? (
                 <span
-                  role="group"
-                  aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
+                  data-budget-mobile-row="amounts"
+                  data-budget-non-cost="true"
+                  className="shrink-0 text-xs font-semibold text-ink-soft"
                 >
-                  {scanPlannedAmount}
+                  {BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}
                 </span>
-              </span>
-              {item.bookingStatus !== "PAID" ? (
+              ) : (
+                <span
+                  data-budget-mobile-row="amounts"
+                  data-budget-ledger-column="total"
+                  className="flex shrink-0 items-baseline gap-2 font-sans text-sm font-semibold tabular-nums text-ink"
+                >
+                  {item.additionalAmount !== null &&
+                  Number(item.additionalAmount) > 0 ? (
+                    <span
+                      data-budget-add-on-amount="true"
+                      title={item.notes ?? undefined}
+                      className="text-xs font-normal text-ink-soft"
+                    >
+                      含加購 {formatTwdAmount(item.additionalAmount)}
+                    </span>
+                  ) : null}
+                  <span
+                    role="group"
+                    aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
+                  >
+                    {scanPlannedAmount}
+                  </span>
+                </span>
+              )}
+              {!tracksCost ? null : item.bookingStatus !== "PAID" ? (
                 <span
                   className={[
                     "inline-flex shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold",
@@ -2369,26 +2380,6 @@ function BudgetItemRow({
         </dialog>
       </article>
     </li>
-  );
-}
-
-/**
- * 上層本身是有金額的花費（例如花店 2,800），掛在底下的子項就是加購；
- * 上層金額為 0 的花費只是用來收納的標題，不算加購。
- */
-function isAddOnOfPricedExpense(
-  items: BudgetItemListItem[],
-  itemIndex: number,
-): boolean {
-  const item = items[itemIndex];
-  if (item.kind === "GROUP" || item.parentId === null) {
-    return false;
-  }
-  const parent = items.find((candidate) => candidate.id === item.parentId);
-  return (
-    parent !== undefined &&
-    parent.kind === "EXPENSE" &&
-    parent.plannedAmount > 0
   );
 }
 
@@ -3381,7 +3372,6 @@ export function BudgetList({
         visibleDirectChildCount={browseChildCounts[itemIndex].directChildCount}
         visibleDescendantCount={browseChildCounts[itemIndex].descendantCount}
         childProgress={childProgressByIndex[itemIndex]}
-        isAddOn={isAddOnOfPricedExpense(displayItems, itemIndex)}
         seriesLabel={seriesLabel}
       />
     );

@@ -3049,12 +3049,12 @@ describe("BudgetList", () => {
     expect(screen.getByRole("heading", { name: "花費明細" })).toHaveFocus();
   });
 
-  it("renders nested expenses as one compact line and marks add-ons of a priced expense", () => {
+  it("renders nested expenses, including priced parents and owned items, as compact lines", () => {
     const parent: BudgetItemListItem = {
       ...items[0],
       id: "budget_florist_internal",
       name: "日安花所",
-      depth: 2,
+      depth: 3,
       hasChildren: true,
       breadcrumb: ["日安花所"],
       directChildCount: 1,
@@ -3069,7 +3069,7 @@ describe("BudgetList", () => {
       id: "budget_sunflower_internal",
       parentId: parent.id,
       name: "粉色太陽花",
-      depth: 3,
+      depth: 4,
       breadcrumb: ["日安花所", "粉色太陽花"],
       plannedAmount: 120,
       rolledUpPlannedAmount: "120",
@@ -3096,16 +3096,49 @@ describe("BudgetList", () => {
     expect(
       childRow?.querySelector('[data-budget-scan-layout="expense-row"]'),
     ).toBeNull();
-    expect(within(line!).getByText("加購")).toHaveAttribute(
-      "data-budget-add-on",
-      "true",
-    );
+    expect(line?.querySelector("[data-budget-add-on]")).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-budget-item-id="budget_florist_internal"] [data-budget-scan-layout="child-line"]',
+      ),
+    ).not.toBeNull();
     expect(line).not.toHaveTextContent("訂金");
     expect(line).not.toHaveTextContent("尾款");
     expect(within(line!).queryByText("已付清", { selector: ":not(.sr-only)" })).toBeNull();
     expect(
       within(line!).getByRole("button", { name: "編輯花費：粉色太陽花" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps owned props on one compact line beside priced siblings", () => {
+    const owned: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_picnic_mat",
+      name: "野餐墊",
+      depth: 3,
+      breadcrumb: ["野餐墊"],
+      plannedAmount: 0,
+      rolledUpPlannedAmount: "0",
+      preparationStatus: "ALREADY_OWNED",
+    };
+    const { container } = render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[owned]}
+        summary={summary}
+        canEdit
+      />,
+    );
+    const line = container.querySelector<HTMLElement>(
+      '[data-budget-item-id="budget_picnic_mat"] [data-budget-scan-layout="child-line"]',
+    );
+    expect(line).not.toBeNull();
+    expect(line).toHaveTextContent("已有／自備");
+    expect(
+      container.querySelector(
+        '[data-budget-item-id="budget_picnic_mat"] [data-budget-scan-layout="expense-row"]',
+      ),
+    ).toBeNull();
   });
 
   it("collects sibling expenses sharing a name prefix into one series with a total", () => {
