@@ -74,16 +74,38 @@ function chartDensity(tableCount: number) {
   };
 }
 
+export function formatSeatingChartDate(
+  weddingDate: Date | null,
+  timezone: string,
+): string | null {
+  if (!weddingDate) return null;
+  try {
+    return new Intl.DateTimeFormat("zh-TW", {
+      dateStyle: "long",
+      timeZone: timezone,
+    }).format(weddingDate);
+  } catch {
+    // 時區字串壞掉不該讓整張桌圖開不起來，退回預設時區照樣輸出。
+    return new Intl.DateTimeFormat("zh-TW", {
+      dateStyle: "long",
+      timeZone: "Asia/Taipei",
+    }).format(weddingDate);
+  }
+}
+
 export function SeatingChart({
   workspaceId,
   workspaceName,
   weddingDateLabel,
   tables,
+  paper = "poster",
 }: {
   workspaceId: string;
   workspaceName: string;
   weddingDateLabel: string | null;
   tables: SeatingChartTable[];
+  /** poster：9:16 整頁海報；a4：和帶位名單一起印，在 A4 直式頁面裡等比放到最大。 */
+  paper?: "poster" | "a4";
 }) {
   if (tables.length === 0) {
     return (
@@ -112,9 +134,14 @@ export function SeatingChart({
     <>
       <div
         data-testid="seating-chart-poster"
-        data-print-document
-        // 列印時海報鋪滿整頁：@page 已固定成 9:16，比例交給紙張。
-        className="@container relative mx-auto mt-6 aspect-[9/16] w-full max-w-105 overflow-hidden rounded-card border border-line-strong bg-paper shadow-card print:fixed print:inset-0 print:mt-0 print:aspect-auto print:h-full print:w-full print:max-w-none print:rounded-none print:border-0 print:shadow-none"
+        data-print-document={paper === "poster" ? "" : undefined}
+        className={cn(
+          "@container relative mx-auto mt-6 aspect-[9/16] w-full max-w-105 overflow-hidden rounded-card border border-line-strong bg-paper shadow-card print:mt-0 print:rounded-none print:shadow-none",
+          // 海報：@page 已固定成 9:16，鋪滿整頁。A4：扣掉 8mm 邊界後高 281mm，寬照 9:16 取 158mm。
+          paper === "poster"
+            ? "print:fixed print:inset-0 print:aspect-auto print:h-full print:w-full print:max-w-none print:border-0"
+            : "print:w-[158mm] print:max-w-none",
+        )}
       >
         <header className="absolute inset-x-0 top-0 flex h-[12%] min-w-0 flex-col items-center justify-center gap-[0.6cqw] border-b border-line bg-surface/70 px-[6cqw] text-center">
           <p className="text-[1.8cqw] font-semibold tracking-[0.5em] text-clay-strong">
@@ -234,7 +261,9 @@ export function SeatingChart({
         9:16 直式頁面（9in × 16in）。@page 沒辦法寫成 Tailwind class，
         跟著海報一起輸出，只影響列印。
       */}
-      <style>{`@media print { @page { size: 228.6mm 406.4mm; margin: 0; } }`}</style>
+      {paper === "poster" ? (
+        <style>{`@media print { @page { size: 228.6mm 406.4mm; margin: 0; } }`}</style>
+      ) : null}
     </>
   );
 }

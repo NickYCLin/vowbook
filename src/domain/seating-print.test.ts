@@ -4,10 +4,10 @@ const guest={id:"g",name:"親友一家",partySize:3,vegetarianCount:1,childSeatC
 const details=(relationships:[string,string][]=[],households:[string,string][]=[])=>({relationships:new Map(relationships),households:new Map(households)});
 it("groups guests under one table header instead of repeating the table on every row",()=>{
  const data=seatingPrintData([{id:"t",number:5,name:"親友桌",capacity:10,guests:[guest,{...guest,id:"h",name:"同事"}]}],[],details([["g","大舅"]]));
- expect(data.summary).toContain("已排 6 位");
+ expect(data.summary).toBe("1 桌 · 6 位");
  expect(data.groups[0]).toMatchObject({title:"5 號桌 親友桌",meta:"6／10 位",assigned:true,full:false});
  expect(data.groups[0].parties.map(p=>p.guests.length)).toEqual([1,1]);
- expect(data.groups[0].parties[1].guests[0]).toEqual({key:"table:t:guest:g",name:"親友一家",relationship:"大舅",partySize:3,needs:"素 1・兒童椅 1"});
+ expect(data.groups[0].parties[1].guests[0]).toEqual({key:"table:t:guest:g",name:"親友一家",partySize:3,needs:"素 1・兒童椅 1"});
 });
 it("puts same-table household members under one check, even when listed apart",()=>{
  const data=seatingPrintData([{id:"t",number:1,name:"主桌",capacity:10,guests:[{...guest,id:"a",name:"王爸"},{...guest,id:"x",name:"同事"},{...guest,id:"b",name:"王媽"}]}],[],details([],[["a","h1"],["b","h1"]]));
@@ -24,20 +24,14 @@ it("keeps a check per table when a household is split and notes where the others
  expect(data.groups.map(g=>g.parties[0].elsewhere)).toEqual([
   "同戶另有：2 號桌 王爸；尚未排桌 王阿嬤",
   "同戶另有：1 號桌 王小弟；尚未排桌 王阿嬤",
-  "同戶另有：1 號桌 王小弟；2 號桌 王爸",
  ]);
 });
-it("keeps empty tables, sorts by number and lists unassigned guests last",()=>{
+it("prints only tables with guests, skipping empty tables and unassigned guests to fit one page",()=>{
  const data=seatingPrintData([{id:"b",number:3,name:"預備桌",capacity:10,guests:[]},{id:"a",number:1,name:"主桌",capacity:3,guests:[guest]}],[{...guest,id:"u",name:"未排親友",partySize:2}]);
- expect(data.groups.map(g=>g.key)).toEqual(["table:a","table:b","unassigned"]);
+ expect(data.groups.map(g=>g.key)).toEqual(["table:a"]);
  expect(data.groups[0].full).toBe(true);
- expect(data.groups[1].parties).toEqual([]);
- expect(data.groups[2]).toMatchObject({title:"尚未排桌",meta:"2 位待安排",assigned:false});
- expect(data.summary).toContain("未排 2 位");
-});
-it("omits relationship titles and household merging without guest-detail access",()=>{
- expect(seatingPrintData([],[]).showRelationship).toBe(false);
- expect(seatingPrintData([],[],details()).showRelationship).toBe(true);
+ expect(data.summary).toBe("1 桌 · 3 位");
+ expect(data.unassigned).toBe(2);
 });
 it("leaves needs blank when nothing is required and drops side-only titles",()=>{
  expect(seatingGuestNeeds({vegetarianCount:null,childSeatCount:0})).toBe("");

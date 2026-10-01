@@ -32,7 +32,7 @@ const transactionClient = {
 };
 
 import { SeatingPlanDataError, getSeatingPlan, getSeatingPrintDetails } from "./seating-plan";
-import { seatingPrintData } from "@/domain/seating-print";
+import { seatingGuestNeeds } from "@/domain/seating-print";
 
 describe("getSeatingPlan", () => {
   beforeEach(() => {
@@ -63,7 +63,7 @@ describe("getSeatingPlan", () => {
     expect(result.unassignedGuests[0]).not.toHaveProperty("importRecords");
   });
 
-  it("keeps unassigned child-seat requirements in the printed roster and respects manual blanks", async () => {
+  it("keeps unassigned child-seat requirements and respects manual blanks", async () => {
     const guest = { id: "waiting", name: "待排親友", partySize: 3, side: "SHARED" };
     const source = { source: "LINEIN", sourceManaged: true, childSeatCount: 2, vegetarianCount: 1 };
     findGuests.mockResolvedValue([
@@ -75,7 +75,7 @@ describe("getSeatingPlan", () => {
     ]);
     const data = await getSeatingPlan("workspace_1");
     expect(data.unassignedGuests.map(guest => guest.childSeatCount)).toEqual([2, null]);
-    expect(seatingPrintData(data.tables, data.unassignedGuests).groups[0].parties.map(party => party.guests[0].needs)).toEqual(["素 1・兒童椅 2", ""]);
+    expect(data.unassignedGuests.map(seatingGuestNeeds)).toEqual(["素 1・兒童椅 2", ""]);
   });
 
   it("authenticates, then authorizes and scopes both reads in one RepeatableRead snapshot", async () => {

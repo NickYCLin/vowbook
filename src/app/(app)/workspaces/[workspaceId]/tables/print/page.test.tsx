@@ -5,7 +5,7 @@ const {get,labels}=vi.hoisted(()=>({get:vi.fn(),labels:vi.fn()}));
 vi.mock("@/lib/seating-plan",()=>({getSeatingPlan:get,getSeatingPrintDetails:labels}));
 vi.mock("next/navigation",()=>({notFound:()=>{throw new Error("NOT_FOUND");}}));
 import SeatingPrintPage from "./page";
-const plan={workspace:{name:"婚宴"},tables:[{id:"t",number:1,name:"主桌",capacity:10,guests:[{id:"a",name:"王大明",partySize:2,vegetarianCount:1,childSeatCount:null}]}],unassignedGuests:[{id:"g",name:"待安排親友",partySize:2}]};
+const plan={workspace:{name:"婚宴",weddingDate:null,timezone:"Asia/Taipei"},tables:[{id:"t",number:1,position:0,layoutX:null,layoutY:null,name:"主桌",capacity:10,guests:[{id:"a",name:"王大明",side:"PARTNER_A",partySize:2,vegetarianCount:1,childSeatCount:null}]},{id:"e",number:2,position:1,layoutX:null,layoutY:null,name:"空桌",capacity:10,guests:[]}],unassignedGuests:[{id:"g",name:"待安排親友",partySize:2}]};
 beforeEach(()=>{vi.clearAllMocks();labels.mockResolvedValue({relationships:new Map([["a","大舅"]]),households:new Map()});});
 it("prints guests grouped by table with relationship titles for editors",async()=>{
  get.mockResolvedValue({...plan,role:"OWNER"});
@@ -14,21 +14,28 @@ it("prints guests grouped by table with relationship titles for editors",async()
  expect(screen.getByRole("button",{name:"列印帶位名單／另存 PDF"})).toBeInTheDocument();
  expect(document.querySelector("[data-print-document]")).not.toBeNull();
  const printCss=[...document.querySelectorAll("style")].map(style=>style.textContent).join("");
- expect(printCss).toMatch(/\.seating-group \{[^}]*display:block/u);
- expect(printCss).not.toContain("inline-block");
- // 整張桌卡不可切割時，第一桌比第一頁剩餘空間高就會把整個兩欄區塊推到下一頁；改成只在戶與戶之間換欄換頁。
- expect(printCss).not.toMatch(/\.seating-group \{[^}]*break-inside:avoid/u);
- expect(printCss).toMatch(/\.seating-party \{[^}]*break-inside:avoid/u);
+ // 一張 A4 印完：直式三欄、每桌不切開。
+ expect(printCss).toMatch(/size:A4 portrait/u);
+ expect(printCss).toMatch(/columns:3/u);
+ expect(printCss).toMatch(/\.seating-group \{[^}]*break-inside:avoid/u);
  const card=screen.getByRole("heading",{name:"1 號桌 主桌"}).closest("article")!;
- expect(card.querySelector("thead")?.textContent).toContain("1 號桌 主桌");
- expect(card.querySelectorAll("tbody.seating-party")).toHaveLength(1);
- expect(screen.getByRole("heading",{name:"1 號桌 主桌"})).toBeInTheDocument();
- expect(screen.getByRole("heading",{name:"尚未排桌"})).toBeInTheDocument();
- expect(screen.getAllByRole("columnheader",{name:"稱謂"}).length).toBe(2);
- expect(screen.getByRole("cell",{name:"大舅"})).toBeInTheDocument();
- expect(screen.getByRole("cell",{name:"素 1"})).toBeInTheDocument();
- expect(screen.queryByRole("columnheader",{name:"所屬親友"})).toBeNull();
- expect(screen.queryByRole("columnheader",{name:"備註"})).toBeNull();
+ expect(card.textContent).toContain("王大明");
+ expect(card.textContent).toContain("2 位");
+ expect(card.textContent).toContain("素 1");
+ // 桌圖和帶位名單一起印，各一張 A4；空桌照樣出現在桌圖上，但不印進帶位名單。
+ const chart=document.querySelector("[data-seating-print-chart]")!;
+ expect(chart.className).toContain("print:break-after-page");
+ expect(chart.querySelector("[data-testid=seating-chart-poster]")).not.toBeNull();
+ expect(printCss).not.toContain("406.4mm");
+ const sheet=document.querySelector("[data-seating-print]")!;
+ expect(sheet.textContent).not.toContain("空桌");
+ expect(sheet.textContent).toContain("1 桌 · 2 位");
+ // 稱謂、欄位標題、說明文字與尚未排桌都不印。
+ expect(screen.queryByRole("columnheader")).toBeNull();
+ expect(screen.queryByText("大舅")).toBeNull();
+ expect(screen.queryByRole("heading",{name:"尚未排桌"})).toBeNull();
+ expect(screen.queryByText("待安排親友")).toBeNull();
+ expect(screen.getByText(/還有 2 位尚未排桌/u).closest(".print\\:hidden")).not.toBeNull();
  // 帶位名單只看座位，不需要勾選框。
  expect(screen.queryByRole("img",{name:/勾選框/u})).toBeNull();
  expect(screen.queryByRole("columnheader",{name:"帶位勾選"})).toBeNull();
@@ -38,7 +45,7 @@ it("does not read or print relationship titles for viewers",async()=>{
  get.mockResolvedValue({...plan,role:"VIEWER"});
  render(await SeatingPrintPage({params:Promise.resolve({workspaceId:"w"})}));
  expect(labels).not.toHaveBeenCalled();
- expect(screen.queryByRole("columnheader",{name:"稱謂"})).toBeNull();
+ expect(screen.getByRole("heading",{name:"1 號桌 主桌"})).toBeInTheDocument();
 });
 it("hides the print route without workspace membership",async()=>{
  get.mockRejectedValue(new WorkspaceAccessDeniedError());
