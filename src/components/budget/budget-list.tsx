@@ -919,18 +919,18 @@ function BudgetItemRow({
   const attachmentSourceKey = (item.attachments ?? [])
     .map((attachment) => attachment.id)
     .join(",");
-  const initialAttachmentCount = item.attachments?.length ?? 0;
-  const [localAttachmentCount, setLocalAttachmentCount] = useState({
+  const [localAttachments, setLocalAttachments] = useState({
     sourceKey: attachmentSourceKey,
-    count: initialAttachmentCount,
+    attachments: item.attachments ?? [],
   });
-  const attachmentCount =
-    localAttachmentCount.sourceKey === attachmentSourceKey
-      ? localAttachmentCount.count
-      : initialAttachmentCount;
-  const updateAttachmentCount = useCallback(
-    (count: number) => {
-      setLocalAttachmentCount({ sourceKey: attachmentSourceKey, count });
+  const currentAttachments =
+    localAttachments.sourceKey === attachmentSourceKey
+      ? localAttachments.attachments
+      : (item.attachments ?? []);
+  const attachmentCount = currentAttachments.length;
+  const updateAttachments = useCallback(
+    (attachments: NonNullable<BudgetItemListItem["attachments"]>) => {
+      setLocalAttachments({ sourceKey: attachmentSourceKey, attachments });
     },
     [attachmentSourceKey],
   );
@@ -967,8 +967,7 @@ function BudgetItemRow({
       ? "編輯"
       : "明細";
   // 「· 0」在每一列都印一次，等於用數字宣告「什麼都沒有」。
-  const attachmentActionText =
-    attachmentCount === 0 ? "查看附件" : "查看附件 · " + attachmentCount;
+  const attachmentActionText = "查看附件 · " + attachmentCount;
   const showsAttachmentsOnly = !isGroup && dialogView === "attachments";
   const attachmentDescriptionId = rowId + "-attachment-count";
   const attachmentDescription =
@@ -1122,9 +1121,9 @@ function BudgetItemRow({
   };
   const expenseActionClassName =
     "inline-flex min-h-11 max-w-full items-center justify-center gap-1.5 rounded-full border border-line bg-white px-3 md:min-h-9 text-xs font-semibold leading-4 text-clay transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2";
-  // 唯讀者沒有附件時不放按鈕，避免點進去只看到空白。
+  // 上傳放在「編輯」裡；只有已經有附件時才放「查看附件」，避免點進去只看到空白。
   const attachmentButton =
-    !isGroup && (canEdit || attachmentCount > 0) ? (
+    !isGroup && attachmentCount > 0 ? (
       <button
         type="button"
         data-budget-attachment-affordance="true"
@@ -1738,20 +1737,19 @@ function BudgetItemRow({
                       : `品項分類：${taxonomyItemLabel}`}
             </p>
 
-            {!isGroup && (
-              <div hidden={!showsAttachmentsOnly}>
-                <BudgetAttachments
-                  key={`${item.id}:${(item.attachments ?? [])
-                    .map((attachment) => attachment.id)
-                    .join(",")}`}
-                  workspaceId={workspaceId}
-                  budgetItemId={item.id}
-                  initialAttachments={item.attachments ?? []}
-                  canEdit={canEdit}
-                  onPendingChange={setAttachmentPending}
-                  onAttachmentCountChange={updateAttachmentCount}
-                />
-              </div>
+            {showsAttachmentsOnly && (
+              <BudgetAttachments
+                key={`${item.id}:${currentAttachments
+                  .map((attachment) => attachment.id)
+                  .join(",")}`}
+                workspaceId={workspaceId}
+                budgetItemId={item.id}
+                initialAttachments={currentAttachments}
+                canEdit={canEdit}
+                allowUpload={false}
+                onPendingChange={setAttachmentPending}
+                onAttachmentsChange={updateAttachments}
+              />
             )}
 
             <div hidden={showsAttachmentsOnly}>
@@ -2118,6 +2116,20 @@ function BudgetItemRow({
                       </div>
                     ) : null}
                   </>
+                )}
+                {!isGroup && !showsAttachmentsOnly && (
+                  <BudgetAttachments
+                    key={`${item.id}:${currentAttachments
+                      .map((attachment) => attachment.id)
+                      .join(",")}`}
+                    workspaceId={workspaceId}
+                    budgetItemId={item.id}
+                    initialAttachments={currentAttachments}
+                    canEdit={canEdit}
+                    allowUpload={true}
+                    onPendingChange={setAttachmentPending}
+                    onAttachmentsChange={updateAttachments}
+                  />
                 )}
                 {isGroup && !isFixedGroup && directChildCount > 0 && (
                   <DissolveBudgetGroupForm

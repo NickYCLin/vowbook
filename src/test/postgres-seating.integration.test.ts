@@ -1903,12 +1903,13 @@ describeDatabase.sequential("PostgreSQL seating concurrency and tenant invariant
       adjustSeatingTablesAction(
         namingProbe.workspace.id,
         idleState,
-        adjustmentForm(1, 8),
+        adjustmentForm(2, 8),
       ),
     ).resolves.toMatchObject({ status: "success" });
+    // 第 1 桌固定叫「主桌」；要探測的是之後補上的一般桌預設桌名。
     const generatedName = (
       await prisma.seatingTable.findFirstOrThrow({
-        where: { workspaceId: namingProbe.workspace.id },
+        where: { workspaceId: namingProbe.workspace.id, position: 2 },
         select: { name: true },
       })
     ).name;

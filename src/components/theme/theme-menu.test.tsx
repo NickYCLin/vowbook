@@ -26,7 +26,10 @@ describe("ThemeMenu", () => {
     render(<ThemeMenu displayName="合成使用者" initial="合" />);
 
     const summary = screen.getByLabelText(/開啟帳號與外觀選單/);
-    expect(within(summary).getByText("誓約紙本", { exact: true })).toBeVisible();
+    expect(within(summary).getByTestId("account-menu-name")).toHaveTextContent(
+      "合成使用者",
+    );
+    expect(within(summary).queryByText("誓約紙本")).not.toBeInTheDocument();
     fireEvent.click(summary);
 
     const group = screen.getByRole("group", { name: "外觀主題" });

@@ -208,7 +208,10 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 58");
+    expect(runner).toContain("migrationEntries.length !== 59");
+    expect(runner).toContain(
+      'coordinatorRoleMigration !== "20261001090000_coordinator_role"',
+    );
     expect(runner).toContain(
       'workspaceDocumentMigration !== "20260930090000_workspace_documents"',
     );

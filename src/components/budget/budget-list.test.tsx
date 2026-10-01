@@ -1600,8 +1600,8 @@ describe("BudgetList", () => {
     expect(within(dialog).getByText("花費附件")).toBeVisible();
     expect(within(dialog).getByRole("heading", { name: "附件" })).toBeVisible();
     expect(
-      within(dialog).getByRole("form", { name: "上傳花費附件" }),
-    ).toBeVisible();
+      within(dialog).queryByRole("form", { name: "上傳花費附件" }),
+    ).not.toBeInTheDocument();
     expect(within(dialog).getByText("本項直接費用")).not.toBeVisible();
     fireEvent.click(
       within(dialog).getByRole("button", { name: `關閉附件：${expense.name}` }),
@@ -1612,9 +1612,43 @@ describe("BudgetList", () => {
     fireEvent.click(editTrigger);
     expect(dialog).toHaveAttribute("open");
     expect(within(dialog).getByText("本項直接費用")).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "附件" })).toBeVisible();
     expect(
-      within(dialog).getByRole("heading", { name: "附件", hidden: true }),
-    ).not.toBeVisible();
+      within(dialog).getByRole("form", { name: "上傳花費附件" }),
+    ).toBeVisible();
+  });
+
+  it("uploads from the edit dialog and hides the attachment action until a file exists", () => {
+    const expense = { ...items[0], attachments: [] };
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[expense]}
+        summary={{ ...summary, itemCount: 1 }}
+        canEdit
+      />,
+    );
+
+    const expenseRow = screen
+      .getByRole("heading", { name: expense.name })
+      .closest<HTMLElement>("[data-budget-ledger-row]");
+    expect(
+      within(expenseRow!).queryByRole("button", {
+        name: `查看附件：${expense.name}`,
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(expenseRow!).getByRole("button", {
+        name: `編輯花費：${expense.name}`,
+      }),
+    );
+    const dialog = within(expenseRow!).getByRole("dialog", {
+      name: expense.name,
+    });
+    expect(
+      within(dialog).getByRole("form", { name: "上傳花費附件" }),
+    ).toBeVisible();
   });
 
   it("mentions attachments for read-only EXPENSE rows without exposing upload controls", () => {

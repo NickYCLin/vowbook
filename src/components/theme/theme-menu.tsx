@@ -255,8 +255,11 @@ export function ThemeMenu({
           testId="account-avatar-image"
           onError={handleAvatarError}
         />
-        <span className="hidden max-w-28 truncate sm:block">
-          {selectedThemeLabel}
+        <span
+          data-testid="account-menu-name"
+          className="hidden max-w-28 truncate sm:block"
+        >
+          {displayName}
         </span>
         <CaretDown
           aria-hidden="true"

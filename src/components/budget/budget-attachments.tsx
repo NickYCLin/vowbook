@@ -85,15 +85,19 @@ export function BudgetAttachments({
   budgetItemId,
   initialAttachments,
   canEdit,
+  allowUpload = canEdit,
   onPendingChange,
   onAttachmentCountChange,
+  onAttachmentsChange,
 }: {
   workspaceId: string;
   budgetItemId: string;
   initialAttachments: BudgetAttachmentMetadata[];
   canEdit: boolean;
+  allowUpload?: boolean;
   onPendingChange?: (pending: boolean) => void;
   onAttachmentCountChange?: (count: number) => void;
+  onAttachmentsChange?: (attachments: BudgetAttachmentMetadata[]) => void;
 }) {
   const [attachments, setAttachments] =
     useState<BudgetAttachmentMetadata[]>(initialAttachments);
@@ -152,6 +156,7 @@ export function BudgetAttachments({
       const nextAttachments = [...attachments, body.attachment];
       setAttachments(nextAttachments);
       onAttachmentCountChange?.(nextAttachments.length);
+      onAttachmentsChange?.(nextAttachments);
       form.reset();
       setStatus(`已上傳附件「${body.attachment.originalName}」。`);
     } catch (caught) {
@@ -196,6 +201,7 @@ export function BudgetAttachments({
       );
       setAttachments(nextAttachments);
       onAttachmentCountChange?.(nextAttachments.length);
+      onAttachmentsChange?.(nextAttachments);
       setStatus(`已刪除附件「${attachment.originalName}」。`);
     } catch (caught) {
       setError(
@@ -298,7 +304,7 @@ export function BudgetAttachments({
         </ul>
       )}
 
-      {canEdit && (
+      {canEdit && allowUpload && (
         <form
           aria-label="上傳花費附件"
           onSubmit={(event) => void upload(event)}
