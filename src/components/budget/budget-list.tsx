@@ -793,6 +793,7 @@ function BudgetItemRow({
   isHidden = false,
   visibleDirectChildCount,
   visibleDescendantCount,
+  childProgress,
 }: {
   workspaceId: string;
   workspaceToday: string | null;
@@ -818,6 +819,7 @@ function BudgetItemRow({
   isHidden?: boolean;
   visibleDirectChildCount?: number;
   visibleDescendantCount?: number;
+  childProgress?: { paid: number; total: number };
 }) {
   const dialogTitleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -1442,9 +1444,17 @@ function BudgetItemRow({
                 <p
                   data-budget-mobile-row="amounts"
                   data-budget-pass-through="true"
-                  className="min-w-0 border-y border-line py-3 text-xs leading-5 text-ink-faint md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
+                  className="min-w-0 border-y border-line py-3 text-sm leading-6 text-ink-soft md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
                 >
-                  來源分層，金額都記在下層項目
+                  <span className="font-semibold tabular-nums text-ink">
+                    子項合計 {formatTwdAmount(item.rolledUpPlannedAmount)}
+                  </span>
+                  {(item.rolledUpActualAmountRecorded ??
+                    item.rolledUpActualAmount !== "0") && (
+                    <span className="block text-xs tabular-nums">
+                      已付 {formatTwdAmount(item.rolledUpActualAmount)}
+                    </span>
+                  )}
                 </p>
               ) : (
               <dl
@@ -1525,6 +1535,27 @@ function BudgetItemRow({
                 data-budget-mobile-row="action"
                 className="flex min-w-0 flex-row flex-wrap items-center justify-end gap-2"
               >
+                {isPassThrough ? (
+                  childProgress && childProgress.total > 0 ? (
+                    <span
+                      data-budget-child-progress={
+                        childProgress.paid === childProgress.total
+                          ? "complete"
+                          : "partial"
+                      }
+                      className={[
+                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold tabular-nums",
+                        childProgress.paid === childProgress.total
+                          ? statusTagClass("PAID")
+                          : statusTagClass("BOOKED_BALANCE_DUE"),
+                      ].join(" ")}
+                    >
+                      {childProgress.paid === childProgress.total
+                        ? "全部已付清"
+                        : `已付清 ${childProgress.paid}/${childProgress.total}`}
+                    </span>
+                  ) : null
+                ) : (
                 <span
                   className={[
                     "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
@@ -1550,8 +1581,9 @@ function BudgetItemRow({
                       : BUDGET_BOOKING_STATUS_LABELS[item.bookingStatus]}
                   </span>
                 </span>
+                )}
                 {/* 期限跟狀態是同一組資訊，貼著徽章走；沒設期限就不佔一行。 */}
-                {tracksCost && dueDate ? (
+                {tracksCost && !isPassThrough && dueDate ? (
                   <span
                     data-budget-ledger-column="due-date"
                     className={[
@@ -2346,6 +2378,36 @@ function hiddenNotPlannedFlags(
  * 瀏覽用的子項筆數。管理彈窗、拆解與刪除仍要用結構上的真實筆數，
  * 所以這份數字只給列表上的說明文字使用。
  */
+/**
+ * 分層節點自己沒有準備狀態；改用底下實際花費（葉節點、需要準備）的付款進度代表它。
+ */
+function childPaymentProgress(
+  items: BudgetItemListItem[],
+): Array<{ paid: number; total: number }> {
+  const progress = items.map(() => ({ paid: 0, total: 0 }));
+  const ancestors: number[] = [];
+
+  items.forEach((item, index) => {
+    ancestors.length = Math.min(item.depth, ancestors.length);
+    if (
+      item.kind === "EXPENSE" &&
+      !item.hasChildren &&
+      preparationStatusOfItem(item) === "NEEDS_ACTION"
+    ) {
+      ancestors.forEach((ancestorIndex) => {
+        progress[ancestorIndex].total += 1;
+        if (item.bookingStatus === "PAID") {
+          progress[ancestorIndex].paid += 1;
+        }
+      });
+    }
+    ancestors[item.depth] = index;
+    ancestors.length = item.depth + 1;
+  });
+
+  return progress;
+}
+
 function visibleChildCounts(
   items: BudgetItemListItem[],
   hidden: boolean[],
@@ -2552,6 +2614,10 @@ export function BudgetList({
   const hiddenNotPlanned = useMemo(
     () => hiddenNotPlannedFlags(displayItems, search, statusFilter),
     [displayItems, search, statusFilter],
+  );
+  const childProgressByIndex = useMemo(
+    () => childPaymentProgress(displayItems),
+    [displayItems],
   );
   const browseChildCounts = useMemo(
     () => visibleChildCounts(displayItems, hiddenNotPlanned),
@@ -3074,6 +3140,7 @@ export function BudgetList({
         isHidden={isHidden}
         visibleDirectChildCount={browseChildCounts[itemIndex].directChildCount}
         visibleDescendantCount={browseChildCounts[itemIndex].descendantCount}
+        childProgress={childProgressByIndex[itemIndex]}
       />
     );
   };

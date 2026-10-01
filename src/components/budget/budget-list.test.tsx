@@ -3521,9 +3521,17 @@ describe("BudgetList", () => {
     const passThroughRow = screen
       .getByRole("heading", { name: "婚禮攝影廠商" })
       .closest<HTMLElement>("[data-budget-ledger-surface]");
+    // 分層節點自己沒有準備狀態，改看子項付款進度與合計，不再顯示「規劃中」。
+    const passThroughAmounts = passThroughRow!.querySelector(
+      '[data-budget-pass-through="true"]',
+    );
+    expect(passThroughAmounts).toHaveTextContent("子項合計 NT$25,800");
+    expect(passThroughAmounts).toHaveTextContent("已付 NT$10,000");
+    expect(passThroughAmounts).not.toHaveTextContent("來源分層");
     expect(
-      passThroughRow!.querySelector('[data-budget-pass-through="true"]'),
-    ).toHaveTextContent("來源分層，金額都記在下層項目");
+      passThroughRow!.querySelector('[data-budget-child-progress="partial"]'),
+    ).toHaveTextContent("已付清 0/1");
+    expect(within(passThroughRow!).queryByText("規劃中")).toBeNull();
     expect(
       passThroughRow!.querySelector('[data-budget-ledger-column="deposit"]'),
     ).toBeNull();
@@ -3543,6 +3551,66 @@ describe("BudgetList", () => {
     expect(
       leafRow!.querySelector('[data-budget-notion-source-path="true"]'),
     ).toBeNull();
+  });
+
+  it("summarizes a fully paid Notion pass-through node from its children", () => {
+    const passThrough: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_source_layer_paid",
+      name: "拍攝小物",
+      source: "NOTION",
+      hasChildren: true,
+      directChildren: [
+        { id: "budget_paid_a", name: "手捧花", hasChildren: false },
+        { id: "budget_paid_b", name: "胸花", hasChildren: false },
+      ],
+      directChildCount: 2,
+      descendantCount: 2,
+      plannedAmount: 0,
+      rolledUpPlannedAmount: "3000",
+      actualAmount: null,
+      rolledUpActualAmount: "3000",
+      depositAmount: null,
+      balanceAmount: null,
+      additionalAmount: null,
+      bookingStatus: "PLANNING",
+    };
+    const child = (id: string, name: string): BudgetItemListItem => ({
+      ...items[0],
+      id,
+      parentId: passThrough.id,
+      depth: 1,
+      name,
+      source: "NOTION",
+      breadcrumb: [passThrough.name, name],
+      directParentName: passThrough.name,
+      plannedAmount: 1500,
+      rolledUpPlannedAmount: "1500",
+      actualAmount: 1500,
+      rolledUpActualAmount: "1500",
+      bookingStatus: "PAID",
+    });
+
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[
+          passThrough,
+          child("budget_paid_a", "手捧花"),
+          child("budget_paid_b", "胸花"),
+        ]}
+        summary={{ ...summary, itemCount: 3 }}
+        canEdit={false}
+      />,
+    );
+
+    const passThroughRow = screen
+      .getByRole("heading", { name: "拍攝小物" })
+      .closest<HTMLElement>("[data-budget-ledger-surface]");
+    expect(
+      passThroughRow!.querySelector('[data-budget-child-progress="complete"]'),
+    ).toHaveTextContent("全部已付清");
+    expect(within(passThroughRow!).queryByText("規劃中")).toBeNull();
   });
 
   it("keeps create disclosure and item editor forms mounted in closed dialogs", () => {
