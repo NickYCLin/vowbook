@@ -27,6 +27,9 @@ it("prints guests grouped by table with relationship titles for editors",async()
  expect(chart.className).toContain("print:break-after-page");
  expect(chart.querySelector("[data-testid=seating-chart-poster]")).not.toBeNull();
  expect(printCss).not.toContain("406.4mm");
+ expect(chart.querySelector('[aria-label^="1 號桌"]')).not.toBeNull();
+ expect(chart.querySelector('[aria-label^="2 號桌"]')).toBeNull();
+ expect(chart.textContent).toContain("共 1 桌");
  const sheet=document.querySelector("[data-seating-print]")!;
  expect(sheet.textContent).not.toContain("空桌");
  expect(sheet.textContent).toContain("1 桌 · 2 位");

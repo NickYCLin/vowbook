@@ -127,7 +127,9 @@ export function SeatingChart({
 
   const positions = resolveSeatingFloorPlanPositions(tables);
   const density = chartDensity(tables.length);
-  const sides = tables.map((table) => seatingTableSide(table.guests));
+  // 和帶位名單一起印時，沒人坐的空桌連桌號都不畫；位置仍照全部桌次推算，其他桌不會移動。
+  const shownTables = paper === "a4" ? tables.filter((table) => table.guests.length > 0) : tables;
+  const sides = shownTables.map((table) => seatingTableSide(table.guests));
   const legendSides = SIDE_ORDER.filter((side) => sides.includes(side));
 
   return (
@@ -163,7 +165,7 @@ export function SeatingChart({
           >
             舞台
           </div>
-          {tables.map((table) => {
+          {shownTables.map((table) => {
             const position = positions.find((item) => item.tableId === table.id);
             if (!position) return null;
             const percent = seatingFloorPlanCoordinateToBoardPercent(position);
@@ -254,7 +256,7 @@ export function SeatingChart({
               {GUEST_SIDE_LABELS[side]}
             </span>
           ))}
-          <span className="font-semibold tabular-nums">共 {tables.length} 桌</span>
+          <span className="font-semibold tabular-nums">共 {shownTables.length} 桌</span>
         </footer>
       </div>
       {/*
