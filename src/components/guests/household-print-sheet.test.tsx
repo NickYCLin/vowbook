@@ -49,13 +49,14 @@ it("prints each household on one line with titles shortened to what the section 
  expect(screen.getByRole("row",{name:/甲/})).toHaveTextContent("甲（同事）、乙（新娘的表姊）");
 });
 
-it("fits the cake list on one A4 page with two compact columns while the gift book keeps its writing space",()=>{
- const css=(kind:"cakes"|"gifts")=>{const {container,unmount}=render(<HouseholdPrintSheet workspaceName="婚宴" kind={kind} rows={[{key:"a",group:"GROOM_FAMILY",names:"甲",relationships:"",boxes:1}]}/>);const text=[...container.querySelectorAll("style")].map(style=>style.textContent).join("");unmount();return text;};
- const cake=css("cakes");
- expect(cake).toMatch(/@page \{ size: A4 portrait; margin: 8mm; \}/u);
- expect(cake).toMatch(/\[data-cake-print\] \{[^}]*columns: 2/u);
- expect(cake).toMatch(/font-size: 9pt/u);
- const gifts=css("gifts");
- expect(gifts).toMatch(/margin: 12mm/u);
- expect(gifts).not.toMatch(/columns: 2/u);
+it("fits both the cake list and the gift book on one A4 page with two compact columns that keep each group together",()=>{
+ const css=(kind:"cakes"|"gifts")=>{const {container,unmount}=render(<HouseholdPrintSheet workspaceName="婚宴" kind={kind} rows={[{key:"a",group:"GROOM_FAMILY",names:"甲",relationships:"",boxes:1}]}/>);const text=[...container.querySelectorAll("style")].map(style=>style.textContent).join("");const compact=container.querySelector("[data-compact-print]");unmount();return {text,compact};};
+ for(const kind of ["cakes","gifts"] as const){
+  const {text,compact}=css(kind);
+  expect(compact).not.toBeNull();
+  expect(text).toMatch(/@page \{ size: A4 portrait; margin: 8mm; \}/u);
+  expect(text).toMatch(/\[data-compact-print\] \{[^}]*columns: 2/u);
+  expect(text).toMatch(/\.household-table-wrap \{[^}]*break-inside: avoid/u);
+ }
+ expect(css("gifts").text).toMatch(/\[data-gift-print\] td \{ height: 6mm; \}/u);
 });

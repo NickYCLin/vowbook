@@ -1365,7 +1365,10 @@ function BudgetItemRow({
               <div
                 data-budget-mobile-row="primary"
                 data-budget-ledger-content-name="true"
-                className="min-w-0"
+                data-budget-leaf-indent={visualDepth >= 2 ? "taxonomy" : undefined}
+                className={
+                  visualDepth >= 2 ? "min-w-0 pl-11 sm:pl-[4.25rem]" : "min-w-0"
+                }
               >
                 {categoryEyebrowIsRedundant ? null : (
                   <p

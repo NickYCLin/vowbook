@@ -133,6 +133,10 @@ describe("Notion Budget tree UI", () => {
         '[data-budget-ledger-content-name="true"]',
       ),
     ).toHaveTextContent("追加：NT$500");
+    // 品項分類底下的花費名稱要縮排到分類標題文字的位置，層級才看得出來。
+    expect(
+      rowSurface?.querySelector('[data-budget-ledger-content-name="true"]'),
+    ).toHaveAttribute("data-budget-leaf-indent", "taxonomy");
     expect(screen.getByText("候選廠商與比較紀錄")).toBeInTheDocument();
     expect(
       screen.getByText(
