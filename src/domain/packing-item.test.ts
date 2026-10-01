@@ -47,13 +47,15 @@ describe("packing item domain", () => {
     );
   });
 
-  it("suggests favor, interaction and decor expenses not already listed", () => {
+  it("suggests only wedding-favor expenses not already listed", () => {
     const suggestions = suggestPackingSupplies(
       [
         { id: "g1", parentId: null, name: "婚禮小物", kind: "GROUP", systemTaxonomyKey: "ITEM_WEDDING_FAVORS", relatedTaxonomyItemKey: null },
         { id: "e1", parentId: "g1", name: "位上禮 堅果", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
         { id: "e2", parentId: "g1", name: "捧花禮", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
-        { id: "e3", parentId: null, name: "花椰菜遊戲禮", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_INTERACTION" },
+        { id: "e3", parentId: "g1", name: "花椰菜遊戲禮", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
+        { id: "e6", parentId: null, name: "拍拍印", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_INTERACTION" },
+        { id: "e7", parentId: null, name: "捧花", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_DECOR" },
         { id: "e4", parentId: null, name: "婚宴場地", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_VENUE" },
         { id: "e5", parentId: "g1", name: "位上禮 堅果", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
       ],
@@ -75,5 +77,20 @@ describe("packing item domain", () => {
       [],
     );
     expect(suggestions).toEqual(["位上禮 堅果", "壓克力透明箱"]);
+  });
+
+  it("skips melted favors and items already covered by bracketed or shorter list titles", () => {
+    const base = { parentId: null, kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_FAVORS" };
+    const suggestions = suggestPackingSupplies(
+      [
+        { ...base, id: "a", name: "捧花禮" },
+        { ...base, id: "b", name: "位上禮綜合果分享包" },
+        { ...base, id: "c", name: "花椰菜遊戲禮" },
+        { ...base, id: "d", name: "位上禮 M&M巧克力（運送融化）" },
+        { ...base, id: "e", name: "迎賓糖果" },
+      ],
+      ["捧花禮 (SABON)", "位上禮（堅果）", "花椰菜禮 (蘋果汁)"],
+    );
+    expect(suggestions).toEqual(["迎賓糖果"]);
   });
 });

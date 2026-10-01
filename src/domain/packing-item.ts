@@ -78,12 +78,34 @@ export function normalizePackingNote(value: unknown): string | null {
   return normalized;
 }
 
-/** 婚禮小物、婚禮互動、婚禮佈置底下的花費，通常要帶去會場。 */
+/** 只有婚禮小物是自己要帶去會館的實物；互動、佈置多為廠商服務。 */
 export const PACKING_SUPPLY_TAXONOMY_KEYS: readonly string[] = [
   "ITEM_WEDDING_FAVORS",
-  "ITEM_WEDDING_INTERACTION",
-  "ITEM_WEDDING_DECOR",
 ];
+
+const PACKING_SKIPPED_NAME_PATTERN = /融化|損毀|作廢/u;
+const PACKING_MATCH_PREFIX_LENGTH = 3;
+
+function packingMatchCore(title: string): string {
+  return title
+    .replace(/[（(][^）)]*[）)]/gu, "")
+    .replace(/\s+/gu, "")
+    .toLowerCase();
+}
+
+function isCoveredByExisting(title: string, existingCores: readonly string[]) {
+  const core = packingMatchCore(title);
+  if (core.length === 0) return false;
+  return existingCores.some((existing) => {
+    if (existing.length === 0) return false;
+    if (core.includes(existing) || existing.includes(core)) return true;
+    const chars = Array.from(core);
+    const other = Array.from(existing);
+    let shared = 0;
+    while (shared < chars.length && chars[shared] === other[shared]) shared += 1;
+    return shared >= PACKING_MATCH_PREFIX_LENGTH;
+  });
+}
 
 export type PackingSupplySource = {
   id: string;
@@ -117,13 +139,13 @@ export function suggestPackingSupplies(
     }
     return false;
   };
-  const seen = new Set(
-    existingTitles.map((title) => title.trim().replace(/\s+/gu, " ")),
-  );
+  const existingCores = existingTitles.map(packingMatchCore);
+  const seen = new Set<string>();
   const suggestions: string[] = [];
   for (const item of budgetItems) {
     if (item.kind !== "EXPENSE" || !belongsToSupplies(item)) continue;
     if (PACKING_SKIPPED_PREPARATION.has(item.preparationStatus ?? "")) continue;
+    if (PACKING_SKIPPED_NAME_PATTERN.test(item.name)) continue;
     if (
       item.plannedAmount !== undefined &&
       (item.plannedAmount ?? 0) <= 0 &&
@@ -134,6 +156,7 @@ export function suggestPackingSupplies(
     const title = item.name.trim().replace(/\s+/gu, " ");
     const length = Array.from(title).length;
     if (length < 1 || length > 80 || seen.has(title)) continue;
+    if (isCoveredByExisting(title, existingCores)) continue;
     seen.add(title);
     suggestions.push(title);
   }
