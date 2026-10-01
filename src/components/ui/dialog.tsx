@@ -83,7 +83,6 @@ export function Dialog({
   closeLabel,
   isPending = false,
   size = "md",
-  presentation,
   onClose,
   onRestoreFocus,
   children,
@@ -96,7 +95,6 @@ export function Dialog({
   closeLabel: string;
   isPending?: boolean;
   size?: keyof typeof sizes;
-  presentation?: "panel" | "center";
   onClose: () => void;
   onRestoreFocus?: () => void;
   children: ReactNode;
@@ -105,7 +103,6 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      data-dialog-presentation={presentation ?? (size === "sm" ? "center" : "panel")}
       onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
       onCancel={(event) => {
         if (isPending) event.preventDefault();

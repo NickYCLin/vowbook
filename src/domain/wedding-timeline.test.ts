@@ -25,7 +25,7 @@ describe("wedding timeline domain", () => {
         location: "  宴會廳外  ",
         details: "  引導賓客\n依序入場  ",
         mediaCue: "  01 迎賓音樂\n02 開場影片  ",
-        notes: "  留意長輩座位  ",
+        notes: "  留意長輩座位\n準備麥克風  ",
       }),
     ).toEqual({
       startMinute: 690,
@@ -35,7 +35,7 @@ describe("wedding timeline domain", () => {
       location: "宴會廳外",
       details: "引導賓客\n依序入場",
       mediaCue: "01 迎賓音樂\n02 開場影片",
-      notes: "留意長輩座位",
+      notes: "留意長輩座位\n準備麥克風",
     });
 
     expect(() =>

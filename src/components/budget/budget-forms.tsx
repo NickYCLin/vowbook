@@ -78,7 +78,7 @@ const emptyBudgetFields: BudgetFieldValues = {
   confirmedVendor: "",
   vendorContact: "",
   primaryContact: "",
-  balancePaymentMethod: "",
+  balancePaymentMethod: "CASH",
   notes: "",
 };
 
@@ -170,7 +170,7 @@ function toBudgetFieldValues({
     balancePaymentMethod:
       balancePaymentMethod === "RED_ENVELOPE"
         ? "CASH"
-        : (balancePaymentMethod ?? ""),
+        : (balancePaymentMethod ?? "CASH"),
     notes: notes ?? "",
   };
 }
@@ -620,7 +620,6 @@ function BudgetFields({
           className="block font-medium text-ink"
         >
           尾款付款方式
-          <OptionalLabel />
         </label>
         <select
           id={`${idPrefix}-balance-payment-method`}
@@ -631,7 +630,6 @@ function BudgetFields({
           }
           className={fieldClassName}
         >
-          <option value="">未設定</option>
           {BUDGET_BALANCE_PAYMENT_METHOD_OPTIONS.map((value) => (
             <option key={value} value={value}>
               {BUDGET_BALANCE_PAYMENT_METHOD_LABELS[value]}
@@ -922,7 +920,6 @@ export function EditBudgetItemForm({
         </div>
       ) : null}
       <dialog
-        data-dialog-presentation="panel"
         ref={dialogRef}
         aria-labelledby={dialogTitleId}
         aria-describedby={dialogItemId}
@@ -933,7 +930,7 @@ export function EditBudgetItemForm({
           }
         }}
         onClose={() => triggerRef.current?.focus({ preventScroll: true })}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)] backdrop:bg-stone-950/30 backdrop:backdrop-blur-[1px]"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)]"
       >
         <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">
           <div className="min-w-0">
@@ -1246,7 +1243,7 @@ export function ChangeBudgetItemPreparationStatusForm({
         )}
       </select>
       <p className="text-xs leading-5 text-ink-faint">
-        已有／自備與不打算準備都不計入預算；原有金額會保留，改回需要安排即可恢復統計。
+        已有／自備與不打算準備都不列入計算；改回需要安排即可恢復。
       </p>
       <button
         type="submit"

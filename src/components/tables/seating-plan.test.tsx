@@ -229,7 +229,7 @@ describe("SeatingPlan", () => {
     expect(
       screen.getByRole("heading", { name: "未安排賓客", level: 2 }),
     ).toBeInTheDocument();
-    for (const heading of ["男方親友", "女方親友", "共同親友"]) {
+    for (const heading of ["男方親友", "女方親友", "共同朋友"]) {
       expect(
         screen.getByRole("heading", { name: heading, level: 3 }),
       ).toBeInTheDocument();
@@ -237,7 +237,7 @@ describe("SeatingPlan", () => {
 
     const partnerA = screen.getByRole("region", { name: "男方親友" });
     const partnerB = screen.getByRole("region", { name: "女方親友" });
-    const shared = screen.getByRole("region", { name: "共同親友" });
+    const shared = screen.getByRole("region", { name: "共同朋友" });
 
     expect(within(partnerA).getByText("2 筆", { exact: true })).toBeInTheDocument();
     expect(within(partnerA).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
@@ -279,7 +279,7 @@ describe("SeatingPlan", () => {
     expect(container).not.toHaveTextContent("PARTNER_A");
     expect(container).not.toHaveTextContent("PARTNER_B");
     expect(container).not.toHaveTextContent("guest_a_1");
-    // 男、女親友在夠寬時同列左右展示，共同親友獨佔下一列；未安排區在 lg
+    // 男、女親友在夠寬時同列左右展示，共同朋友獨佔下一列；未安排區在 lg
     // 版面只有 ~300px，兩欄會把每組壓到 150px 以下，所以窄的時候一律單欄。
     // 斷點必須是容器查詢：viewport 斷點量不到這一欄真正的寬度。
     const sideGrid = container.querySelector("[data-unassigned-side-grid]");
@@ -332,7 +332,7 @@ describe("SeatingPlan", () => {
         "目前沒有女方親友待安排。",
       ),
     ).toBeInTheDocument();
-    const shared = screen.getByRole("region", { name: "共同親友" });
+    const shared = screen.getByRole("region", { name: "共同朋友" });
     expect(within(shared).getByText("雙方好友")).toBeInTheDocument();
     expect(within(shared).getByText("邀請人數 2 位")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();

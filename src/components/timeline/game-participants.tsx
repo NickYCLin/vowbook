@@ -210,7 +210,7 @@ function ParticipantRow({
             {participant.name}
           </p>
           {participant.note ? (
-            <p className={cn("text-caption leading-5 text-ink-soft", wrapText)}>
+            <p className={cn("whitespace-pre-wrap text-caption leading-5 text-ink-soft", wrapText)}>
               「{participant.note}」
             </p>
           ) : null}
@@ -291,12 +291,14 @@ function EditParticipantForm({
           required
           autoFocus
         />
-        <Input
+        <Textarea
           name="note"
           aria-label="介紹詞"
-          placeholder="介紹詞，主持人會照念"
+          placeholder="介紹詞，主持人會照念（可換行）"
           defaultValue={participant.note ?? ""}
           maxLength={WEDDING_GAME_NOTE_MAX}
+          rows={2}
+          className="min-h-11"
         />
       </div>
       <div className="flex items-center justify-end gap-1">

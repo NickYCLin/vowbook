@@ -375,7 +375,7 @@ describe("budget taxonomy UI", () => {
       itemSurface?.querySelector(
         '[data-budget-scan-layout="taxonomy-header"]',
       ),
-    ).toHaveClass("bg-surface", "border-l-[3px]");
+    ).toHaveClass("bg-white", "border-line");
     expect(itemRow).not.toHaveTextContent("子分類");
     expect(itemRow).toHaveTextContent("品項分類");
     expect(
@@ -644,7 +644,7 @@ describe("budget taxonomy UI", () => {
 
     fireEvent.click(
       within(legacyRow!).getByRole("button", {
-        name: "開啟花費明細與附件：舊交通費",
+        name: "編輯花費：舊交通費",
       }),
     );
     const managementDialog = screen.getByRole("dialog", { name: "舊交通費" });
@@ -775,7 +775,7 @@ describe("budget taxonomy UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "全部展開" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "開啟花費明細與附件：婚紗攝影",
+        name: "編輯花費：婚紗攝影",
       }),
     );
     const expenseDialog = screen.getByRole("dialog", { name: "婚紗攝影" });
@@ -814,7 +814,7 @@ describe("budget taxonomy UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "全部展開" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "開啟花費明細與附件：婚紗攝影",
+        name: "編輯花費：婚紗攝影",
       }),
     );
 
@@ -918,7 +918,7 @@ describe("budget taxonomy UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "全部展開" }));
     fireEvent.click(
       screen.getByRole("button", {
-        name: "開啟花費明細與附件：場地訂金",
+        name: "編輯花費：場地訂金",
       }),
     );
     const managementDialog = screen.getByRole("dialog", {

@@ -47,7 +47,7 @@ describe("SeatingChart", () => {
 
     // 混坐的主桌標成共同，單一側的桌子標那一側，空桌不標。
     const mainTable = within(poster).getByRole("article", {
-      name: "1 號桌 主桌，共同親友，兒童椅 3 張，素食 2 位",
+      name: "1 號桌 主桌，共同朋友，兒童椅 3 張，素食 2 位",
     });
     expect(mainTable).toHaveTextContent("主桌");
     expect(within(mainTable).getByText("素 2")).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("SeatingChart", () => {
 
     // 圖例只列出實際出現的側別，共同因主桌混坐而出現，女方沒有整桌就不列。
     expect(within(poster).getByText("男方親友")).toBeInTheDocument();
-    expect(within(poster).getByText("共同親友")).toBeInTheDocument();
+    expect(within(poster).getByText("共同朋友")).toBeInTheDocument();
     expect(within(poster).queryByText("女方親友")).toBeNull();
     expect(within(poster).getByText("共 3 桌")).toBeInTheDocument();
   });

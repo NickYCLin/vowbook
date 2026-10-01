@@ -42,17 +42,49 @@ describe("seating table forms", () => {
     );
 
     expect(screen.getByRole("heading", { name: "桌數設定" })).toBeInTheDocument();
-    expect(screen.getByLabelText("總桌數")).toHaveValue(12);
-    expect(screen.getByLabelText("總桌數")).toHaveAttribute("min", "0");
-    expect(screen.getByLabelText("總桌數")).toHaveAttribute("max", "200");
-    expect(screen.getByLabelText("新增桌的預設容量")).toHaveValue(10);
-    expect(
-      screen.getByText("既有桌次的桌名、容量與賓客安排不會在增加桌數時被覆寫。"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveValue(12);
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveAttribute("min", "0");
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveAttribute("max", "200");
+    expect(screen.getByLabelText("主桌人數")).toHaveValue(12);
+    expect(screen.getByLabelText("一般桌每桌人數")).toHaveValue(10);
     expect(screen.getByRole("button", { name: "套用桌數設定" })).toHaveClass(
       "min-h-11",
     );
     expect(container.querySelector('[name="workspaceId"]')).toBeNull();
+  });
+
+  it("prefills main and regular capacities and shows a live seat total", () => {
+    render(
+      <AdjustSeatingTablesForm
+        workspaceId="workspace_internal"
+        currentTableCount={4}
+        tableCapacities={[14, 10, 10, 8]}
+        seatedGuestCount={40}
+      />,
+    );
+
+    expect(screen.getByLabelText("主桌人數")).toHaveValue(14);
+    expect(screen.getByLabelText("一般桌每桌人數")).toHaveValue(10);
+    expect(
+      screen.getByText("主桌 1 桌 × 14 位 ＋ 一般桌 3 桌（合計 28 位） ＝ 共 42 席"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("需入座賓客 40 位，預留 2 個空位。"),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.change(screen.getByLabelText("總桌數（含主桌）"), {
+      target: { value: "5" },
+    });
+    expect(
+      screen.getByText("主桌 1 桌 × 14 位 ＋ 一般桌 4 桌（合計 38 位） ＝ 共 52 席"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("總桌數（含主桌）"), {
+      target: { value: "3" },
+    });
+    expect(
+      screen.getByText("需入座賓客 40 位，還差 6 席。"),
+    ).toBeInTheDocument();
   });
 
   it("keeps a table-count draft until the server count actually changes", () => {
@@ -62,7 +94,7 @@ describe("seating table forms", () => {
         currentTableCount={1}
       />,
     );
-    const tableCount = screen.getByLabelText("總桌數");
+    const tableCount = screen.getByLabelText("總桌數（含主桌）");
 
     fireEvent.change(tableCount, { target: { value: "7" } });
     expect(tableCount).toHaveValue(7);
@@ -73,7 +105,7 @@ describe("seating table forms", () => {
         currentTableCount={1}
       />,
     );
-    expect(screen.getByLabelText("總桌數")).toHaveValue(7);
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveValue(7);
 
     rerender(
       <AdjustSeatingTablesForm
@@ -81,7 +113,7 @@ describe("seating table forms", () => {
         currentTableCount={2}
       />,
     );
-    expect(screen.getByLabelText("總桌數")).toHaveValue(2);
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveValue(2);
   });
 
   it("keeps the successful table-count status mounted when the authoritative count changes", async () => {
@@ -96,7 +128,7 @@ describe("seating table forms", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("總桌數"), {
+    fireEvent.change(screen.getByLabelText("總桌數（含主桌）"), {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("button", { name: "套用桌數設定" }));
@@ -116,7 +148,7 @@ describe("seating table forms", () => {
       "已將總桌數設定為 2 桌。",
     );
     expect(screen.getByRole("status")).toHaveFocus();
-    expect(screen.getByLabelText("總桌數")).toHaveValue(2);
+    expect(screen.getByLabelText("總桌數（含主桌）")).toHaveValue(2);
   });
 
   it("disables destructive adjustment controls while the action is pending", async () => {
@@ -135,14 +167,14 @@ describe("seating table forms", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("總桌數"), {
+    fireEvent.change(screen.getByLabelText("總桌數（含主桌）"), {
       target: { value: "3" },
     });
     fireEvent.click(screen.getByRole("button", { name: "套用桌數設定" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("總桌數")).toBeDisabled();
-      expect(screen.getByLabelText("新增桌的預設容量")).toBeDisabled();
+      expect(screen.getByLabelText("總桌數（含主桌）")).toBeDisabled();
+      expect(screen.getByLabelText("一般桌每桌人數")).toBeDisabled();
     });
 
     resolveAction?.({

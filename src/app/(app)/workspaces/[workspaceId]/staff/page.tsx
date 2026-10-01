@@ -42,7 +42,7 @@ export default async function StaffPage({
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            <PrintPreviewLink href={`/workspaces/${workspaceId}/staff/print`}>列印工作人員發放清單</PrintPreviewLink>
+            <PrintPreviewLink href={`/workspaces/${workspaceId}/staff/print`}>列印便當發放清單</PrintPreviewLink>
             {canEdit && data.staff.length > 0 && <CreateWeddingStaffForm workspaceId={workspaceId} />}
           </div>
         }

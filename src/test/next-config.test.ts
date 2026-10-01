@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
@@ -46,7 +48,7 @@ describe("Next.js deployment config", () => {
     });
   });
 
-  it("allows only same-origin embedding for the five authenticated print pages", async () => {
+  it("allows only same-origin embedding for the six authenticated print pages", async () => {
     const config = await loadNextConfig("/VowBook");
     const rules = (await config.headers?.()) ?? [];
     const embedded = rules.filter(rule => rule.headers.some(header => header.value === "frame-ancestors 'self'"));
@@ -56,8 +58,19 @@ describe("Next.js deployment config", () => {
       "/workspaces/:workspaceId/staff/print",
       "/workspaces/:workspaceId/gifts/print",
       "/workspaces/:workspaceId/budget/print",
+      "/workspaces/:workspaceId/timeline/print",
     ]);
     for (const rule of embedded) expect(rule.headers).toContainEqual({ key: "X-Frame-Options", value: "SAMEORIGIN" });
+  });
+
+  it("lets every in-app print preview embed its target page", async () => {
+    const config = await loadNextConfig("/VowBook");
+    const rules = (await config.headers?.()) ?? [];
+    const embeddable = new Set(rules.filter(rule => rule.headers.some(header => header.value === "frame-ancestors 'self'")).map(rule => rule.source));
+    const sources = (readdirSync("src", { recursive: true }) as string[]).filter(file => file.endsWith(".tsx") && !file.includes(".test."));
+    const targets = sources.flatMap(file => [...readFileSync(join("src", file), "utf8").matchAll(/<PrintPreviewLink\s+href=\{`\/workspaces\/\$\{workspaceId\}\/([^`]+)`\}/gu)].map(match => `/workspaces/:workspaceId/${match[1]}`));
+    expect(targets.length).toBeGreaterThanOrEqual(6);
+    for (const target of targets) expect(embeddable).toContain(target);
   });
 
   it("fails the build config for an invalid base path", async () => {

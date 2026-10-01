@@ -61,7 +61,7 @@ describe("budget item domain contract", () => {
       confirmedVendor: null,
       vendorContact: null,
       primaryContact: null,
-      balancePaymentMethod: null,
+      balancePaymentMethod: "CASH",
     });
 
     expect(
@@ -250,10 +250,10 @@ describe("budget item domain contract", () => {
     ).toMatchObject({ balancePaymentMethod: "CASH" });
   });
 
-  it("rejects unknown balance payment methods and treats blank as unset", () => {
+  it("rejects unknown balance payment methods and defaults blank to cash", () => {
     expect(
       normalizeBudgetItemDetails({ ...validDetails(), balancePaymentMethod: "" }),
-    ).toMatchObject({ balancePaymentMethod: null });
+    ).toMatchObject({ balancePaymentMethod: "CASH" });
     expect(() =>
       normalizeBudgetItemDetails({
         ...validDetails(),

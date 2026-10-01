@@ -1,5 +1,5 @@
 import {isGiftCollectionExcluded} from "./wedding-gift-policy";
-import {cakeRelationshipLabel,groupHouseholdMembers,type CakeGuest} from "./wedding-cake";
+import {cakeRelationshipLabel,groupHouseholdMembers,householdMemberLabels,type CakeGuest} from "./wedding-cake";
 
 export function giftPrintRows(guests:readonly (CakeGuest & {giftExemptWithCake?:boolean;giftReceived?:boolean})[]) {
   return groupHouseholdMembers(guests).flatMap(({key,members:householdMembers,group})=>{
@@ -7,7 +7,7 @@ export function giftPrintRows(guests:readonly (CakeGuest & {giftExemptWithCake?:
     const members=householdMembers.filter(member=>!isGiftCollectionExcluded(member));
     if(!members.length)return [];
     return [{key,group,names:members.map(member=>member.name).join("、"),
-      relationships:members.map(member=>`${member.name}：${cakeRelationshipLabel(member)}`).join("；"),
+      relationships:members.map(member=>`${member.name}：${cakeRelationshipLabel(member)}`).join("；"),members:householdMemberLabels(members),
       exempt:false,notes:"",giftReceived:members.some(member=>member.giftReceived),
     }];
   });

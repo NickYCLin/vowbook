@@ -160,7 +160,7 @@ function childSeatTotal(table: SeatingFloorPlanTable): number {
 }
 
 /**
- * 側別的顏色沿用場地兩側原本的色系：男方偏 sage、女方偏 clay。共同親友用
+ * 側別的顏色沿用場地兩側原本的色系：男方偏 sage、女方偏 clay。共同朋友用
  * 中性色而不是第三種顏色——它代表的是「兩邊都有」，不是另一個陣營。
  */
 const SIDE_DOT_CLASSNAMES = {

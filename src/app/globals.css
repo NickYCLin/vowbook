@@ -386,6 +386,9 @@ html:has(dialog[open]) {
     width: 100%;
     min-width: 0;
   }
+  [data-workspace-nav-layout="sidebar"] [data-workspace-nav-order] {
+    order: var(--workspace-nav-order);
+  }
   [data-workspace-nav-layout="sidebar"] .workspace-sidebar-link {
     justify-content: flex-start;
     gap: .75rem;
@@ -402,16 +405,6 @@ html:has(dialog[open]) {
   [data-workspace-content] > main {
     max-width: 90rem;
     padding: 2rem;
-  }
-  dialog[data-dialog-presentation="panel"] {
-    position: fixed;
-    inset: 0 0 0 auto;
-    width: min(42rem, calc(100% - 3rem));
-    max-width: none;
-    height: 100dvh;
-    max-height: 100dvh;
-    margin: 0;
-    border-radius: var(--radius-card) 0 0 var(--radius-card);
   }
 }
 
@@ -435,6 +428,13 @@ body:has([data-workspace-preview]) [data-app-header],
   [data-workspace-frame]:not([data-workspace-document]) { padding-left: 0; }
   [data-workspace-sidebar] { display: none; }
   [data-workspace-content] > main { padding: 0; max-width: none; }
+  /*
+   * A4 可列印寬度低於 48rem，手機底部功能列的預留空間會被套用；
+   * 用相同選擇器歸零，並取消整頁最小高度，避免最後一頁多出一大段空白。
+   */
+  main:has([data-workspace-nav]),
+  [data-workspace-frame]:not([data-workspace-document]) [data-workspace-content] > main { padding: 0; }
+  html, body, [data-app-surface] { min-height: 0; }
 }
 
 /*

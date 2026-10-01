@@ -533,15 +533,22 @@ describe("BudgetList", () => {
     fireEvent.change(screen.getByLabelText("搜尋花費項目"), { target: { value: "皮鞋" } });
     expect(ledgerListItem("budget_skipped")).not.toHaveAttribute("hidden");
     fireEvent.change(screen.getByLabelText("搜尋花費項目"), { target: { value: "" } });
-    expect(ledgerListItem("budget_owned")).toHaveTextContent(
-      "不計入預算；原有金額仍保留",
-    );
+    expect(ledgerListItem("budget_owned")).toHaveTextContent("不列入計算");
+    expect(
+      ledgerListItem("budget_owned").querySelector('[data-budget-non-cost="true"]'),
+    ).toHaveTextContent(/^不列入計算$/u);
+    // 自備或不準備的項目不需要廠商，不再提示「尚未設定廠商」。
+    expect(
+      ledgerListItem("budget_owned").querySelector(
+        '[data-budget-ledger-column="brand"]',
+      ),
+    ).toBeNull();
     expect(
       screen.queryByRole("form", { name: "更新狀態 既有西裝" }),
     ).not.toBeInTheDocument();
     fireEvent.click(
       within(ledgerListItem("budget_owned")).getByRole("button", {
-        name: "開啟花費明細與附件：既有西裝",
+        name: "編輯花費：既有西裝",
       }),
     );
     expect(
@@ -1473,9 +1480,9 @@ describe("BudgetList", () => {
       within(rowSurface!).queryByText(/直接上層：/u),
     ).not.toBeInTheDocument();
     const attachmentAction = within(rowSurface!).getByRole("button", {
-      name: "開啟花費明細與附件：禮服租借",
+      name: "查看附件：禮服租借",
     });
-    expect(attachmentAction).toHaveTextContent("明細與附件 · 1");
+    expect(attachmentAction).toHaveTextContent("查看附件 · 1");
     expect(attachmentAction).toHaveAccessibleDescription("附件 1 份");
 
     const groupRow = screen
@@ -1532,17 +1539,20 @@ describe("BudgetList", () => {
         canEdit={false}
       />,
     );
+    expect(
+      screen.getByRole("button", { name: "查看花費明細：禮服租借" }),
+    ).toHaveTextContent("明細");
     const viewerTrigger = screen.getByRole("button", {
-      name: "查看花費明細與附件：禮服租借",
+      name: "查看附件：禮服租借",
     });
-    expect(viewerTrigger).toHaveTextContent("詳細與附件 · 1");
+    expect(viewerTrigger).toHaveTextContent("查看附件 · 1");
     fireEvent.click(viewerTrigger);
     expect(
       screen.queryByRole("form", { name: "上傳花費附件" }),
     ).not.toBeInTheDocument();
   });
 
-  it("exposes editable EXPENSE attachment metadata and places attachments before cost details", () => {
+  it("splits EXPENSE rows into an edit action and an attachment-only action", () => {
     const expense = {
       ...items[0],
       attachments: [
@@ -1571,37 +1581,40 @@ describe("BudgetList", () => {
       "[data-budget-ledger-surface]",
     );
     const trigger = within(rowSurface!).getByRole("button", {
-      name: `開啟花費明細與附件：${expense.name}`,
+      name: `查看附件：${expense.name}`,
     });
-    expect(trigger).toHaveTextContent("明細與附件 · 1");
+    expect(trigger).toHaveTextContent("查看附件 · 1");
     expect(trigger).toHaveAccessibleDescription("附件 1 份");
+    const editTrigger = within(rowSurface!).getByRole("button", {
+      name: `編輯花費：${expense.name}`,
+    });
+    expect(editTrigger).toHaveTextContent("編輯");
+    expect(editTrigger).not.toHaveTextContent("附件");
     expect(expenseRow?.querySelector("dialog")).not.toHaveAttribute("open");
 
     fireEvent.click(trigger);
     const dialog = within(expenseRow!).getByRole("dialog", {
       name: expense.name,
     });
-    const attachmentHeading = within(dialog).getByRole("heading", {
-      name: "附件",
-    });
-    const attachmentSection = attachmentHeading.closest("section");
-    const uploadForm = within(dialog).getByRole("form", {
-      name: "上傳花費附件",
-    });
-    const primaryAmountLabel = within(dialog).getByText("本項直接費用");
-
     expect(dialog).toHaveAttribute("open");
-    expect(attachmentSection?.previousElementSibling).toHaveTextContent(
-      "品項分類",
+    expect(within(dialog).getByText("花費附件")).toBeVisible();
+    expect(within(dialog).getByRole("heading", { name: "附件" })).toBeVisible();
+    expect(
+      within(dialog).getByRole("form", { name: "上傳花費附件" }),
+    ).toBeVisible();
+    expect(within(dialog).getByText("本項直接費用")).not.toBeVisible();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: `關閉附件：${expense.name}` }),
     );
+    expect(dialog).not.toHaveAttribute("open");
+    expect(trigger).toHaveFocus();
+
+    fireEvent.click(editTrigger);
+    expect(dialog).toHaveAttribute("open");
+    expect(within(dialog).getByText("本項直接費用")).toBeVisible();
     expect(
-      attachmentSection!.compareDocumentPosition(primaryAmountLabel) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(
-      uploadForm.compareDocumentPosition(primaryAmountLabel) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      within(dialog).getByRole("heading", { name: "附件", hidden: true }),
+    ).not.toBeVisible();
   });
 
   it("mentions attachments for read-only EXPENSE rows without exposing upload controls", () => {
@@ -1633,9 +1646,9 @@ describe("BudgetList", () => {
       "[data-budget-ledger-surface]",
     );
     const trigger = within(rowSurface!).getByRole("button", {
-      name: `查看花費明細與附件：${expense.name}`,
+      name: `查看附件：${expense.name}`,
     });
-    expect(trigger).toHaveTextContent("詳細與附件 · 1");
+    expect(trigger).toHaveTextContent("查看附件 · 1");
     expect(trigger).toHaveAccessibleDescription("附件 1 份");
     fireEvent.click(trigger);
 
@@ -2269,7 +2282,7 @@ describe("BudgetList", () => {
       expect(expenseRow).toHaveClass(
         "grid",
         "grid-cols-1",
-        "md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_minmax(9rem,auto)]",
+        "md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem]",
       );
 
       const hint = rowSurface.querySelector<HTMLElement>(
@@ -2280,21 +2293,24 @@ describe("BudgetList", () => {
         "inline-flex",
         "min-h-11",
         "max-w-full",
-        "rounded-xl",
+        "md:min-h-9",
+        "rounded-full",
+        "border",
         "text-xs",
         "font-semibold",
         "text-clay",
-        "underline",
-        "decoration-line-strong",
-        "underline-offset-4",
       );
+      expect(hint).not.toHaveClass("underline", "rounded-xl");
       expect(hint).not.toHaveClass("shrink-0", "whitespace-nowrap");
       expect(hint).not.toHaveClass("text-[0.6875rem]", "text-ink-faint");
       // 附件為 0 時不印數字，實際份數留在無障礙描述裡。
-      expect(hint).toHaveTextContent("詳細與附件");
-      expect(hint).not.toHaveTextContent("· 0");
-      expect(hint).toHaveAccessibleName(/查看花費明細與附件/);
-      expect(hint).toHaveAccessibleDescription("尚無附件");
+      expect(hint).toHaveTextContent("明細");
+      expect(hint).not.toHaveTextContent("附件");
+      expect(hint).toHaveAccessibleName(/查看花費明細/);
+      // 唯讀者沒有附件可看時，不放一顆點進去是空的按鈕。
+      expect(
+        rowSurface.querySelector('[data-budget-attachment-affordance="true"]'),
+      ).toBeNull();
     }
   });
 
@@ -2771,7 +2787,7 @@ describe("BudgetList", () => {
 
     fireEvent.click(
       within(shoeRow!).getByRole("button", {
-        name: "開啟花費明細與附件：合成姓名的小白鞋",
+        name: "編輯花費：合成姓名的小白鞋",
       }),
     );
     const shoeDialog = within(shoeRow!).getByRole("dialog", {
@@ -2824,16 +2840,14 @@ describe("BudgetList", () => {
     expect(hint).toHaveClass(
       "inline-flex",
       "min-h-11",
-      "rounded-xl",
+      "md:min-h-9",
+      "rounded-full",
       "border",
       "text-xs",
       "font-semibold",
       "text-clay",
-      "underline",
-      "decoration-line-strong",
-      "underline-offset-4",
     );
-    expect(within(hint!).getByText("明細與附件")).toBeInTheDocument();
+    expect(within(hint!).getByText("編輯")).toBeInTheDocument();
     expect(within(hint!).queryByText("管理")).not.toBeInTheDocument();
 
     fireEvent.click(hint!);
@@ -2893,7 +2907,7 @@ describe("BudgetList", () => {
     );
     expect(editorTriggers).toHaveLength(items.length);
     for (const editorTrigger of editorTriggers) {
-      expect(editorTrigger).toHaveAccessibleName(/開啟花費明細與附件/);
+      expect(editorTrigger).toHaveAccessibleName(/編輯花費/);
     }
   });
 
@@ -2944,7 +2958,7 @@ describe("BudgetList", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "開啟花費明細與附件：婚禮攝影",
+        name: "編輯花費：婚禮攝影",
       }),
     );
     const dialog = screen.getByRole("dialog", {
@@ -2988,7 +3002,7 @@ describe("BudgetList", () => {
     const removed = items[0];
     fireEvent.click(
       screen.getByRole("button", {
-        name: `開啟花費明細與附件：${removed.name}`,
+        name: `編輯花費：${removed.name}`,
       }),
     );
     const dialog = screen.getByRole("dialog", { name: removed.name });
@@ -3491,7 +3505,7 @@ describe("BudgetList", () => {
       leafRow!.querySelector('[data-budget-ledger-column="deposit"]'),
     ).toHaveTextContent("NT$10,000");
 
-    // 來源路徑和樹狀位置一致時不再重複印在列上（明細與附件面板裡仍然有）。
+    // 來源路徑和樹狀位置一致時不再重複印在列上（編輯面板裡仍然有）。
     expect(
       leafRow!.querySelector('[data-budget-notion-source-path="true"]'),
     ).toBeNull();

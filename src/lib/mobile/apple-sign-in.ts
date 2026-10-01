@@ -98,7 +98,7 @@ export async function signInWithApple(body: unknown, verify: Verify = verifyWith
         });
 
     if (identity.email) {
-      const invitations = await tx.$queryRaw<Array<{ workspace_id: string; role: "PARTNER" | "PLANNER" | "VIEWER" }>>`
+      const invitations = await tx.$queryRaw<Array<{ workspace_id: string; role: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER" }>>`
         UPDATE "workspace_invitations"
         SET "status" = 'ACCEPTED'::"WorkspaceInvitationStatus",
             "accepted_by_user_id" = ${user.id},

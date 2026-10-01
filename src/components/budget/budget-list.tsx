@@ -1,5 +1,6 @@
 "use client";
 
+import { effectiveDueDate } from "@/domain/budget-due-date";
 import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
 
 import {
@@ -13,10 +14,13 @@ import {
 } from "react";
 import {
   CalendarBlank,
-  CaretDown,
   Eye,
   MagnifyingGlass,
+  MinusSquare,
+  Paperclip,
+  PencilSimple,
   Plus,
+  PlusSquare,
 } from "@phosphor-icons/react";
 import {
   BUDGET_BALANCE_PAYMENT_METHOD_LABELS,
@@ -48,6 +52,7 @@ import type {
   BudgetSummary,
 } from "@/lib/budget-list";
 import { BudgetAttachments } from "./budget-attachments";
+import { BudgetPayments } from "./budget-payments";
 import { BudgetCeremonyPreferences } from "./budget-ceremony-preferences";
 import { BudgetEngagementPreset } from "./budget-engagement-preset";
 import { BudgetPreparationPreset } from "./budget-preparation-preset";
@@ -633,7 +638,7 @@ function BudgetSummaryView({
               不打算準備 {summary.notPlannedCount} 筆
             </button>
           ) : null}
-          <span className="self-center">以上項目不計入預算與付款進度。</span>
+          <span className="self-center">以上項目不列入計算。</span>
         </div>
       ) : null}
     </section>
@@ -817,7 +822,10 @@ function BudgetItemRow({
   const dialogTitleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogTitleRef = useRef<HTMLHeadingElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [dialogView, setDialogView] = useState<"details" | "attachments">(
+    "details",
+  );
   const [statusPending, setStatusPending] = useState(false);
   const [preparationPending, setPreparationPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
@@ -826,6 +834,7 @@ function BudgetItemRow({
   const [movePending, setMovePending] = useState(false);
   const [dissolvePending, setDissolvePending] = useState(false);
   const [attachmentPending, setAttachmentPending] = useState(false);
+  const [paymentPending, setPaymentPending] = useState(false);
   const [groupOverride, setGroupOverride] = useState<{
     name: string;
     version: number;
@@ -842,7 +851,8 @@ function BudgetItemRow({
     groupMutationPending ||
     movePending ||
     dissolvePending ||
-    attachmentPending;
+    attachmentPending ||
+    paymentPending;
   const sourceBreadcrumb = item.breadcrumb ?? [item.name];
   const breadcrumb = [...sourceBreadcrumb.slice(0, -1), item.name];
   const directChildren = item.directChildren ?? [];
@@ -864,12 +874,19 @@ function BudgetItemRow({
   const suggestionKey = suggestionKeyOf(item);
   const preparationStatus = preparationStatusOfItem(item);
   const tracksCost = isGroup || preparationStatus === "NEEDS_ACTION";
+  const dueDate =
+    item.bookingStatus === "BOOKED_BALANCE_DUE"
+      ? effectiveDueDate(item)
+      : item.dueDate
+        ? { date: item.dueDate, reason: null }
+        : null;
+  const dueDateSuffix = dueDate?.reason ? `（預設：${dueDate.reason}）` : "";
   const balanceDueIsOverdue =
     tracksCost &&
     item.bookingStatus === "BOOKED_BALANCE_DUE" &&
-    item.dueDate !== null &&
+    dueDate !== null &&
     workspaceToday !== null &&
-    item.dueDate < workspaceToday;
+    dueDate.date < workspaceToday;
   const isPendingPreparationSuggestion =
     !isGroup &&
     tracksCost &&
@@ -940,20 +957,19 @@ function BudgetItemRow({
       ? "管理" + hierarchyGroupLabel
       : "查看" + hierarchyGroupLabel + "詳情"
     : canEdit
-      ? "開啟花費明細與附件"
-      : "查看花費明細與附件";
-  const disclosureText = isGroup
+      ? "編輯花費"
+      : "查看花費明細";
+  const disclosureActionText = isGroup
     ? canEdit
       ? "管理"
       : "詳細"
     : canEdit
-      ? "明細與附件"
-      : "詳細與附件";
+      ? "編輯"
+      : "明細";
   // 「· 0」在每一列都印一次，等於用數字宣告「什麼都沒有」。
-  const disclosureActionText =
-    isGroup || attachmentCount === 0
-      ? disclosureText
-      : disclosureText + " · " + attachmentCount;
+  const attachmentActionText =
+    attachmentCount === 0 ? "查看附件" : "查看附件 · " + attachmentCount;
+  const showsAttachmentsOnly = !isGroup && dialogView === "attachments";
   const attachmentDescriptionId = rowId + "-attachment-count";
   const attachmentDescription =
     attachmentCount === 0 ? "尚無附件" : `附件 ${attachmentCount} 份`;
@@ -1004,10 +1020,10 @@ function BudgetItemRow({
       BUDGET_PRIMARY_CONTACT_LABELS[item.primaryContact],
     ]);
   }
-  if (item.balancePaymentMethod) {
+  if (item.balancePaymentMethod || item.balanceAmount !== null) {
     richDetails.push([
       "尾款付款方式",
-      BUDGET_BALANCE_PAYMENT_METHOD_LABELS[item.balancePaymentMethod],
+      BUDGET_BALANCE_PAYMENT_METHOD_LABELS[item.balancePaymentMethod ?? "CASH"],
     ]);
   }
 
@@ -1081,35 +1097,65 @@ function BudgetItemRow({
       }
       disabled={groupToggleDisabled}
       onClick={onToggleGroup}
-      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-clay-strong transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-surface-sunken disabled:text-ink-faint"
+      className={
+        isFixedStage || isFixedItem
+          ? "inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full text-clay-strong transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay motion-reduce:transition-none disabled:cursor-not-allowed disabled:text-ink-faint"
+          : "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-clay-strong transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-surface-sunken disabled:text-ink-faint"
+      }
     >
-      <CaretDown
-        aria-hidden="true"
-        size={18}
-        weight="bold"
-        className={[
-          "transition-transform motion-reduce:transition-none",
-          groupExpanded ? "rotate-180" : "",
-        ].join(" ")}
-      />
+      {groupExpanded ? (
+        <MinusSquare aria-hidden="true" size={22} weight="regular" />
+      ) : (
+        <PlusSquare aria-hidden="true" size={22} weight="regular" />
+      )}
     </button>
   ) : null;
 
+  const openDialog = (
+    trigger: HTMLButtonElement,
+    view: "details" | "attachments",
+  ) => {
+    triggerRef.current = trigger;
+    setDialogView(view);
+    dialogRef.current?.showModal();
+    dialogTitleRef.current?.focus();
+  };
+  const expenseActionClassName =
+    "inline-flex min-h-11 max-w-full items-center justify-center gap-1.5 rounded-full border border-line bg-white px-3 md:min-h-9 text-xs font-semibold leading-4 text-clay transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2";
+  // 唯讀者沒有附件時不放按鈕，避免點進去只看到空白。
+  const attachmentButton =
+    !isGroup && (canEdit || attachmentCount > 0) ? (
+      <button
+        type="button"
+        data-budget-attachment-affordance="true"
+        aria-label={"查看附件：" + item.name}
+        aria-describedby={attachmentDescriptionId}
+        onClick={(event) => openDialog(event.currentTarget, "attachments")}
+        className={expenseActionClassName}
+      >
+        <Paperclip aria-hidden="true" size={17} weight="regular" />
+        <span className="min-w-0 whitespace-normal break-words">
+          {attachmentActionText}
+        </span>
+      </button>
+    ) : null;
   const disclosureButton = (
     <button
-      ref={triggerRef}
       type="button"
       data-budget-disclosure-hint="true"
-      data-budget-attachment-affordance={!isGroup ? "true" : undefined}
       aria-label={disclosureLabel + "：" + item.name}
-      aria-describedby={!isGroup ? attachmentDescriptionId : undefined}
-      onClick={() => {
-        dialogRef.current?.showModal();
-        dialogTitleRef.current?.focus();
-      }}
-      className="inline-flex min-h-11 min-w-11 max-w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-semibold leading-4 text-clay underline decoration-line-strong underline-offset-4 transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2"
+      onClick={(event) => openDialog(event.currentTarget, "details")}
+      className={
+        isFixedStage || isFixedItem
+          ? "inline-flex min-h-10 max-w-full items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold text-ink-soft transition hover:bg-surface hover:text-clay-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+          : expenseActionClassName
+      }
     >
-      <Eye aria-hidden="true" size={17} weight="regular" />
+      {isGroup || !canEdit ? (
+        <Eye aria-hidden="true" size={17} weight="regular" />
+      ) : (
+        <PencilSimple aria-hidden="true" size={17} weight="regular" />
+      )}
       <span className="min-w-0 whitespace-normal break-words">
         {disclosureActionText}
       </span>
@@ -1163,40 +1209,37 @@ function BudgetItemRow({
           {isFixedStage ? (
             <div
               data-budget-scan-layout="stage-header"
-              className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 border-y border-line-strong bg-clay-soft px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:px-4"
+              className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-t border-l-4 border-line-strong border-l-clay bg-clay-soft px-3 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:px-5"
             >
               <span data-budget-mobile-row="primary">{groupToggle}</span>
               <div data-budget-mobile-row="primary" className="min-w-0">
-                <span
-                  data-budget-ledger-column="item-level"
-                  className="text-[0.68rem] font-semibold tracking-[0.12em] text-clay"
-                >
+                <span data-budget-ledger-column="item-level" className="sr-only">
                   籌備階段
                 </span>
-                <RowHeading className="mt-0.5 break-words font-serif text-xl font-semibold leading-7 text-ink">
+                <RowHeading className="break-words font-serif text-xl font-semibold leading-7 text-ink">
                   {item.name}
                 </RowHeading>
-                <p className="mt-1 text-xs text-ink-soft">
-                  {browseDirectChildCount} 個品項分類 · 共{" "}
-                  {browseDescendantCount} 個下層項目
+                <p className="mt-0.5 text-xs text-ink-soft">
+                  {browseDirectChildCount} 個品項 · {browseDescendantCount}{" "}
+                  筆項目
                 </p>
               </div>
               <p
                 data-budget-mobile-row="amounts"
-                className="col-span-2 flex min-w-0 items-baseline justify-between gap-3 border-t border-line pt-2 text-xs text-ink-soft sm:col-span-1 sm:border-t-0 sm:pt-0 sm:text-right"
+                className="col-span-3 flex min-w-0 items-baseline justify-between gap-3 pl-[3.25rem] text-xs text-ink-soft sm:col-span-1 sm:block sm:pl-0 sm:text-right"
               >
-                <span>階段小計</span>
+                <span className="sm:block">階段小計</span>
                 <span
                   role="group"
                   aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
-                  className="shrink-0 font-sans text-base font-semibold tabular-nums text-ink"
+                  className="shrink-0 font-sans text-lg font-semibold tabular-nums text-ink sm:block"
                 >
                   {scanPlannedAmount}
                 </span>
               </p>
               <span
                 data-budget-mobile-row="action"
-                className="col-span-2 justify-self-end sm:col-span-1"
+                className="col-start-3 row-start-1 justify-self-end sm:col-start-auto sm:row-start-auto"
               >
                 {disclosureButton}
               </span>
@@ -1204,51 +1247,48 @@ function BudgetItemRow({
           ) : isFixedItem ? (
             <div
               data-budget-scan-layout="taxonomy-header"
-              className="grid min-w-0 grid-cols-1 items-center gap-x-5 gap-y-2 border-b border-line border-l-[3px] border-l-clay bg-surface px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_minmax(9rem,auto)]"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-b border-line bg-white py-2.5 pr-3 pl-3 hover:bg-surface sm:pl-9 md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:gap-x-5 md:pr-4"
             >
               {/* 三個欄位軌道與花費列一致，品項小計才會和下面的預計總價對齊。 */}
-              <div className="flex min-w-0 items-center gap-3">
-              <span
-                aria-hidden="true"
-                data-budget-hierarchy-connector="true"
-                className="h-full min-h-11 w-px shrink-0 border-l border-line-strong"
-              />
-              <span data-budget-mobile-row="primary" className="shrink-0">{groupToggle}</span>
-              <div data-budget-mobile-row="primary" className="min-w-0">
-                <p className="hidden text-xs text-ink-soft xl:block">
-                  {item.directParentName ? `${item.directParentName} ›` : "品項分類"}
-                </p>
+              <div className="flex min-w-0 items-center gap-2">
                 <span
-                  data-budget-ledger-column="item-level"
-                  className="text-[0.68rem] font-semibold tracking-[0.12em] text-clay xl:hidden"
-                >
-                  品項分類
+                  aria-hidden="true"
+                  data-budget-hierarchy-connector="true"
+                  className="hidden"
+                />
+                <span data-budget-mobile-row="primary" className="shrink-0">
+                  {groupToggle}
                 </span>
-                <RowHeading className="mt-0.5 break-words font-serif text-lg font-semibold leading-6 text-ink sm:text-xl xl:text-2xl xl:leading-8">
-                  {item.name}
-                </RowHeading>
-                <p className="mt-1 text-xs text-ink-soft">
-                  {browseDirectChildCount} 個直接項目 · 共{" "}
-                  {browseDescendantCount} 個下層項目
-                </p>
-              </div>
+                <div data-budget-mobile-row="primary" className="min-w-0">
+                  <span data-budget-ledger-column="item-level" className="sr-only">
+                    品項分類
+                  </span>
+                  <RowHeading className="break-words font-serif text-lg font-semibold leading-6 text-ink">
+                    {item.name}
+                  </RowHeading>
+                  <p className="text-xs text-ink-soft">
+                    {browseDescendantCount > 0
+                      ? `${browseDescendantCount} 筆項目`
+                      : "尚無項目"}
+                  </p>
+                </div>
               </div>
               <p
                 data-budget-mobile-row="amounts"
-                className="flex min-w-0 items-baseline justify-between gap-3 border-t border-line pt-2 text-xs text-ink-soft md:block md:border-t-0 md:pt-0"
+                className="col-span-2 row-start-2 flex min-w-0 items-baseline justify-between gap-3 pl-12 text-xs text-ink-soft md:col-span-1 md:row-start-auto md:block md:pl-0 md:text-left"
               >
                 <span className="md:block">品項小計</span>
                 <span
                   role="group"
                   aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
-                  className="shrink-0 font-sans text-base font-semibold tabular-nums text-ink md:mt-0.5 md:block md:text-lg"
+                  className="block font-sans text-base font-semibold tabular-nums text-ink"
                 >
                   {scanPlannedAmount}
                 </span>
               </p>
               <span
                 data-budget-mobile-row="action"
-                className="justify-self-end md:justify-self-start"
+                className="col-start-2 row-start-1 justify-self-end md:col-start-auto md:row-start-auto"
               >
                 {disclosureButton}
               </span>
@@ -1301,7 +1341,7 @@ function BudgetItemRow({
                   : undefined
               }
               className={
-                "grid min-w-0 grid-cols-1 gap-3 border-b border-line border-l-[3px] bg-white py-4 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_minmax(9rem,auto)] md:items-center md:gap-5" +
+                "grid min-w-0 grid-cols-1 gap-2 border-b border-line border-l-[3px] bg-white py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
                 (nestedDepth > 0
                   ? " border-l-line-strong"
                   : " border-l-transparent")
@@ -1320,18 +1360,24 @@ function BudgetItemRow({
                     {needsReclassification ? "待重新分類" : taxonomyItemLabel}
                   </p>
                 )}
-                <RowHeading className="mt-1 break-words font-serif text-lg font-semibold leading-6 text-ink">
+                <RowHeading className="break-words font-serif text-base font-semibold leading-6 text-ink">
                   {item.name}
                 </RowHeading>
-                <p
-                  data-budget-ledger-column="brand"
-                  className="mt-1 min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft"
-                >
-                  {ledgerBrandSummary}
-                </p>
+                {tracksCost ? (
+                  <p
+                    data-budget-ledger-column="brand"
+                    className="min-w-0 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft"
+                  >
+                    {ledgerBrandSummary}
+                  </p>
+                ) : null}
                 <p
                   data-budget-mobile-row="metadata"
-                  className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 break-words text-xs leading-5 text-ink-soft"
+                  className={
+                    relatedTaxonomyItemLabel || browseDescendantCount > 0 || isContext
+                      ? "mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 break-words text-xs leading-5 text-ink-soft"
+                      : "sr-only"
+                  }
                 >
                   <span data-budget-hierarchy-breadcrumb="true" className="sr-only">
                     {breadcrumb.join(" › ")}
@@ -1375,7 +1421,7 @@ function BudgetItemRow({
                   )}
                 </p>
                 {(item.notes || item.additionalAmount !== null) && (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft">
+                  <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-ink-soft">
                     {item.notes ? `備註：${item.notes}` : null}
                     {item.notes && item.additionalAmount !== null ? " · " : null}
                     {item.additionalAmount !== null
@@ -1391,7 +1437,7 @@ function BudgetItemRow({
                   data-budget-non-cost="true"
                   className="min-w-0 border-y border-line py-3 text-sm font-semibold leading-6 text-ink-soft md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
                 >
-                  不計入預算；原有金額仍保留
+                  不列入計算
                 </p>
               ) : isPassThrough ? (
                 <p
@@ -1404,21 +1450,21 @@ function BudgetItemRow({
               ) : (
               <dl
                 data-budget-mobile-row="amounts"
-                className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 border-y border-line py-3 md:border-y-0 md:border-l md:border-line md:py-0 md:pl-5"
+                className="grid min-w-0 grid-cols-3 gap-x-3 gap-y-1 border-t border-line pt-2 md:border-t-0 md:border-l md:border-line md:pt-0 md:pl-5"
               >
                 {amountsIncludeChildren && (
                   <div
                     data-budget-amount-scope="rolled-up"
-                    className="col-span-2 flex flex-wrap items-center gap-x-2 gap-y-1"
+                    className="col-span-3 flex flex-wrap items-center gap-x-2 gap-y-1"
                   >
                     <span className="inline-flex rounded-full border border-clay/30 bg-clay-soft px-2 py-0.5 text-eyebrow font-semibold text-clay-strong">
                       含子項
                     </span>
                   </div>
                 )}
-                <div data-budget-ledger-column="total" className="col-span-2">
+                <div data-budget-ledger-column="total" className="col-span-3 flex flex-wrap items-baseline gap-x-2">
                   <dt className="text-xs text-ink-soft">預計總價</dt>
-                  <dd className="mt-0.5 font-sans text-lg font-semibold tabular-nums text-ink">
+                  <dd className="font-sans text-base font-semibold tabular-nums text-ink">
                     <span
                       role="group"
                       aria-label={scanPlannedLabel + "：" + scanPlannedAmount}
@@ -1442,8 +1488,8 @@ function BudgetItemRow({
                   )}
                 </div>
                 <div>
-                  <dt className="text-xs text-ink-soft">實付</dt>
-                  <dd className="mt-0.5 font-sans text-sm font-semibold tabular-nums text-ink">
+                  <dt className="text-[0.68rem] leading-4 text-ink-soft">實付</dt>
+                  <dd className="font-sans text-xs font-semibold tabular-nums text-ink">
                     <span
                       role="group"
                       aria-label={scanActualLabel + "：" + scanActualAmount}
@@ -1454,15 +1500,23 @@ function BudgetItemRow({
                   </dd>
                 </div>
                 <div data-budget-ledger-column="deposit">
-                  <dt className="text-xs text-ink-soft">訂金</dt>
-                  <dd className="mt-0.5 font-sans text-sm font-medium tabular-nums text-ink-soft">
+                  <dt className="text-[0.68rem] leading-4 text-ink-soft">訂金</dt>
+                  <dd className="font-sans text-xs font-medium tabular-nums text-ink-soft">
                     {ledgerDepositAmount}
                   </dd>
                 </div>
                 <div data-budget-ledger-column="balance">
-                  <dt className="text-xs text-ink-soft">尾款</dt>
-                  <dd className="mt-0.5 font-sans text-sm font-medium tabular-nums text-ink-soft">
+                  <dt className="text-[0.68rem] leading-4 text-ink-soft">尾款</dt>
+                  <dd className="font-sans text-xs font-medium tabular-nums text-ink-soft">
                     {ledgerBalanceAmount}
+                    {!amountsIncludeChildren && (item.paidAmount ?? 0) > 0 ? (
+                      <span
+                        data-budget-ledger-paid="true"
+                        className="block text-xs font-normal text-positive"
+                      >
+                        已先付 {formatTwdAmount(item.paidAmount ?? 0)}
+                      </span>
+                    ) : null}
                   </dd>
                 </div>
               </dl>
@@ -1470,7 +1524,7 @@ function BudgetItemRow({
 
               <span
                 data-budget-mobile-row="action"
-                className="flex min-w-0 flex-row flex-wrap items-center justify-between gap-2 md:flex-col md:items-end md:justify-center"
+                className="flex min-w-0 flex-row flex-wrap items-center justify-end gap-2"
               >
                 <span
                   className={[
@@ -1491,25 +1545,26 @@ function BudgetItemRow({
                   </span>
                   <span className="sr-only">
                     {!tracksCost
-                      ? `準備方式為${BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}，不計入預算與付款進度`
+                      ? `準備方式為${BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}，不列入計算`
                       : isPendingPreparationSuggestion
                       ? "常見婚禮項目待準備，目前狀態為規劃中"
                       : BUDGET_BOOKING_STATUS_LABELS[item.bookingStatus]}
                   </span>
                 </span>
                 {/* 期限跟狀態是同一組資訊，貼著徽章走；沒設期限就不佔一行。 */}
-                {tracksCost && item.dueDate ? (
+                {tracksCost && dueDate ? (
                   <span
                     data-budget-ledger-column="due-date"
                     className={[
-                      "text-xs md:-mt-1",
+                      "text-xs",
                       balanceDueIsOverdue
                         ? "font-semibold text-danger"
                         : "text-ink-soft",
                     ].join(" ")}
                   >
-                    <time dateTime={item.dueDate}>
-                      期限 {item.dueDate}
+                    <time dateTime={dueDate.date}>
+                      期限 {dueDate.date}
+                      {dueDateSuffix}
                       {balanceDueIsOverdue ? "（已逾期）" : ""}
                     </time>
                   </span>
@@ -1517,7 +1572,10 @@ function BudgetItemRow({
                 <span id={attachmentDescriptionId} className="sr-only">
                   {attachmentDescription}
                 </span>
-                {disclosureButton}
+                <span className="flex min-w-0 flex-wrap gap-2">
+                  {disclosureButton}
+                  {attachmentButton}
+                </span>
               </span>
             </div>
           )}
@@ -1585,7 +1643,6 @@ function BudgetItemRow({
         )}
 
         <dialog
-        data-dialog-presentation="panel"
           ref={dialogRef}
           aria-labelledby={dialogTitleId}
           onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
@@ -1593,7 +1650,7 @@ function BudgetItemRow({
             if (managePending) event.preventDefault();
           }}
           onClose={restoreDialogFocus}
-          className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)] backdrop:bg-ink/35 backdrop:backdrop-blur-[1px]"
+          className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)]"
         >
           <header className="sticky top-0 z-20 flex min-w-0 items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">
             <div className="min-w-0">
@@ -1606,7 +1663,9 @@ function BudgetItemRow({
                       ? canEdit
                         ? "管理群組"
                         : "群組完整資料"
-                      : canEdit
+                      : showsAttachmentsOnly
+                        ? "花費附件"
+                        : canEdit
                         ? "管理花費項目"
                         : "花費完整資料"}
               </p>
@@ -1640,7 +1699,9 @@ function BudgetItemRow({
             </div>
             <button
               type="button"
-              aria-label={`關閉${canEdit ? "管理" : "詳細"}：${item.name}`}
+              aria-label={`關閉${
+                showsAttachmentsOnly ? "附件" : canEdit ? "管理" : "詳細"
+              }：${item.name}`}
               disabled={managePending}
               onClick={() => dialogRef.current?.close()}
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-line text-2xl leading-none text-ink-soft transition hover:bg-clay-soft disabled:cursor-wait disabled:opacity-50"
@@ -1660,6 +1721,7 @@ function BudgetItemRow({
             className="min-w-0 bg-surface/70 px-5 py-6 sm:px-7"
           >
             <p
+              hidden={showsAttachmentsOnly}
               className={[
                 "inline-flex rounded-full border border-line-strong bg-clay-soft px-3 py-1 text-xs font-semibold text-clay",
                 isGroup ? "mb-5" : "",
@@ -1677,18 +1739,22 @@ function BudgetItemRow({
             </p>
 
             {!isGroup && (
-              <BudgetAttachments
-                key={`${item.id}:${(item.attachments ?? [])
-                  .map((attachment) => attachment.id)
-                  .join(",")}`}
-                workspaceId={workspaceId}
-                budgetItemId={item.id}
-                initialAttachments={item.attachments ?? []}
-                canEdit={canEdit}
-                onPendingChange={setAttachmentPending}
-                onAttachmentCountChange={updateAttachmentCount}
-              />
+              <div hidden={!showsAttachmentsOnly}>
+                <BudgetAttachments
+                  key={`${item.id}:${(item.attachments ?? [])
+                    .map((attachment) => attachment.id)
+                    .join(",")}`}
+                  workspaceId={workspaceId}
+                  budgetItemId={item.id}
+                  initialAttachments={item.attachments ?? []}
+                  canEdit={canEdit}
+                  onPendingChange={setAttachmentPending}
+                  onAttachmentCountChange={updateAttachmentCount}
+                />
+              </div>
             )}
+
+            <div hidden={showsAttachmentsOnly}>
 
             {directChildren.length > 0 && (
               <section
@@ -1751,7 +1817,7 @@ function BudgetItemRow({
               <>
                 {!tracksCost ? (
                   <p className="mb-5 border-l-2 border-clay bg-clay-soft px-4 py-3 text-sm leading-6 text-ink-soft">
-                    目前標示為「{BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}」，下列既有金額只供保留與日後恢復，不計入預算或付款進度。
+                    目前標示為「{BUDGET_PREPARATION_STATUS_LABELS[preparationStatus]}」，此項目不列入計算。
                   </p>
                 ) : null}
                 <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1801,16 +1867,17 @@ function BudgetItemRow({
                       付款期限
                     </dt>
                     <dd className="mt-1 break-words text-sm text-ink-soft">
-                      {item.dueDate ? (
+                      {dueDate ? (
                         <time
-                          dateTime={item.dueDate}
+                          dateTime={dueDate.date}
                           className={
                             balanceDueIsOverdue
                               ? "font-semibold text-danger"
                               : undefined
                           }
                         >
-                          {item.dueDate}
+                          {dueDate.date}
+                          {dueDateSuffix}
                           {balanceDueIsOverdue ? "（已逾期）" : ""}
                         </time>
                       ) : (
@@ -1865,6 +1932,24 @@ function BudgetItemRow({
                     </dd>
                   </div>
                 </dl>
+
+                {tracksCost ? (
+                  <BudgetPayments
+                    key={`${item.id}:${item.version}`}
+                    workspaceId={workspaceId}
+                    itemId={item.id}
+                    itemName={item.name}
+                    expectedVersion={item.version}
+                    bookingStatus={item.bookingStatus}
+                    balanceAmount={item.balanceAmount}
+                    additionalAmount={item.additionalAmount}
+                    balancePaymentMethod={item.balancePaymentMethod}
+                    payments={item.payments ?? []}
+                    canEdit={canEdit}
+                    today={workspaceToday}
+                    onPendingChange={setPaymentPending}
+                  />
+                ) : null}
 
                 {richDetails.length > 0 && (
                   <dl className="mt-5 grid min-w-0 gap-x-6 gap-y-4 border-t border-line pt-5 sm:grid-cols-2">
@@ -2078,6 +2163,7 @@ function BudgetItemRow({
                 ) : null}
               </div>
             )}
+            </div>
           </section>
         </dialog>
       </article>
@@ -3142,11 +3228,11 @@ export function BudgetList({
               {canEdit && (
                 <div
                   data-budget-actions-toolbar="true"
-                  className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start"
+                  className="flex min-w-0 flex-wrap items-start gap-2"
                 >
                   <details
                   data-budget-primary-action="true"
-                  className="group min-w-0"
+                  className="group min-w-0 open:basis-full lg:open:basis-auto"
                 >
                   <summary className="flex min-h-12 w-fit max-w-full cursor-pointer list-none items-center gap-2 rounded-full bg-clay-strong px-5 py-3 text-sm font-semibold text-white outline-none transition hover:bg-clay-strong focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
                     <Plus
@@ -3174,7 +3260,7 @@ export function BudgetList({
                     />
                   </div>
                 </details>
-                <details className="group min-w-0">
+                <details className="group min-w-0 open:basis-full lg:open:basis-auto">
                   <summary
                     aria-label={
                       selectedTaxonomyContext

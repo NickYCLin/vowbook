@@ -101,7 +101,7 @@ describe("budget nested dialog focus containment", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "開啟花費明細與附件：婚禮攝影",
+        name: "編輯花費：婚禮攝影",
       }),
     );
     const managementDialog = screen.getByRole("dialog", {

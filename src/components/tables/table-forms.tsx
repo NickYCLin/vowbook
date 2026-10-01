@@ -158,29 +158,141 @@ export function SeatingTableAdjustmentConfirmation({
   );
 }
 
-export function AdjustSeatingTablesForm({
-  workspaceId,
-  currentTableCount,
-}: AdjustSeatingTablesFormProps) {
-  return (
-    <AdjustSeatingTablesFormState
-      workspaceId={workspaceId}
-      currentTableCount={currentTableCount}
-    />
-  );
+export function AdjustSeatingTablesForm(props: AdjustSeatingTablesFormProps) {
+  return <AdjustSeatingTablesFormState {...props} />;
 }
 
 type AdjustSeatingTablesFormProps = {
   workspaceId: string;
   currentTableCount: number;
+  /** 依桌號順序排列的現有容量；第一筆是主桌。 */
+  tableCapacities?: readonly number[];
+  /** 需要入座的賓客總人數，用來比對席次是否足夠。 */
+  seatedGuestCount?: number;
 };
+
+const DEFAULT_MAIN_TABLE_CAPACITY = 12;
+const DEFAULT_REGULAR_TABLE_CAPACITY = 10;
+
+function mostCommonCapacity(capacities: readonly number[]): number {
+  const counts = new Map<number, number>();
+  let best = DEFAULT_REGULAR_TABLE_CAPACITY;
+  let bestCount = 0;
+  for (const capacity of capacities) {
+    const count = (counts.get(capacity) ?? 0) + 1;
+    counts.set(capacity, count);
+    if (count > bestCount) {
+      best = capacity;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function parseBoundedInteger(
+  value: string,
+  minimum: number,
+  maximum: number,
+): number | null {
+  if (!/^\d+$/u.test(value.trim())) {
+    return null;
+  }
+  const parsed = Number(value.trim());
+  return parsed >= minimum && parsed <= maximum ? parsed : null;
+}
+
+function SeatingCapacitySummary({
+  tableCount,
+  mainCapacity,
+  regularCapacity,
+  existingRegularCapacities,
+  seatedGuestCount,
+}: {
+  tableCount: number | null;
+  mainCapacity: number | null;
+  regularCapacity: number | null;
+  existingRegularCapacities: readonly number[];
+  seatedGuestCount?: number;
+}) {
+  if (tableCount === null || mainCapacity === null || regularCapacity === null) {
+    return (
+      <p className="text-caption leading-6 text-ink-faint">
+        請輸入有效的桌數與人數，這裡會即時計算總席次。
+      </p>
+    );
+  }
+  if (tableCount === 0) {
+    return (
+      <p className="text-caption leading-6 text-ink-soft">
+        總桌數為 0 時不會保留任何桌次。
+      </p>
+    );
+  }
+
+  const regularCount = tableCount - 1;
+  const regularCapacities = Array.from({ length: regularCount }, (_, index) =>
+    index < existingRegularCapacities.length
+      ? existingRegularCapacities[index]!
+      : regularCapacity,
+  );
+  const regularSeats = regularCapacities.reduce((total, seats) => total + seats, 0);
+  const totalSeats = mainCapacity + regularSeats;
+  const uniform = regularCapacities.every((seats) => seats === regularCapacity);
+  const regularText =
+    regularCount === 0
+      ? ""
+      : uniform
+        ? ` ＋ 一般桌 ${regularCount} 桌 × ${regularCapacity} 位`
+        : ` ＋ 一般桌 ${regularCount} 桌（合計 ${regularSeats} 位）`;
+  const difference =
+    seatedGuestCount === undefined ? null : totalSeats - seatedGuestCount;
+
+  return (
+    <div
+      data-seating-capacity-summary
+      className="rounded-control border border-line bg-surface/60 px-3.5 py-3 text-caption leading-6"
+    >
+      <p className="font-medium text-ink tabular-nums">
+        主桌 1 桌 × {mainCapacity} 位{regularText} ＝ 共 {totalSeats} 席
+      </p>
+      {difference !== null && (
+        <p
+          className={cn(
+            "tabular-nums",
+            difference < 0 ? "font-medium text-danger" : "text-ink-soft",
+          )}
+        >
+          {difference < 0
+            ? `需入座賓客 ${seatedGuestCount} 位，還差 ${-difference} 席。`
+            : `需入座賓客 ${seatedGuestCount} 位，預留 ${difference} 個空位。`}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function AdjustSeatingTablesFormState({
   workspaceId,
   currentTableCount,
+  tableCapacities = [],
+  seatedGuestCount,
 }: AdjustSeatingTablesFormProps) {
   const countId = useId();
+  const mainCapacityId = useId();
   const capacityId = useId();
+  const existingRegularCapacities = tableCapacities.slice(1);
+  const capacityKey = tableCapacities.join(",");
+  const initialMainCapacity = String(
+    tableCapacities[0] ?? DEFAULT_MAIN_TABLE_CAPACITY,
+  );
+  const initialRegularCapacity = String(
+    mostCommonCapacity(existingRegularCapacities),
+  );
+  const [mainCapacity, setMainCapacity] = useState(initialMainCapacity);
+  const [regularCapacity, setRegularCapacity] = useState(
+    initialRegularCapacity,
+  );
+  const previousCapacityKeyRef = useRef(capacityKey);
   const adjustAction = adjustSeatingTablesAction.bind(null, workspaceId);
   const [state, formAction, isPending] = useActionState(adjustAction, initialState);
   const [targetTableCount, setTargetTableCount] = useState(
@@ -212,6 +324,15 @@ function AdjustSeatingTablesFormState({
     setDismissedFingerprint(null);
   }, [currentTableCount]);
 
+  useEffect(() => {
+    if (previousCapacityKeyRef.current === capacityKey) {
+      return;
+    }
+    previousCapacityKeyRef.current = capacityKey;
+    setMainCapacity(initialMainCapacity);
+    setRegularCapacity(initialRegularCapacity);
+  }, [capacityKey, initialMainCapacity, initialRegularCapacity]);
+
   return (
     <Card
       as="section"
@@ -234,8 +355,12 @@ function AdjustSeatingTablesFormState({
           className="min-w-0 space-y-5"
           onSubmit={() => setDismissedFingerprint(null)}
         >
-          <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-            <Field htmlFor={countId} label="總桌數" hint="可設定 0～200 桌。">
+          <div className="grid min-w-0 gap-5 sm:grid-cols-3">
+            <Field
+              htmlFor={countId}
+              label="總桌數（含主桌）"
+              hint="可設定 0～200 桌。"
+            >
               <Input
                 id={countId}
                 name="totalTableCount"
@@ -254,7 +379,31 @@ function AdjustSeatingTablesFormState({
                 className="tabular-nums sm:max-w-40"
               />
             </Field>
-            <Field htmlFor={capacityId} label="新增桌的預設容量">
+            <Field
+              htmlFor={mainCapacityId}
+              label="主桌人數"
+              hint="新人與雙方家長，常見 12～14 位。"
+            >
+              <Input
+                id={mainCapacityId}
+                name="mainTableCapacity"
+                type="number"
+                required
+                min={1}
+                max={100}
+                step={1}
+                inputMode="numeric"
+                value={mainCapacity}
+                disabled={isPending}
+                onChange={(event) => setMainCapacity(event.target.value)}
+                className="tabular-nums sm:max-w-40"
+              />
+            </Field>
+            <Field
+              htmlFor={capacityId}
+              label="一般桌每桌人數"
+              hint="新增的桌次都會使用這個人數。"
+            >
               <Input
                 id={capacityId}
                 name="defaultCapacity"
@@ -264,14 +413,22 @@ function AdjustSeatingTablesFormState({
                 max={100}
                 step={1}
                 inputMode="numeric"
-                defaultValue={10}
+                value={regularCapacity}
                 disabled={isPending}
+                onChange={(event) => setRegularCapacity(event.target.value)}
                 className="tabular-nums sm:max-w-40"
               />
             </Field>
           </div>
+          <SeatingCapacitySummary
+            tableCount={parseBoundedInteger(targetTableCount, 0, 200)}
+            mainCapacity={parseBoundedInteger(mainCapacity, 1, 100)}
+            regularCapacity={parseBoundedInteger(regularCapacity, 1, 100)}
+            existingRegularCapacities={existingRegularCapacities}
+            seatedGuestCount={seatedGuestCount}
+          />
           <p className="text-caption leading-6 text-ink-soft">
-            既有桌次的桌名、容量與賓客安排不會在增加桌數時被覆寫。
+            既有一般桌的桌名、人數與賓客安排不會被改動；主桌人數若少於已安排的人數，這次設定不會套用。
           </p>
           <div data-action-feedback="seating-table-adjustment">
             <SeatingTableActionFeedback state={state} />

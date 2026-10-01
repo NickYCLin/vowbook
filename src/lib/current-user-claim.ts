@@ -155,7 +155,7 @@ export async function resolveCurrentUserIdentityWithClaims(
       Array<{
         id: string;
         workspace_id: string;
-        role: "PARTNER" | "PLANNER" | "VIEWER";
+        role: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
       }>
     >`
       UPDATE "workspace_invitations"

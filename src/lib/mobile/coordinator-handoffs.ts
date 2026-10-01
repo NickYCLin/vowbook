@@ -18,7 +18,7 @@ import {
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
 import { requireLockedWorkspaceAccess } from "@/lib/workspace-mutation-access";
 
-const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 const STALE_MESSAGE = "這筆交辦剛剛被其他人更新，請重新整理後再試。";
 
 export const HANDOFF_FIELDS = [

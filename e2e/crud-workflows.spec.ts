@@ -1265,7 +1265,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
       name: "女方親友",
     });
     const sharedUnassignedSection = page.getByRole("region", {
-      name: "共同親友",
+      name: "共同朋友",
     });
     await expect(maleUnassignedSection).toContainText(fixture.importedGuestName);
     await expect(femaleUnassignedSection).toContainText(fixture.editedGuestName);

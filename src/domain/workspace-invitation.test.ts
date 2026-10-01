@@ -51,10 +51,12 @@ describe("workspace invitation domain contract", () => {
     expect(INVITABLE_WORKSPACE_ROLES).toEqual([
       "PARTNER",
       "PLANNER",
+      "COORDINATOR",
       "VIEWER",
     ]);
     expect(normalizeInvitationRole("PARTNER")).toBe("PARTNER");
     expect(normalizeInvitationRole("PLANNER")).toBe("PLANNER");
+    expect(normalizeInvitationRole("COORDINATOR")).toBe("COORDINATOR");
     expect(normalizeInvitationRole("VIEWER")).toBe("VIEWER");
     expect(() => normalizeInvitationRole("OWNER")).toThrow(
       WorkspaceInvitationValidationError,

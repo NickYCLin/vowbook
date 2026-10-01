@@ -13,7 +13,8 @@ it("checks Membership before rendering and hides owner controls for viewers", as
   render(await SettingsPage({ params }));
   expect(mocks.access).toHaveBeenCalledWith("w", "u", "read");
   expect(screen.queryByRole("button", { name: "編輯婚宴" })).toBeNull();
-  expect(screen.getByRole("link", { name: /分享與協作/ })).toHaveAttribute("href", "/workspaces/w/members");
+  expect(screen.queryByRole("link", { name: /分享與協作/ })).toBeNull();
+  expect(screen.queryByText(/共同籌備的成員/)).toBeNull();
 });
 it("fails closed for inaccessible workspaces", async () => {
   mocks.access.mockRejectedValueOnce(new WorkspaceAccessDeniedError());

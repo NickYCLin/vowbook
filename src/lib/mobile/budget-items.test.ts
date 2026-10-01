@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   updateMany: vi.fn(),
   deleteMany: vi.fn(),
   executeRaw: vi.fn(),
+  paymentCreate: vi.fn(),
+  paymentDeleteMany: vi.fn(),
+  paymentAggregate: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -16,7 +19,9 @@ vi.mock("@/lib/workspace-mutation-access", () => ({ requireLockedWorkspaceAccess
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transaction } }));
 
 import {
+  mobileAddBudgetPayment,
   mobileCreateBudgetItem,
+  mobileDeleteBudgetPayment,
   mobileDeleteBudgetItem,
   mobileSetBudgetBookingStatus,
   mobileSetBudgetPreparationStatus,
@@ -30,6 +35,11 @@ const client = {
     create: mocks.create,
     updateMany: mocks.updateMany,
     deleteMany: mocks.deleteMany,
+  },
+  budgetPayment: {
+    create: mocks.paymentCreate,
+    deleteMany: mocks.paymentDeleteMany,
+    aggregate: mocks.paymentAggregate,
   },
 };
 const form = {
@@ -53,6 +63,9 @@ describe("手機改花費", () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     mocks.deleteMany.mockResolvedValue({ count: 1 });
     mocks.executeRaw.mockResolvedValue(1);
+    mocks.paymentCreate.mockResolvedValue({});
+    mocks.paymentDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { amount: null } });
     mocks.transaction.mockImplementation(async (callback: (value: unknown) => unknown) => callback(client));
   });
 
@@ -120,6 +133,9 @@ describe("手機改花費", () => {
       primaryContact: "PARTNER_B",
       actualAmount: 5000,
     });
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { amount: 30000 } });
+    await mobileUpdateBudgetItem("workspace_1", "user_1", "item_1", { ...form, expectedVersion: 3 });
+    expect(mocks.updateMany.mock.calls[1][0].data.actualAmount).toBe(35000);
     expect(args.data).not.toHaveProperty("parentId");
     expect(args.data).not.toHaveProperty("bookingStatus");
   });
@@ -164,5 +180,94 @@ describe("手機改花費", () => {
   it("沒有編輯權限回 403", async () => {
     mocks.locked.mockRejectedValue(new WorkspaceAccessDeniedError());
     await expect(mobileDeleteBudgetItem("workspace_1", "user_1", "item_1", 2)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("付款狀態改回尾款待付時，實付會算進已分批付款", async () => {
+    await mobileSetBudgetBookingStatus("workspace_1", "user_1", "item_1", "BOOKED_BALANCE_DUE", 1);
+    const sql = mocks.executeRaw.mock.calls[0][0];
+    expect(sql.sql).toContain("budget_payments");
+  });
+});
+
+describe("手機記尾款分批付款", () => {
+  const venue = {
+    bookingStatus: "BOOKED_BALANCE_DUE",
+    plannedAmount: 400000,
+    depositAmount: 80000,
+    balanceAmount: 300000,
+    additionalAmount: 20000,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.locked.mockResolvedValue("PARTNER");
+    mocks.findFirst.mockResolvedValue(venue);
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.paymentCreate.mockResolvedValue({});
+    mocks.paymentDeleteMany.mockResolvedValue({ count: 1 });
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { amount: 100000 } });
+    mocks.transaction.mockImplementation(async (callback: (value: unknown) => unknown) => callback(client));
+  });
+
+  it("記錄人取自登入者，只能記在尾款待付的項目", async () => {
+    await expect(mobileAddBudgetPayment("workspace_1", "user_1", "item_1", {
+      amount: 50000, paidOn: "2026-10-01", method: "BANK_TRANSFER", notes: " 先匯一半 ", expectedVersion: 4,
+    })).resolves.toEqual({ id: "item_1", version: 5 });
+    expect(mocks.locked).toHaveBeenCalledWith("workspace_1", "user_1", "edit", client);
+    expect(mocks.findFirst.mock.calls[0][0].where).toMatchObject({
+      id: "item_1", workspaceId: "workspace_1", version: 4, bookingStatus: "BOOKED_BALANCE_DUE",
+    });
+    expect(mocks.paymentCreate.mock.calls[0][0].data).toMatchObject({
+      amount: 50000, method: "BANK_TRANSFER", notes: "先匯一半",
+      workspaceId: "workspace_1", budgetItemId: "item_1", createdByUserId: "user_1",
+    });
+    expect(mocks.updateMany.mock.calls[0][0].data).toMatchObject({ actualAmount: 230000 });
+  });
+
+  it("尾款加加購付清就自動轉成已付款", async () => {
+    mocks.paymentAggregate.mockResolvedValue({ _sum: { amount: 200000 } });
+    await mobileAddBudgetPayment("workspace_1", "user_1", "item_1", {
+      amount: 120000, paidOn: "2026-10-05", expectedVersion: 4,
+    });
+    expect(mocks.updateMany.mock.calls[0][0].data).toMatchObject({ bookingStatus: "PAID", paid: true, actualAmount: 400000 });
+  });
+
+  it("不收身分欄位，金額與日期不對就不開交易", async () => {
+    for (const body of [
+      { amount: 1, paidOn: "2026-10-01", expectedVersion: 1, createdByUserId: "x" },
+      { amount: 0, paidOn: "2026-10-01", expectedVersion: 1 },
+      { amount: -5, paidOn: "2026-10-01", expectedVersion: 1 },
+      { amount: 1.5, paidOn: "2026-10-01", expectedVersion: 1 },
+      { amount: 1, paidOn: "2026-02-30", expectedVersion: 1 },
+      { amount: 1, paidOn: "2026-10-01", method: "CRYPTO", expectedVersion: 1 },
+    ]) {
+      await expect(mobileAddBudgetPayment("workspace_1", "user_1", "item_1", body)).rejects.toMatchObject({ status: 400 });
+    }
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("版本過期或項目已付清回 409", async () => {
+    mocks.findFirst.mockResolvedValue(null);
+    await expect(mobileAddBudgetPayment("workspace_1", "user_1", "item_1", {
+      amount: 1, paidOn: "2026-10-01", expectedVersion: 4,
+    })).rejects.toMatchObject({ status: 409 });
+    expect(mocks.paymentCreate).not.toHaveBeenCalled();
+  });
+
+  it("刪掉付款後又不夠就退回尾款待付，付款不屬於這個項目回 409", async () => {
+    mocks.findFirst.mockResolvedValue({ ...venue, bookingStatus: "PAID" });
+    await expect(mobileDeleteBudgetPayment("workspace_1", "user_1", "item_1", "pay_1", 6))
+      .resolves.toEqual({ id: "item_1", version: 7 });
+    expect(mocks.paymentDeleteMany.mock.calls[0][0].where).toEqual({ id: "pay_1", workspaceId: "workspace_1", budgetItemId: "item_1" });
+    expect(mocks.updateMany.mock.calls[0][0].data).toMatchObject({ bookingStatus: "BOOKED_BALANCE_DUE", paid: false, actualAmount: 180000 });
+    mocks.paymentDeleteMany.mockResolvedValue({ count: 0 });
+    await expect(mobileDeleteBudgetPayment("workspace_1", "user_1", "item_1", "pay_x", 6))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
+  it("沒有編輯權限回 403", async () => {
+    mocks.locked.mockRejectedValue(new WorkspaceAccessDeniedError());
+    await expect(mobileDeleteBudgetPayment("workspace_1", "user_1", "item_1", "pay_1", 6)).rejects.toMatchObject({ status: 403 });
+    expect(mocks.paymentDeleteMany).not.toHaveBeenCalled();
   });
 });

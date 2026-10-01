@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   async headers() {
     return [
-      ...["tables/print", "tables/chart", "staff/print", "gifts/print", "budget/print"].map(route => ({
+      ...["tables/print", "tables/chart", "staff/print", "gifts/print", "budget/print", "timeline/print"].map(route => ({
         source: `/workspaces/:workspaceId/${route}`,
         headers: [
           { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },

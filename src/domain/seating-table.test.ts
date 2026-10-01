@@ -59,8 +59,40 @@ describe("seating table domain contract", () => {
         totalTableCount: "12",
         defaultCapacity: "10",
       }),
-    ).toEqual({ totalTableCount: 12, defaultCapacity: 10 });
+    ).toEqual({
+      totalTableCount: 12,
+      defaultCapacity: 10,
+      mainTableCapacity: null,
+    });
     expect(MAX_SEATING_TABLE_COUNT).toBe(200);
+  });
+
+  it("normalizes a separate main-table capacity", () => {
+    expect(
+      normalizeSeatingTableAdjustmentInput({
+        totalTableCount: "12",
+        defaultCapacity: "10",
+        mainTableCapacity: " 14 ",
+      }),
+    ).toEqual({
+      totalTableCount: 12,
+      defaultCapacity: 10,
+      mainTableCapacity: 14,
+    });
+    expect(
+      normalizeSeatingTableAdjustmentInput({
+        totalTableCount: "1",
+        defaultCapacity: "10",
+        mainTableCapacity: "",
+      }),
+    ).toMatchObject({ mainTableCapacity: null });
+    expect(() =>
+      normalizeSeatingTableAdjustmentInput({
+        totalTableCount: "1",
+        defaultCapacity: "10",
+        mainTableCapacity: "0",
+      }),
+    ).toThrow();
   });
 
   it.each(["-1", "201", "1.5", "many"])(
@@ -160,7 +192,7 @@ describe("seating table domain contract", () => {
     expect(seatingTableSide([guest("PARTNER_A"), guest("PARTNER_B")])).toBe(
       "SHARED",
     );
-    // 只要有共同親友在座就算共同，不管排在第幾位。
+    // 只要有共同朋友在座就算共同，不管排在第幾位。
     expect(seatingTableSide([guest("SHARED"), guest("PARTNER_A")])).toBe(
       "SHARED",
     );

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { WorkspacePageHeader } from "./workspace-shell";
+import { WorkspaceNavigation, WorkspacePageHeader } from "./workspace-shell";
 
 const links = [
   ["婚宴首頁", "/workspaces/workspace_synthetic/overview", "bar"],
@@ -10,6 +10,7 @@ const links = [
   ["禮金", "/workspaces/workspace_synthetic/gifts", "panel"],
   ["任務", "/workspaces/workspace_synthetic/tasks", "bar"],
   ["花費", "/workspaces/workspace_synthetic/budget", "bar"],
+  ["文件", "/workspaces/workspace_synthetic/documents", "panel"],
   ["工作人員", "/workspaces/workspace_synthetic/staff", "panel"],
   ["總流程", "/workspaces/workspace_synthetic/timeline", "panel"],
   ["婚宴設定", "/workspaces/workspace_synthetic/settings", "panel"],
@@ -112,7 +113,7 @@ describe("WorkspacePageHeader", () => {
     expect(panel).toHaveClass("max-md:hidden", "md:contents");
     expect(
       within(panel as HTMLElement).getAllByRole("link").map((link) => link.textContent),
-    ).toEqual(["桌次", "報到", "禮金", "工作人員", "總流程", "婚宴設定", "協作者"]);
+    ).toEqual(["桌次", "文件", "報到", "禮金", "總流程", "工作人員", "協作者", "婚宴設定"]);
     expect(navigation.querySelector("[data-workspace-more-backdrop]")).toBeNull();
 
     fireEvent.click(more);
@@ -222,5 +223,21 @@ describe("WorkspacePageHeader", () => {
 
     expect(navigation.scrollLeft).toBe(180);
     expect(timelineLink).toHaveAttribute("aria-current", "page");
+  });
+
+  it("groups the desktop sidebar into 籌備、婚禮當天、管理 in the same order as iOS", () => {
+    render(<WorkspaceNavigation workspaceId="w" activeSection="overview" layout="sidebar" />);
+    const navigation = screen.getByRole("navigation", { name: "工作區功能" });
+    const ordered = [...navigation.querySelectorAll<HTMLElement>("[data-workspace-nav-order]")]
+      .sort((a, b) => Number(a.style.getPropertyValue("--workspace-nav-order")) - Number(b.style.getPropertyValue("--workspace-nav-order")))
+      .map(item => item.dataset.workspaceNavGroup ? `#${item.textContent}` : item.dataset.workspaceSection);
+    expect(ordered).toEqual([
+      "overview",
+      "#籌備", "guests", "tables", "tasks", "budget", "documents",
+      "#婚禮當天", "check-in", "gifts", "timeline", "staff",
+      "#管理", "members", "settings",
+    ]);
+    const headings = [...navigation.querySelectorAll("span.md\\:block")].map(item => item.textContent);
+    expect(headings).toEqual(["籌備", "婚禮當天", "管理"]);
   });
 });

@@ -14,11 +14,11 @@ describe("cake distribution", () => {
   });
   it("keeps shared relationships neutral and makes missing titles explicit", () => {
     const rows = cakeRows([guest("a", { side: "SHARED", relationshipLabel: "朋友" }), guest("b", { side: "PARTNER_B", relationshipLabel: null }), guest("c", { relationshipLabel: "二舅" })], []);
-    expect(rows.map(row => row.relationships)).toEqual(["c：新郎的二舅", "b：新娘親友", "a：共同親友：朋友"]);
+    expect(rows.map(row => row.relationships)).toEqual(["c：新郎的二舅", "b：新娘親友", "a：共同朋友：朋友"]);
   });
   it("drops the placeholder for a shared guest with no title", () => {
     const rows = cakeRows([guest("a", { side: "SHARED", relationshipLabel: null })], []);
-    expect(rows[0].relationships).toBe("a：共同親友");
+    expect(rows[0].relationships).toBe("a：共同朋友");
   });
   it("treats a bare side as the same thing whether or not a title was filled in", () => {
     const rows = cakeRows([
@@ -68,7 +68,7 @@ it("groups the four partner categories in the requested order, then shared guest
   guest("shared",{side:"SHARED",relationshipLabel:null}),
  ],[]);
  expect(rows.map(row=>row.group)).toEqual(["GROOM_FAMILY","GROOM_FRIENDS","BRIDE_FAMILY","BRIDE_FRIENDS","SHARED"]);
- expect(cakeRowGroups(rows).map(group=>group.label)).toEqual(["新郎的親戚家人","新郎的朋友","新娘的親戚家人","新娘的朋友","共同親友／待確認"]);
+ expect(cakeRowGroups(rows).map(group=>group.label)).toEqual(["新郎的親戚家人","新郎的朋友","新娘的親戚家人","新娘的朋友","共同朋友"]);
 });
 it("keeps a mixed household together and counts its boxes only once",()=>{
  const rows=cakeRows([guest("a",{cakeHouseholdId:"h"}),guest("b",{side:"PARTNER_B",cakeHouseholdId:"h"})],[{id:"h",boxes:2}]);
@@ -85,4 +85,14 @@ it("places same-side families with their companions in the family section, paren
 it("keeps the household classification stable when only one side attends",()=>{
  const rows=cakeRows([guest("a",{cakeHouseholdId:"h"}),guest("b",{side:"PARTNER_B",cakeHouseholdId:"h",attendanceStatus:"DECLINED"})],[{id:"h",boxes:1}]);
  expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({names:"a",group:"SHARED",boxes:1});
+});
+
+it("keeps each attending member with the relationship label for compact printing",()=>{
+ const member={category:"FAMILY" as const,seniority:"PEER" as const,side:"PARTNER_A" as const,attendanceStatus:"ATTENDING",checkedIn:false,cakeHouseholdId:"h1"};
+ const rows=cakeRows([
+  {...member,id:"a",name:"林友得",relationshipLabel:"父親"},
+  {...member,id:"b",name:"蘇楨媛",relationshipLabel:"母親"},
+  {...member,id:"c",name:"缺席者",relationshipLabel:"弟弟",attendanceStatus:"DECLINED"},
+ ],[{id:"h1",boxes:1}]);
+ expect(rows[0].members).toEqual([{name:"林友得",relationship:"新郎的父親"},{name:"蘇楨媛",relationship:"新郎的母親"}]);
 });

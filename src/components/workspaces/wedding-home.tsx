@@ -1,41 +1,68 @@
 import Link from "next/link";
 import {
-  ArrowRight, CaretDown, Chair, CheckCircle, ClipboardText,
-  Gift, IdentificationBadge, ListChecks, Path, UsersThree, Wallet,
+  ArrowRight, CaretDown, Chair, CheckCircle, ClipboardText, Files,
+  GearSix, Gift, IdentificationBadge, ListChecks, Megaphone, Path, Users, UsersThree, Wallet,
 } from "@phosphor-icons/react/dist/ssr";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/ui/stat";
+import type { WorkspaceRole } from "@/domain/workspace";
 import type { WeddingOverviewData } from "@/lib/wedding-overview";
 import { WeddingOverview } from "./wedding-overview";
 
 type WeddingHomeProps = {
   workspaceId: string;
+  role?: WorkspaceRole;
   data: Pick<WeddingOverviewData, "guests" | "seating" | "tasks" | "budget" | "operations">;
 };
 
 const preparationLinks = [
   { section: "guests", title: "賓客名單", detail: "出席回覆、喜帖與喜餅", icon: UsersThree },
   { section: "tables", title: "桌次安排", detail: "分配座位、查看桌圖", icon: Chair },
-  { section: "budget", title: "婚禮花費", detail: "預算、付款與廠商資料", icon: Wallet },
-  { section: "timeline", title: "婚禮總流程", detail: "排好當天的每個時刻", icon: Path },
+  { section: "tasks", title: "婚宴任務", detail: "負責人、期限與進度", icon: ListChecks },
+  { section: "budget", title: "婚禮花費", detail: "預算、分次付款與尾款", icon: Wallet },
 ];
 const receptionLinks = [
   { section: "check-in", title: "賓客報到", detail: "查詢名單與入席位置", icon: ClipboardText },
   { section: "gifts", title: "禮金紀錄", detail: "登記與核對禮金", icon: Gift },
-  { section: "staff", title: "工作人員", detail: "確認分工與聯絡方式", icon: IdentificationBadge },
+  { section: "timeline", title: "婚禮總流程", detail: "流程、致詞稿與遊戲名單", icon: Path },
+  { section: "staff", title: "工作人員", detail: "分工、聯絡與總召交辦", icon: IdentificationBadge },
+];
+const adminLinks = [
+  { section: "documents", title: "喜帖與廠商文件", icon: Files },
+  { section: "members", title: "協作者", icon: Users },
+  { section: "settings", title: "婚宴設定", icon: GearSix },
 ];
 
-export function WeddingHome({ workspaceId, data }: WeddingHomeProps) {
+export function WeddingHome({ workspaceId, role, data }: WeddingHomeProps) {
   const href = (section: string) => `/workspaces/${workspaceId}/${section}`;
+  const isCoordinator = role === "COORDINATOR";
+  const coordinatorLinks = !isCoordinator ? [] : [
+    { section: "timeline", title: "婚禮總流程", detail: `${data.operations.timelineItemTotal} 個流程`, icon: Path },
+    { section: "staff/handoffs", title: "總召交辦", detail: "交接事項與現場提醒", icon: Megaphone },
+    { section: "staff", title: "工作人員", detail: `${data.operations.staffTotal} 位工作人員`, icon: IdentificationBadge },
+    { section: "check-in", title: "賓客報到", detail: `${data.guests.attendingHeadcount} 位出席・${data.seating.tableTotal} 桌`, icon: ClipboardText },
+    { section: "tables", title: "桌次安排", detail: "查看桌圖與入席位置", icon: Chair },
+    { section: "gifts", title: "禮金紀錄", detail: `已登記 ${data.guests.gifts.recordedCount} 筆`, icon: Gift },
+  ];
   const actions = [
     { count: data.guests.unassignedAttendingHeadcount, title: `安排 ${data.guests.unassignedAttendingHeadcount} 位親友入席`, detail: "已確認出席，尚未安排桌次。", section: "tables", icon: Chair, urgent: false },
     { count: data.guests.undecidedAttendanceGroupTotal, title: `確認 ${data.guests.undecidedAttendanceGroupTotal} 組親友是否出席`, detail: "確認人數後，再安排座位與喜餅。", section: "guests", icon: UsersThree, urgent: false },
     { count: data.tasks.todo + data.tasks.inProgress, title: `處理 ${data.tasks.todo + data.tasks.inProgress} 項婚宴任務`, detail: data.tasks.overdue > 0 ? `其中 ${data.tasks.overdue} 項已逾期，請優先確認。` : "查看負責人、期限與目前進度。", section: "tasks", icon: ListChecks, urgent: data.tasks.overdue > 0 },
     { count: data.budget.balanceDueCount, title: `確認 ${data.budget.balanceDueCount} 筆廠商尾款`, detail: data.budget.overdueBalanceDueCount > 0 ? `其中 ${data.budget.overdueBalanceDueCount} 筆已超過付款日期。` : "核對付款日期與尚未支付的金額。", section: "budget", icon: Wallet, urgent: data.budget.overdueBalanceDueCount > 0 },
-  ].filter(action => action.count > 0).sort((a, b) => Number(b.urgent) - Number(a.urgent));
+  ].filter(action => action.count > 0 && !(isCoordinator && action.section === "budget")).sort((a, b) => Number(b.urgent) - Number(a.urgent));
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      {isCoordinator && (
+        <section aria-labelledby="wedding-home-coordinator">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 id="wedding-home-coordinator" className="font-serif text-title font-semibold">總召工作台</h2><span className="text-caption text-ink-soft">流程、交辦、人力與現場接待</span></div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {coordinatorLinks.map(({ section, title, detail, icon: Icon }) => (
+              <Card key={section} className="home-tool"><Link href={href(section)} className="flex min-h-24 items-center gap-3 rounded-card p-4 sm:p-5"><Icon aria-hidden="true" className="size-6 shrink-0 text-clay" /><span className="min-w-0 flex-1"><span className="font-semibold">{title}</span><span className="mt-1 block text-caption text-ink-soft">{detail}</span></span><ArrowRight aria-hidden="true" className="size-4 shrink-0 text-ink-faint" /></Link></Card>
+            ))}
+          </div>
+        </section>
+      )}
       <section aria-label="婚宴規模摘要" className="grid grid-cols-3 gap-2.5 sm:gap-4">
         {[
           { label: "確認出席", value: data.guests.attendingHeadcount, unit: "位親友", hint: `已安排 ${data.guests.assignedAttendingHeadcount} 位`, section: "guests", icon: UsersThree },
@@ -83,7 +110,7 @@ export function WeddingHome({ workspaceId, data }: WeddingHomeProps) {
         </Card>
 
         <section aria-labelledby="wedding-home-tools">
-          <div className="mb-4 flex items-center justify-between"><h2 id="wedding-home-tools" className="font-serif text-title font-semibold">繼續籌備</h2><span className="text-caption text-ink-soft">常用工具</span></div>
+          <div className="mb-4 flex items-center justify-between"><h2 id="wedding-home-tools" className="font-serif text-title font-semibold">籌備</h2><span className="text-caption text-ink-soft">名單、座位、任務與花費</span></div>
           <div className="grid grid-cols-2 gap-3">
             {preparationLinks.map(({ section, title, detail, icon: Icon }) => (
               <Card key={section} className="home-tool">
@@ -97,11 +124,20 @@ export function WeddingHome({ workspaceId, data }: WeddingHomeProps) {
         </section>
       </div>
 
-      <section aria-labelledby="wedding-home-reception">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 id="wedding-home-reception" className="font-serif text-title font-semibold">婚宴當天</h2><span className="text-caption text-ink-soft">接待與現場協作</span></div>
-        <div className="grid gap-3 sm:grid-cols-3">
+      {!isCoordinator && <section aria-labelledby="wedding-home-reception">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h2 id="wedding-home-reception" className="font-serif text-title font-semibold">婚禮當天</h2><span className="text-caption text-ink-soft">接待與現場協作</span></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {receptionLinks.map(({ section, title, detail, icon: Icon }) => (
             <Card key={section} className="home-tool"><Link href={href(section)} className="flex min-h-24 items-center gap-3 rounded-card p-4 sm:p-5"><Icon aria-hidden="true" className="size-6 shrink-0 text-clay" /><span className="min-w-0 flex-1"><span className="font-semibold">{title}</span><span className="mt-1 block text-caption text-ink-soft">{detail}</span></span><ArrowRight aria-hidden="true" className="size-4 shrink-0 text-ink-faint" /></Link></Card>
+          ))}
+        </div>
+      </section>}
+
+      <section aria-labelledby="wedding-home-admin">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="wedding-home-admin" className="font-serif text-title font-semibold">管理</h2><span className="text-caption text-ink-soft">喜帖、廠商文件、協作者與婚宴資料</span></div>
+        <div className="flex flex-wrap gap-2">
+          {adminLinks.map(({ section, title, icon: Icon }) => (
+            <Link key={section} href={href(section)} className="inline-flex min-h-11 items-center gap-2 rounded-control border border-line bg-surface px-4 text-sm font-semibold text-ink-soft transition hover:border-clay hover:text-clay-strong"><Icon aria-hidden="true" className="size-5 text-clay" />{title}</Link>
           ))}
         </div>
       </section>

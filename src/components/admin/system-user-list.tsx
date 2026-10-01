@@ -48,6 +48,7 @@ const roleLabels: Record<MembershipRole, string> = {
   OWNER: "擁有者",
   PARTNER: "伴侶",
   PLANNER: "婚顧",
+  COORDINATOR: "總召",
   VIEWER: "檢視者",
 };
 

@@ -361,7 +361,7 @@ describe("seating table server actions", () => {
         {
           workspaceId: "workspace_1",
           position: 1,
-          name: "待命名桌",
+          name: "主桌",
           capacity: 10,
         },
         {
@@ -373,6 +373,86 @@ describe("seating table server actions", () => {
       ],
     });
   });
+
+  it("creates the first table as 主桌 with its own capacity", async () => {
+    const formData = new FormData();
+    formData.set("totalTableCount", "3");
+    formData.set("mainTableCapacity", "14");
+    formData.set("defaultCapacity", "10");
+
+    await expect(
+      adjustSeatingTablesAction("workspace_1", idleState, formData),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(tableCreateMany).toHaveBeenCalledWith({
+      data: [
+        { workspaceId: "workspace_1", position: 1, name: "主桌", capacity: 14 },
+        { workspaceId: "workspace_1", position: 2, name: "待命名桌", capacity: 10 },
+        { workspaceId: "workspace_1", position: 3, name: "待命名桌", capacity: 10 },
+      ],
+    });
+  });
+
+  it("updates only the main table capacity when the count is unchanged", async () => {
+    tableFindMany.mockResolvedValue(layoutTableRows);
+    const formData = new FormData();
+    formData.set("totalTableCount", "2");
+    formData.set("mainTableCapacity", "12");
+    formData.set("defaultCapacity", "10");
+
+    await expect(
+      adjustSeatingTablesAction("workspace_1", idleState, formData),
+    ).resolves.toMatchObject({
+      status: "success",
+      message: "已更新 1 桌的人數設定。",
+    });
+    expect(tableUpdateMany).toHaveBeenCalledTimes(1);
+    expect(tableUpdateMany).toHaveBeenCalledWith({
+      where: { id: "table_1", workspaceId: "workspace_1", version: 0 },
+      data: { capacity: 12, version: { increment: 1 } },
+    });
+    expect(tableCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps existing regular table capacities when adding tables", async () => {
+    tableFindMany.mockResolvedValue(layoutTableRows);
+    const formData = new FormData();
+    formData.set("totalTableCount", "3");
+    formData.set("mainTableCapacity", "10");
+    formData.set("defaultCapacity", "12");
+    formData.set("applyCapacityToExisting", "on");
+
+    await expect(
+      adjustSeatingTablesAction("workspace_1", idleState, formData),
+    ).resolves.toMatchObject({ status: "success" });
+    expect(tableUpdateMany).not.toHaveBeenCalled();
+    expect(tableCreateMany).toHaveBeenCalledWith({
+      data: [
+        { workspaceId: "workspace_1", position: 3, name: "待命名桌", capacity: 12 },
+      ],
+    });
+  });
+
+  it("rejects a main-table capacity below already-seated guests", async () => {
+    tableFindMany.mockResolvedValue(layoutTableRows);
+    guestFindMany.mockResolvedValue([
+      { seatingTableId: "table_1", partySize: 5 },
+      { seatingTableId: "table_1", partySize: 3 },
+    ]);
+    const formData = new FormData();
+    formData.set("totalTableCount", "2");
+    formData.set("mainTableCapacity", "6");
+    formData.set("defaultCapacity", "10");
+
+    await expect(
+      adjustSeatingTablesAction("workspace_1", idleState, formData),
+    ).resolves.toEqual({
+      status: "error",
+      message:
+        "以下桌次已安排的人數超過新設定，請先調整賓客：第 1 桌「主桌」已安排 8 位。",
+    });
+    expect(tableUpdateMany).not.toHaveBeenCalled();
+  });
+
 
   it("rejects a bulk count increase before write when the candidate whole layout cannot resolve", async () => {
     tableFindMany.mockResolvedValueOnce(invalidPersistedLayoutRows);

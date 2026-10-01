@@ -113,15 +113,13 @@ export function BudgetEngagementPreset({
   }
 
   return (
-    <div className="min-w-0 space-y-2">
-      <p className="max-w-sm text-xs leading-5 text-ink-soft">
-        已安排文定儀式，可依實際需求加入建議品項，也可以自行建立花費。
-      </p>
+    <div className="min-w-0">
       <button
         ref={triggerRef}
         type="button"
         onClick={openDialog}
-        className="inline-flex min-h-11 w-full max-w-full items-center justify-center rounded-full border border-[#b99a79] bg-[#fffaf2] px-4 py-2 text-sm font-semibold text-[#68432d] transition hover:bg-[#f0e2d5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#765541] focus-visible:ring-offset-2 sm:w-fit"
+        title="已安排文定儀式，可依實際需求加入建議品項，也可以自行建立花費。"
+        className="inline-flex min-h-11 w-fit max-w-full items-center justify-center rounded-full border border-line-strong bg-surface px-4 py-2 text-sm font-semibold text-ink-soft transition hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2"
       >
         {triggerLabel}
       </button>
@@ -135,7 +133,7 @@ export function BudgetEngagementPreset({
           if (isPending) event.preventDefault();
         }}
         onClose={() => restoreConnectedFocus(triggerRef.current)}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-stone-300 bg-[#fffdf8] p-0 text-left text-stone-900 shadow-[0_12px_32px_rgba(69,49,38,0.16)] backdrop:bg-stone-950/35 backdrop:backdrop-blur-[1px]"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-stone-300 bg-[#fffdf8] p-0 text-left text-stone-900 shadow-[0_12px_32px_rgba(69,49,38,0.16)]"
       >
         <header className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-4 border-b border-stone-200 bg-[#fffdf8] px-5 py-5 sm:px-7">
           <div className="min-w-0">
@@ -168,6 +166,9 @@ export function BudgetEngagementPreset({
             className="text-sm leading-6 text-stone-600"
           >
             只會加入勾選的品項；加入後金額為 NT$0、狀態為規劃中，之後可再編輯。
+          </p>
+          <p className="mt-2 text-sm leading-6 text-stone-600">
+            已安排文定儀式，可依實際需求加入建議品項，也可以自行建立花費。
           </p>
 
           <fieldset

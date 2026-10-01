@@ -34,7 +34,7 @@ export type WorkspaceInvitationMutationState = {
   field?: "email" | "role" | "operationKey";
   message?: string;
   membershipId?: string;
-  role?: "PARTNER" | "PLANNER" | "VIEWER";
+  role?: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
   updatedAt?: string;
 };
 
@@ -132,7 +132,7 @@ export async function createWorkspaceInvitationAction(
     return validationError(error, "email");
   }
 
-  let role: "PARTNER" | "PLANNER" | "VIEWER";
+  let role: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
   try {
     role = normalizeInvitationRole(formData.get("role"));
   } catch (error) {
@@ -280,7 +280,7 @@ export async function reinviteWorkspaceInvitationAction(
     return staleError("邀請已被更新或無法重新邀請，請重新整理。");
   }
 
-  let role: "PARTNER" | "PLANNER" | "VIEWER";
+  let role: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
   try {
     role = normalizeInvitationRole(formData.get("role"));
   } catch (error) {
@@ -367,7 +367,7 @@ export async function updateWorkspaceMemberRoleAction(
     return staleError("成員資料已變更或無法操作，請重新整理。");
   }
 
-  let role: "PARTNER" | "PLANNER" | "VIEWER";
+  let role: "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
   try {
     role = normalizeInvitationRole(formData.get("role"));
   } catch (error) {

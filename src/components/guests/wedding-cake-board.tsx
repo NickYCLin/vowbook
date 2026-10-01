@@ -71,7 +71,7 @@ export function WeddingCakeBoard({workspaceId,data,defaultCreateOpen=false}:{wor
  const rows=cakeRows(data.guests,data.households);
  return <>
   <div className="mt-6 flex flex-wrap items-center gap-3 print:hidden"><Button onClick={event=>{triggerRef.current=event.currentTarget;setEditing(null);}}>設定同一家人</Button><Button variant="secondary" onClick={()=>window.print()}>列印發餅名單／另存 PDF</Button></div>
-  <p className="mt-4 text-sm leading-6 text-ink-soft print:hidden">確認出席或已報到的賓客與家人都會列入；新人本人不領取自己的喜餅，不列入名單與盒數。同戶只算一次；未設定家庭時，每筆名單一盒，同行人數不會增加盒數。分類依男／女方、家人身份及已選的親屬稱謂；自訂稱呼的親戚請將名單身份設為「家人」。跨雙方或共同親友另列待確認，同戶不拆開。</p>
+  <p className="mt-4 text-sm leading-6 text-ink-soft print:hidden">確認出席或已報到的賓客與家人都會列入；新人本人不領取自己的喜餅，不列入名單與盒數。同戶只算一次；未設定家庭時，每筆名單一盒，同行人數不會增加盒數。分類依男／女方、家人身份及已選的親屬稱謂；自訂稱呼的親戚請將名單身份設為「家人」。跨雙方或共同朋友另列「共同朋友」，同戶不拆開。</p>
   {editing!==undefined?<HouseholdForm key={editing?.id??"new"} workspaceId={workspaceId} data={data} household={editing??undefined} onClose={closeEditor}/>:null}
   <section className="mt-6 print:hidden" aria-label="已設定家庭"><h2 className="font-serif text-lg font-semibold">已設定家庭</h2>
    {!data.households.length?<p className="mt-2 text-sm text-ink-soft">尚未合併家庭；可勾選共同出席的人，設定為同一家。</p>:<div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">{data.households.map(h=><div key={h.id} className="min-w-0 rounded-card border border-line p-4"><p className="break-words font-semibold">{h.name} · {h.boxes} 盒</p><p className="my-2 break-words text-sm text-ink-soft">{data.guests.filter(g=>g.category!=="COUPLE"&&g.cakeHouseholdId===h.id).map(g=>g.name).join("、")||"目前沒有成員"}</p><Button variant="secondary" onClick={event=>{triggerRef.current=event.currentTarget;setEditing(h);}} aria-label={`編輯家庭 ${h.name}`}>編輯家庭</Button></div>)}</div>}

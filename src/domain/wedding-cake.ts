@@ -7,7 +7,7 @@ const SIDE_STATED = /^(新郎|新娘|男方|女方)/;
 const SIDE_ONLY = /^(新郎|新娘|男方|女方)(親友)?$/;
 export function cakeRelationshipLabel(guest: Pick<CakeGuest, "side" | "relationshipLabel">): string {
   const title = guest.relationshipLabel?.trim();
-  if (guest.side === "SHARED") return title ? `共同親友：${title}` : "共同親友";
+  if (guest.side === "SHARED") return title ? `共同朋友：${title}` : "共同朋友";
   const partner = guest.side === "PARTNER_A" ? "新郎" : "新娘";
   if (!title || SIDE_ONLY.test(title)) return `${partner}親友`;
   return SIDE_STATED.test(title) ? title : `${partner}的${title}`;
@@ -17,10 +17,21 @@ export const CAKE_GROUPS = [
   {id:"GROOM_FRIENDS",label:"新郎的朋友"},
   {id:"BRIDE_FAMILY",label:"新娘的親戚家人"},
   {id:"BRIDE_FRIENDS",label:"新娘的朋友"},
-  {id:"SHARED",label:"共同親友／待確認"},
+  {id:"SHARED",label:"共同朋友"},
 ] as const;
 export type CakeGroup = typeof CAKE_GROUPS[number]["id"];
-export type CakeRow = { key: string; group: CakeGroup; names: string; relationships: string; boxes: number };
+export type HouseholdMemberLabel = { name: string; relationship: string };
+export type CakeRow = { key: string; group: CakeGroup; names: string; relationships: string; members: HouseholdMemberLabel[]; boxes: number };
+export function householdMemberLabels(members: readonly Pick<CakeGuest, "name" | "side" | "relationshipLabel">[]): HouseholdMemberLabel[] {
+  return members.map(member=>({name:member.name,relationship:cakeRelationshipLabel(member)}));
+}
+/** 區段標題已經講了是誰的親友，印出來時把重複的前綴拿掉；只剩「新郎親友」這種沒資訊的稱謂就不印。 */
+export function printedRelationship(group: CakeGroup, relationship: string): string {
+  if (group === "SHARED") return relationship === "共同朋友" ? "" : relationship.replace(/^共同朋友：/, "");
+  const partner = group.startsWith("GROOM") ? "新郎" : "新娘";
+  if (relationship === `${partner}親友`) return "";
+  return relationship.startsWith(`${partner}的`) ? relationship.slice(partner.length + 1) : relationship;
+}
 export function householdGroup(members: readonly CakeGuest[]): CakeGroup {
   const sides=new Set(members.map(member=>member.side));
   if(sides.size!==1||sides.has("SHARED"))return "SHARED";
@@ -47,7 +58,7 @@ export function cakeRows(guests: readonly CakeGuest[], households: readonly { id
   return groupHouseholdMembers(guests).flatMap(({key,members,group})=>{
     const attending=members.filter(guest=>guest.attendanceStatus === "ATTENDING"||guest.checkedIn);
     if(!attending.length)return [];
-    return [{key,group,names:attending.map(g=>g.name).join("、"),relationships:attending.map(g=>`${g.name}：${cakeRelationshipLabel(g)}`).join("；"),
+    return [{key,group,names:attending.map(g=>g.name).join("、"),relationships:attending.map(g=>`${g.name}：${cakeRelationshipLabel(g)}`).join("；"),members:householdMemberLabels(attending),
       boxes:members[0].cakeHouseholdId?(counts.get(members[0].cakeHouseholdId)??1):1,
     }];
   });

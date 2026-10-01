@@ -33,7 +33,7 @@ import {
 import { seatingTableLabel, seatingTableSide } from "@/domain/seating-table";
 import { cn } from "@/lib/class-names";
 
-/** 沿用場地圖的側別配色：男方偏 sage、女方偏 clay、共同親友用中性色。 */
+/** 沿用場地圖的側別配色：男方偏 sage、女方偏 clay、共同朋友用中性色。 */
 const SIDE_BADGE_TONES = {
   PARTNER_A: "sage",
   PARTNER_B: "brand",
@@ -352,6 +352,16 @@ export function SeatingPlan({
         <AdjustSeatingTablesForm
           workspaceId={workspaceId}
           currentTableCount={tables.length}
+          tableCapacities={tables.map((table) => table.capacity)}
+          seatedGuestCount={
+            tables.reduce(
+              (total, table) =>
+                total +
+                table.guests.reduce((sum, guest) => sum + guest.partySize, 0),
+              0,
+            ) +
+            unassignedGuests.reduce((total, guest) => total + guest.partySize, 0)
+          }
         />
       )}
       {tables.length > 0 && (
@@ -399,7 +409,7 @@ export function SeatingPlan({
                   </p>
                 )}
                 {/*
-                  男、女方在夠寬時同列左右展示，共同親友獨佔下一列；
+                  男、女方在夠寬時同列左右展示，共同朋友獨佔下一列；
                   未安排區在 lg 版面只有 ~300px，硬切兩欄會讓每組剩不到
                   150px，選單被壓成一個箭頭、人數與「更新」也會各佔一行。
                   斷點看的是這一區的欄寬（@container），不是視窗寬度。

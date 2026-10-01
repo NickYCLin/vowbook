@@ -13,8 +13,17 @@ function roleRank(roleName:string) {
  if(/發餅|喜餅發放/u.test(role))return 30;
  return 50;
 }
-export function sortWeddingStaff<T extends {roleName:string}>(staff:readonly T[]):T[] {
+type StaffOrderFields={roleName:string;mealCount?:number|null;redEnvelopeAmount?:number|null};
+/** 需要便當且不發紅包的職務視為廠商，排在親友工作人員之後。 */
+function looksLikeVendor(people:readonly StaffOrderFields[]) {
+ return people.length>0&&people.every(p=>(p.mealCount??0)>0&&p.redEnvelopeAmount===null);
+}
+function groupRank(roleName:string,people:readonly StaffOrderFields[]) {
+ const rank=roleRank(roleName);
+ return rank<100&&looksLikeVendor(people)?145:rank;
+}
+export function sortWeddingStaff<T extends StaffOrderFields>(staff:readonly T[]):T[] {
  const groups=new Map<string,T[]>();
  for(const person of staff){const group=groups.get(person.roleName)??[];group.push(person);groups.set(person.roleName,group);}
- return [...groups.entries()].sort(([a],[b])=>roleRank(a)-roleRank(b)).flatMap(([,people])=>people);
+ return [...groups.entries()].map(([role,people])=>({people,rank:groupRank(role,people)})).sort((a,b)=>a.rank-b.rank).flatMap(g=>g.people);
 }

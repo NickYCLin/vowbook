@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { PrintPreviewLink } from "@/components/print/print-preview-link";
 import { notFound } from "next/navigation";
 import { SeatingPlan } from "@/components/tables/seating-plan";
-import { SeatingScenarioTabs } from "@/components/tables/seating-scenarios";
 import { CreateSeatingTableForm } from "@/components/tables/table-forms";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
@@ -10,9 +9,7 @@ import {
   getWorkspacePermissions,
   WorkspaceAccessDeniedError,
 } from "@/domain/workspace";
-import { requireCurrentUser } from "@/lib/current-user";
 import { getSeatingPlan, SeatingPlanDataError } from "@/lib/seating-plan";
-import { loadSeatingScenarioList } from "@/lib/seating-scenarios";
 
 export const metadata: Metadata = {
   title: "桌次安排",
@@ -21,16 +18,6 @@ export const metadata: Metadata = {
 type TablesPageProps = {
   params: Promise<{ workspaceId: string }>;
 };
-
-/** 方案分頁是附加功能：讀不到時隱藏分頁，正式安排照常可用。 */
-async function loadScenarioTabs(workspaceId: string) {
-  try {
-    const user = await requireCurrentUser();
-    return await loadSeatingScenarioList(workspaceId, user.id);
-  } catch {
-    return null;
-  }
-}
 
 export default async function TablesPage({ params }: TablesPageProps) {
   const { workspaceId } = await params;
@@ -57,7 +44,6 @@ export default async function TablesPage({ params }: TablesPageProps) {
   }
 
   const canEdit = getWorkspacePermissions(data.role).canEdit;
-  const scenarios = await loadScenarioTabs(workspaceId);
 
   return (
     <main className="mx-auto w-full max-w-6xl min-w-0 px-5 py-6 sm:px-8 sm:py-12">
@@ -89,16 +75,6 @@ export default async function TablesPage({ params }: TablesPageProps) {
           ) : null
         }
       />
-
-      {scenarios ? (
-        <SeatingScenarioTabs
-          workspaceId={workspaceId}
-          drafts={scenarios.drafts}
-          backups={scenarios.backups}
-          activeId={null}
-          canEdit={canEdit}
-        />
-      ) : null}
 
       <SeatingPlan
         workspaceId={workspaceId}

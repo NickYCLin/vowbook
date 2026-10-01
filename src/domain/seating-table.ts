@@ -67,7 +67,7 @@ export function seatingTableNumber(rank: number): number {
 /**
  * 一桌屬於哪一邊，從實際入座的賓客推得——桌次本身沒有「關係」這個欄位。
  *
- * 全部同一邊就算那一邊；只要混坐、或有共同親友在座，就算共同親友：一桌坐了
+ * 全部同一邊就算那一邊；只要混坐、或有共同朋友在座，就算共同朋友：一桌坐了
  * 男方同事又坐了女方同學，標成任何一邊都是錯的。還沒安排賓客的桌回傳 null，
  * 空桌不該被貼上任何一邊的標籤。
  */
@@ -111,12 +111,16 @@ export function withSeatingTableNumbers<Table>(
 
 export type SeatingTableAdjustmentInput = {
   totalTableCount: unknown;
+  /** 一般桌每桌人數：只套用到新增的桌次。 */
   defaultCapacity: unknown;
+  /** 主桌（第 1 順位）人數；留白代表不調整主桌。 */
+  mainTableCapacity?: unknown;
 };
 
 export type NormalizedSeatingTableAdjustmentInput = {
   totalTableCount: number;
   defaultCapacity: number;
+  mainTableCapacity: number | null;
 };
 
 export type SeatingTableLayoutInput = {
@@ -210,9 +214,18 @@ export function normalizeSeatingTableAdjustmentInput(
     );
   }
 
+  const rawMain = input.mainTableCapacity;
+  const mainTableCapacity =
+    rawMain === null ||
+    rawMain === undefined ||
+    (typeof rawMain === "string" && rawMain.trim() === "")
+      ? null
+      : normalizeCapacity(rawMain);
+
   return {
     totalTableCount,
     defaultCapacity: normalizeCapacity(input.defaultCapacity),
+    mainTableCapacity,
   };
 }
 

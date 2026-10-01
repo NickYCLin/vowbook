@@ -33,12 +33,14 @@ const roleLabels: Record<WorkspaceRole, string> = {
   OWNER: "擁有者",
   PARTNER: "伴侶",
   PLANNER: "婚顧",
+  COORDINATOR: "總召",
   VIEWER: "檢視者",
 };
 
 const roleDescriptions: Record<InvitableWorkspaceRole, string> = {
   PARTNER: "可共同編輯婚宴內容，不能管理協作者。",
   PLANNER: "可共同編輯婚宴內容，不能管理協作者。",
+  COORDINATOR: "可共同編輯婚宴內容與當天流程，不能管理協作者。",
   VIEWER: "只能查看工作區內容與協作者名稱、角色。",
 };
 
@@ -197,6 +199,7 @@ function ReinviteFields({
         >
           <option value="PARTNER">伴侶</option>
           <option value="PLANNER">婚顧</option>
+          <option value="COORDINATOR">總召</option>
           <option value="VIEWER">檢視者</option>
         </select>
       </div>
@@ -376,6 +379,7 @@ function InviteCollaboratorForm({
             >
               <option value="PARTNER">伴侶</option>
               <option value="PLANNER">婚顧</option>
+              <option value="COORDINATOR">總召</option>
               <option value="VIEWER">檢視者</option>
             </select>
           </div>
@@ -539,6 +543,7 @@ function RoleEditDialog({ workspaceId, member, onSuccess }: MemberDialogProps) {
               >
                 <option value="PARTNER">伴侶</option>
                 <option value="PLANNER">婚顧</option>
+                <option value="COORDINATOR">總召</option>
                 <option value="VIEWER">檢視者</option>
               </select>
             </div>

@@ -15,7 +15,7 @@ export const GUEST_CATEGORY_LABELS = {
 export const GUEST_SIDE_LABELS = {
   PARTNER_A: "男方親友",
   PARTNER_B: "女方親友",
-  SHARED: "共同親友",
+  SHARED: "共同朋友",
 } as const satisfies Record<(typeof GUEST_SIDES)[number], string>;
 export const GUEST_SENIORITY_LABELS = {
   ELDER: "長輩",

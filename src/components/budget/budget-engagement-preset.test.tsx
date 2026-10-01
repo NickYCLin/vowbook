@@ -172,15 +172,15 @@ describe("BudgetEngagementPreset", () => {
       />,
     );
 
+    const trigger = screen.getByRole("button", {
+      name: "加入文定儀式項目",
+    });
+    fireEvent.click(trigger);
     expect(
       screen.getByText(
         "已安排文定儀式，可依實際需求加入建議品項，也可以自行建立花費。",
       ),
     ).toBeVisible();
-    const trigger = screen.getByRole("button", {
-      name: "加入文定儀式項目",
-    });
-    fireEvent.click(trigger);
     fireEvent.click(
       screen.getByRole("checkbox", { name: /男方文定禮品/u }),
     );

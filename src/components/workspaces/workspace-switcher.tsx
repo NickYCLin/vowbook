@@ -8,7 +8,7 @@ import { getBasePath } from "@/lib/base-path";
 import { RECENT_WORKSPACE_COOKIE, recentWorkspaceValue } from "@/domain/workspace-entry";
 
 export type WorkspaceChoice = { id: string; name: string; role: string };
-const roleLabels: Record<string, string> = { OWNER: "擁有者", PARTNER: "伴侶", PLANNER: "婚顧", VIEWER: "檢視者" };
+const roleLabels: Record<string, string> = { OWNER: "擁有者", PARTNER: "伴侶", PLANNER: "婚顧", COORDINATOR: "總召", VIEWER: "檢視者" };
 
 export function WorkspaceSwitcher({ userId, choices }: { userId: string; choices: WorkspaceChoice[] }) {
   const pathname = usePathname();

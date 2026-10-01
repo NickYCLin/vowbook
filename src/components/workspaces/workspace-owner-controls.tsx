@@ -199,7 +199,7 @@ export function WorkspaceOwnerControls({
           if (editPending) event.preventDefault();
         }}
         onClose={() => restoreFocus(editTriggerRef.current)}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-stone-950/35"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">
           <h2
@@ -293,7 +293,7 @@ export function WorkspaceOwnerControls({
           if (deletePending) event.preventDefault();
         }}
         onClose={() => restoreFocus(deleteTriggerRef.current)}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-danger/40 bg-surface p-0 text-ink shadow-2xl backdrop:bg-stone-950/35"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border border-danger/40 bg-surface p-0 text-ink shadow-2xl"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-danger/30 bg-surface px-5 py-5 sm:px-7">
           <h2

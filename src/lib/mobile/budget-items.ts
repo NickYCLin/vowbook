@@ -14,7 +14,16 @@ import {
   type BudgetCostCategory,
   type BudgetTaxonomyItemKey,
 } from "@/domain/budget-item";
+import { normalizeBudgetPayment } from "@/domain/budget-payment";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
+import {
+  addBudgetPaymentInTransaction,
+  bookedActualAmount,
+  BudgetPaymentOverflowError,
+  deleteBudgetPaymentInTransaction,
+  paidAmountOf,
+  type BudgetPaymentTransaction,
+} from "@/lib/budget-payment-ledger";
 import { MobileRequestError } from "@/lib/mobile/protocol";
 import {
   runSerializableTransaction,
@@ -51,6 +60,9 @@ function failure(error: unknown): never {
   if (error instanceof MobileRequestError) throw error;
   if (error instanceof BudgetItemValidationError) {
     throw new MobileRequestError(400, "VALIDATION", error.message);
+  }
+  if (error instanceof BudgetPaymentOverflowError) {
+    throw new MobileRequestError(400, "VALIDATION", "已付款合計超過可記錄的上限。");
   }
   if (error instanceof WorkspaceAccessDeniedError) {
     throw new MobileRequestError(403, "FORBIDDEN", "沒有這場婚宴的編輯權限。");
@@ -210,7 +222,10 @@ export async function mobileUpdateBudgetItem(
         current.bookingStatus === "PLANNING"
           ? null
           : current.bookingStatus === "BOOKED_BALANCE_DUE"
-            ? details.depositAmount
+            ? bookedActualAmount(
+                details.depositAmount,
+                await paidAmountOf(transaction as unknown as BudgetPaymentTransaction, workspaceId, itemId),
+              )
             : details.plannedAmount;
       const updated = await client.budgetItem.updateMany({
         where: { id: itemId, workspaceId, version, kind: "EXPENSE" },
@@ -249,7 +264,18 @@ export async function mobileSetBudgetBookingStatus(
           "paid" = ${status === "PAID"},
           "actual_amount" = CASE CAST(${status} AS "BudgetBookingStatus")
             WHEN 'PLANNING' THEN NULL
-            WHEN 'BOOKED_BALANCE_DUE' THEN "deposit_amount"
+            WHEN 'BOOKED_BALANCE_DUE' THEN (
+              SELECT CASE
+                WHEN "deposit_amount" IS NULL AND COUNT(*) = 0 THEN NULL
+                ELSE LEAST(
+                  COALESCE("deposit_amount", 0)::bigint + COALESCE(SUM("amount"), 0),
+                  2147483647
+                )::integer
+              END
+              FROM "budget_payments"
+              WHERE "budget_item_id" = ${itemId}
+                AND "workspace_id" = ${workspaceId}
+            )
             WHEN 'PAID' THEN "planned_amount"
           END,
           "paid_at" = CASE
@@ -321,6 +347,61 @@ export async function mobileDeleteBudgetItem(
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") {
       throw new MobileRequestError(409, "IN_USE", "這筆花費下面還有細項，請先到網站整理。");
     }
+    return failure(error);
+  }
+}
+
+const PAYMENT_FIELDS = ["amount", "paidOn", "method", "notes", "expectedVersion"];
+
+/** 尾款分批付款；只在尾款待付時能記，付清後伺服器自動轉成已付款。 */
+export async function mobileAddBudgetPayment(
+  workspaceId: string,
+  userId: string,
+  itemId: string,
+  body: unknown,
+) {
+  try {
+    const fields = budgetBody(body, PAYMENT_FIELDS);
+    const payment = normalizeBudgetPayment({
+      amount: fields.amount === undefined || fields.amount === null ? "" : amountText(fields.amount),
+      paidOn: fields.paidOn,
+      method: fields.method,
+      notes: fields.notes,
+    });
+    const version = versionOf(fields.expectedVersion);
+    return await runSerializableTransaction(async (transaction) => {
+      await requireLockedWorkspaceAccess(workspaceId, userId, "edit", transaction);
+      const result = await addBudgetPaymentInTransaction(
+        transaction as unknown as BudgetPaymentTransaction,
+        { workspaceId, itemId, expectedVersion: version, currentUserId: userId, payment },
+      );
+      if (result.count !== 1) throw new MobileRequestError(409, "STALE", STALE_MESSAGE);
+      return { id: itemId, version: version + 1 };
+    });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function mobileDeleteBudgetPayment(
+  workspaceId: string,
+  userId: string,
+  itemId: string,
+  paymentId: string,
+  expectedVersion: unknown,
+) {
+  try {
+    const version = versionOf(expectedVersion);
+    return await runSerializableTransaction(async (transaction) => {
+      await requireLockedWorkspaceAccess(workspaceId, userId, "edit", transaction);
+      const result = await deleteBudgetPaymentInTransaction(
+        transaction as unknown as BudgetPaymentTransaction,
+        { workspaceId, itemId, expectedVersion: version, paymentId },
+      );
+      if (result.count !== 1) throw new MobileRequestError(409, "STALE", STALE_MESSAGE);
+      return { id: itemId, version: version + 1 };
+    });
+  } catch (error) {
     return failure(error);
   }
 }

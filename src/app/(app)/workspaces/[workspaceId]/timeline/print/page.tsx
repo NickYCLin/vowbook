@@ -41,10 +41,10 @@ export default async function TimelinePrintPage({
         instructions="依時間排列當天流程；遊戲名單的介紹詞可直接照念。"
         data={hostTimelinePrintData(data.items)}
       />
-      <section aria-label="遊戲名單" className="mt-8 grid gap-6 md:grid-cols-2 print:mt-6 print:break-inside-avoid">
+      <section aria-label="遊戲名單" className="mt-8 grid gap-6 md:grid-cols-2 print:mt-6">
         {WEDDING_GAMES.map((game) => (
           <div key={game} className="min-w-0">
-            <h2 className="font-serif text-lg font-semibold">
+            <h2 className="break-after-avoid font-serif text-lg font-semibold">
               {WEDDING_GAME_LABELS[game]}（{data.games[game].length} 位）
             </h2>
             {data.games[game].length === 0 ? (
@@ -57,7 +57,7 @@ export default async function TimelinePrintPage({
                       {index + 1}. {participant.name}
                     </span>
                     {participant.note ? (
-                      <span className="block pl-5 text-ink-soft">
+                      <span className="block whitespace-pre-wrap pl-5 text-ink-soft">
                         「{participant.note}」
                       </span>
                     ) : null}

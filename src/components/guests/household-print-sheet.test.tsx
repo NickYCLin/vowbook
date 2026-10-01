@@ -34,3 +34,17 @@ it("replaces the amount blank with a polite receipt label for received household
  expect(container.querySelectorAll('[data-gift-amount-blank]')).toHaveLength(1);
  expect(within(screen.getByRole("region",{name:"新郎的朋友"})).getByRole("cell",{name:"禮金已收訖"})).toBeInTheDocument();
 });
+
+it("prints each household on one line with titles shortened to what the section header does not already say",()=>{
+ render(<HouseholdPrintSheet workspaceName="婚宴" kind="cakes" rows={[
+  {key:"parents",group:"GROOM_FAMILY",names:"林友得、蘇楨媛",relationships:"",boxes:1,members:[{name:"林友得",relationship:"新郎的父親"},{name:"蘇楨媛",relationship:"新郎的母親"}]},
+  {key:"friend",group:"GROOM_FRIENDS",names:"蘇文紹",relationships:"",boxes:1,members:[{name:"蘇文紹",relationship:"新郎親友"}]},
+  {key:"shared",group:"SHARED",names:"甲、乙",relationships:"",boxes:2,members:[{name:"甲",relationship:"共同朋友：同事"},{name:"乙",relationship:"新娘的表姊"}]},
+ ]}/>);
+ expect(screen.queryByRole("columnheader",{name:"稱謂"})).not.toBeInTheDocument();
+ expect(screen.getAllByRole("columnheader",{name:"姓名（稱謂）"}).length).toBeGreaterThan(0);
+ expect(screen.getByRole("row",{name:/林友得/})).toHaveTextContent("林友得（父親）、蘇楨媛（母親）");
+ expect(screen.getByRole("row",{name:/林友得/})).not.toHaveTextContent("新郎");
+ expect(within(screen.getByRole("row",{name:/蘇文紹/})).getAllByRole("cell")[0]).toHaveTextContent(/^蘇文紹$/);
+ expect(screen.getByRole("row",{name:/甲/})).toHaveTextContent("甲（同事）、乙（新娘的表姊）");
+});

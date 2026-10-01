@@ -1,9 +1,13 @@
-import {cakeRowGroups,type CakeGroup} from "@/domain/wedding-cake";
-export type HouseholdPrintRow={key:string;group:CakeGroup;names:string;relationships:string;boxes?:number;exempt?:boolean;giftReceived?:boolean;notes?:string};
+import {cakeRowGroups,printedRelationship,type CakeGroup,type HouseholdMemberLabel} from "@/domain/wedding-cake";
+export type HouseholdPrintRow={key:string;group:CakeGroup;names:string;relationships:string;members?:readonly HouseholdMemberLabel[];boxes?:number;exempt?:boolean;giftReceived?:boolean;notes?:string};
 export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:string;rows:readonly HouseholdPrintRow[];kind:"cakes"|"gifts"}) {
  const cake=kind==="cakes";
  const title=cake?"發餅名單":"紙本禮金簿";
  const groups=cakeRowGroups(rows);
+ // 姓名與稱謂併成一欄，每位只寫一次名字；舊資料沒有成員明細時才退回原本兩段文字。
+ const householdLabel=(row:HouseholdPrintRow)=>row.members?.length
+  ?row.members.map(member=>{const title=printedRelationship(row.group,member.relationship);return title?`${member.name}（${title}）`:member.name;}).join("、")
+  :[row.names,row.relationships&&row.relationships!==row.names?`（${row.relationships}）`:""].join("");
  const countLabel=(entries:readonly HouseholdPrintRow[])=>`${entries.length} 戶／筆${cake?`，共 ${entries.reduce((sum,row)=>sum+(row.boxes??0),0)} 盒`:""}`;
  return <>
   <style>{`@media print {
@@ -19,7 +23,7 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
  [data-household-print] .cake-check-box { width: 6mm; height: 6mm; border: 1px solid black; }
  [data-household-print] .gift-amount-blank { min-height: 9mm; }
 }`}</style>
-  <section data-household-print data-cake-print={cake?true:undefined} data-gift-print={!cake?true:undefined} className="mt-8 print:mt-0" aria-label={cake?"發餅匯出預覽":"紙本禮金簿預覽"}>
+  <section data-print-document data-household-print data-cake-print={cake?true:undefined} data-gift-print={!cake?true:undefined} className="mt-8 print:mt-0" aria-label={cake?"發餅匯出預覽":"紙本禮金簿預覽"}>
    <p className="hidden print:block font-semibold">{workspaceName}｜{title}</p>
    <p className="hidden print:block my-2 text-sm">{cake?"請核對姓名與盒數，發放後在「領取勾選」欄打勾。0 盒表示當日不領取，不需打勾。同戶只領一次，新人本人不領餅。":"同一家人合併登記，請在金額欄手寫收到的禮金。未登記者金額欄留白；已登記者標示「禮金已收訖」，不列印金額。已排除不收禮金者。"}</p>
    <h2 className="font-serif text-lg font-semibold">{title} · {countLabel(rows)}</h2>
@@ -27,13 +31,13 @@ export function HouseholdPrintSheet({workspaceName,rows,kind}:{workspaceName:str
     <h3 className="font-serif text-lg font-semibold print:hidden">{group.label} · {countLabel(group.rows)}</h3>
     {group.rows.length?<div className="household-table-wrap mt-3 overflow-x-auto rounded-card border border-line">
      <table className="w-full table-fixed text-left text-sm">
-      <colgroup>{(cake?[30,40,12,18]:[25,35,20,20]).map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup>
+      <colgroup>{(cake?[70,12,18]:[60,20,20]).map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup>
       <thead className="bg-surface">
-       <tr className="hidden print:table-row"><th colSpan={4} className="p-3 text-base">{group.label} · {countLabel(group.rows)}</th></tr>
-       <tr><th className={cake?"w-[30%] p-3":"w-1/4 p-3"}>姓名</th><th className={cake?"w-[40%] p-3":"w-[35%] p-3"}>稱謂</th><th className={cake?"w-[12%] p-3":"w-1/5 p-3"}>{cake?"盒數":"禮金金額（元）"}</th><th className={cake?"w-[18%] p-3":"w-1/5 p-3"}>{cake?"領取勾選":"備註"}</th></tr>
+       <tr className="hidden print:table-row"><th colSpan={3} className="p-3 text-base">{group.label} · {countLabel(group.rows)}</th></tr>
+       <tr><th className={cake?"w-[70%] p-3":"w-[60%] p-3"}>姓名（稱謂）</th><th className={cake?"w-[12%] p-3":"w-1/5 p-3"}>{cake?"盒數":"禮金金額（元）"}</th><th className={cake?"w-[18%] p-3":"w-1/5 p-3"}>{cake?"領取勾選":"備註"}</th></tr>
       </thead>
       <tbody>{group.rows.map(row=><tr key={row.key} className="border-t border-line">
-       <td className="break-words p-3">{row.names}</td><td className="break-words p-3">{row.relationships}</td>
+       <td className="break-words p-3">{householdLabel(row)}</td>
        <td className="p-3">{cake?row.boxes:row.giftReceived?<span className="font-semibold">禮金已收訖</span>:row.exempt?<span className="font-semibold">不收禮金</span>:<span data-gift-amount-blank className="gift-amount-blank block min-h-9 w-full border-b border-ink"/>}</td>
        <td className="break-words p-3">{cake?(row.boxes===0?<span>當日不領取</span>:<span role="img" aria-label="領取勾選框" className="cake-check-box inline-block h-6 w-6 border border-ink align-middle"/>):row.notes}</td>
       </tr>)}</tbody>

@@ -96,7 +96,7 @@ export function WeddingOverview({
   const sideCards = [
     ["男方親友", data.guests.bySide.PARTNER_A],
     ["女方親友", data.guests.bySide.PARTNER_B],
-    ["共同親友", data.guests.bySide.SHARED],
+    ["共同朋友", data.guests.bySide.SHARED],
   ] as const;
   const seatingIsOverCapacity = data.seating.remainingCapacity < 0;
 

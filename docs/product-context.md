@@ -59,7 +59,7 @@ Google 登入 → 建立婚宴工作區 → 整理名單、花費與待辦 → �
 | 協作邀請 | 邀請指定 Google 帳號成為工作區成員，與寄給賓客的婚宴邀請不同 |
 | 付款狀態 | 人工記錄的婚禮支出進度，不是金流交易 |
 
-`OWNER`、`PARTNER`、`PLANNER` 可編輯婚宴資料；`VIEWER` 只可查看。只有 `OWNER` 可以管理成員。規則見 [workspace.ts](../src/domain/workspace.ts)、[workspace-access.ts](../src/lib/workspace-access.ts) 與 [workspace-invitations.ts](../src/lib/workspace-invitations.ts)。
+`OWNER`、`PARTNER`、`PLANNER`、`COORDINATOR`（總召）可編輯婚宴資料；`VIEWER` 只可查看。只有 `OWNER` 可以管理成員。總召登入後，婚宴首頁會先顯示「總召工作台」（總流程、總召交辦、工作人員、報到、桌次、禮金），待處理清單不列廠商尾款；這只是預設排序，不改變權限。規則見 [workspace.ts](../src/domain/workspace.ts)、[workspace-access.ts](../src/lib/workspace-access.ts) 與 [workspace-invitations.ts](../src/lib/workspace-invitations.ts)。
 
 ## 能力邊界
 

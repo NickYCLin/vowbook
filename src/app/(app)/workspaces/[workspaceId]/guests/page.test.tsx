@@ -51,7 +51,7 @@ describe("GuestsPage", () => {
       within(navigationOf()).getByRole("link", { name: "禮金" }),
     ).toHaveAttribute("href", "/workspaces/workspace_1/gifts");
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(12);
     expect(within(navigation).getByRole("link", { name: "賓客" })).toHaveAttribute(
       "aria-current",
       "page",

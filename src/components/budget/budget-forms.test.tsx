@@ -247,7 +247,8 @@ describe("budget item forms", () => {
     expect(within(primaryContact).getByRole("option", { name: "新郎" })).toHaveValue("PARTNER_A");
     expect(within(primaryContact).getByRole("option", { name: "新娘" })).toHaveValue("PARTNER_B");
     const paymentMethod = screen.getByLabelText(/尾款付款方式/);
-    expect(within(paymentMethod).getAllByRole("option")).toHaveLength(4);
+    expect(within(paymentMethod).getAllByRole("option").map(option=>option.textContent)).toEqual(["現金紅包","匯款","刷卡"]);
+    expect(paymentMethod).toHaveValue("CASH");
     expect(
       within(paymentMethod).getByRole("option", { name: "現金紅包" }),
     ).toHaveValue("CASH");
@@ -599,8 +600,9 @@ describe("budget item forms", () => {
       "overflow-x-hidden",
       "overflow-y-auto",
       "bg-surface",
-      "backdrop:bg-stone-950/30",
+      "m-auto",
     );
+    expect(openedDialog).not.toHaveAttribute("data-dialog-presentation");
     expect(openedDialog.querySelector("header")).toHaveClass("bg-surface");
     expect(openedDialog.querySelector("header")).not.toHaveClass(
       "bg-surface/95",
@@ -1219,7 +1221,7 @@ describe("budget item forms", () => {
   it("submits the independent preparation decision with the exact item token", async () => {
     actions.changeBudgetItemPreparationStatusAction.mockResolvedValueOnce({
       status: "success",
-      message: "已更新準備方式；原有金額仍保留，但不再計入預算。",
+      message: "已更新準備方式；此項目不列入計算。",
     });
     const { container } = render(
       <ChangeBudgetItemPreparationStatusForm
@@ -1246,7 +1248,7 @@ describe("budget item forms", () => {
     expect(submitted.get("preparationStatus")).toBe("ALREADY_OWNED");
     expect(submitted.get("expectedVersion")).toBe("8");
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "原有金額仍保留，但不再計入預算",
+      "此項目不列入計算",
     );
   });
 

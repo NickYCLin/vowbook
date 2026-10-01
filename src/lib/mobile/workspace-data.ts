@@ -67,7 +67,7 @@ import {
 } from "@/lib/serializable-transaction";
 import { requireLockedWorkspaceAccess } from "@/lib/workspace-mutation-access";
 
-const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 
 function mobileFailure(error: unknown): never {
   if (error instanceof MobileRequestError) throw error;
@@ -857,6 +857,8 @@ export async function mobileBudget(workspaceId: string, userId: string) {
       balanceAmount: item.balanceAmount,
       // 加購通常跟尾款一起結，App 要能顯示同一個金額口徑。
       additionalAmount: item.additionalAmount,
+      // 尾款常先分幾天匯一部分；App 顯示的待付金額要扣掉這些。
+      paidAmount: item.paidAmount ?? 0,
       balancePaymentMethod: item.balancePaymentMethod,
       dueDate: item.dueDate,
       // 逾期用婚宴所在時區的「今天」判斷，和網站同一個口徑。
@@ -943,6 +945,14 @@ function mobileBudgetItems(items: BudgetListItem[]) {
         balanceAmount: item.balanceAmount,
         additionalAmount: item.additionalAmount,
         actualAmount: item.actualAmount,
+        paidAmount: item.paidAmount ?? 0,
+        payments: (item.payments ?? []).map((payment) => ({
+          id: payment.id,
+          amount: payment.amount,
+          paidOn: payment.paidOn,
+          method: payment.method === "RED_ENVELOPE" ? "CASH" : payment.method,
+          notes: payment.notes,
+        })),
         dueDate: item.dueDate,
         notes: item.notes,
         confirmedVendor: item.confirmedVendor,

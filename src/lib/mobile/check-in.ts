@@ -40,7 +40,7 @@ export type MobileCheckInBoard = {
   guests: MobileCheckInGuest[];
 };
 
-const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 
 function toMobileGuest(
   guest: GuestCheckInBoardData["guests"][number],

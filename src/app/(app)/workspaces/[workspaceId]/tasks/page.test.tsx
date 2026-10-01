@@ -49,7 +49,7 @@ describe("TasksPage", () => {
       "/dashboard?view=all",
     );
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(12);
     expect(within(navigation).getByRole("link", { name: "任務" })).toHaveAttribute(
       "aria-current",
       "page",

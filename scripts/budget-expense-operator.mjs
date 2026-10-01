@@ -21,7 +21,7 @@ const BUDGET_CATEGORIES = new Set([
 ]);
 const BOOKING_STATUSES = new Set(["PLANNING", "BOOKED_BALANCE_DUE", "PAID"]);
 const BALANCE_PAYMENT_METHODS = new Set(["CASH", "TRANSFER", "CARD", "OTHER"]);
-const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 
 export const BUDGET_EXPENSE_REPOSITORY_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

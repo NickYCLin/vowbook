@@ -31,7 +31,7 @@ const transactionClient = {
   guest: { findMany: findGuests },
 };
 
-import { SeatingPlanDataError, getSeatingPlan } from "./seating-plan";
+import { SeatingPlanDataError, getSeatingPlan, getSeatingPrintDetails } from "./seating-plan";
 import { seatingPrintData } from "@/domain/seating-print";
 
 describe("getSeatingPlan", () => {
@@ -75,7 +75,7 @@ describe("getSeatingPlan", () => {
     ]);
     const data = await getSeatingPlan("workspace_1");
     expect(data.unassignedGuests.map(guest => guest.childSeatCount)).toEqual([2, null]);
-    expect(seatingPrintData(data.tables, data.unassignedGuests).rows.map(row => row.cells[5])).toEqual(["2 張", "-"]);
+    expect(seatingPrintData(data.tables, data.unassignedGuests).groups[0].parties.map(party => party.guests[0].needs)).toEqual(["素 1・兒童椅 2", ""]);
   });
 
   it("authenticates, then authorizes and scopes both reads in one RepeatableRead snapshot", async () => {
@@ -356,5 +356,32 @@ describe("getSeatingPlan", () => {
     await expect(getSeatingPlan("workspace_1")).rejects.toEqual(
       new SeatingPlanDataError("目前無法載入桌次安排，請稍後再試。"),
     );
+  });
+});
+
+describe("getSeatingPrintDetails", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireCurrentUser.mockResolvedValue({ id: "session_user" });
+    requireWorkspaceAccess.mockResolvedValue({ role: "EDITOR", workspace: { id: "workspace_1" } });
+    transaction.mockImplementation(async (operation) => operation(transactionClient));
+  });
+
+  it("requires editor access inside the transaction and returns only effective non-empty titles and household ids", async () => {
+    findGuests.mockResolvedValue([
+      { id: "a", cakeHouseholdId: "h1", importRecords: [{ source: "LINEIN", sourceManaged: true, relationshipLabel: "大舅" }] },
+      { id: "b", cakeHouseholdId: null, importRecords: [{ source: "LINEIN", sourceManaged: true, relationshipLabel: "  " }] },
+    ]);
+    const { relationships: labels, households } = await getSeatingPrintDetails("workspace_1");
+    expect(requireWorkspaceAccess).toHaveBeenCalledWith("workspace_1", "session_user", "edit", transactionClient);
+    expect(findGuests).toHaveBeenCalledWith(expect.objectContaining({ where: { workspaceId: "workspace_1" } }));
+    expect([...labels]).toEqual([["a", "大舅"]]);
+    expect([...households]).toEqual([["a", "h1"]]);
+  });
+
+  it("does not read guests when the member cannot edit", async () => {
+    requireWorkspaceAccess.mockRejectedValue(new WorkspaceAccessDeniedError());
+    await expect(getSeatingPrintDetails("workspace_1")).rejects.toBeInstanceOf(WorkspaceAccessDeniedError);
+    expect(findGuests).not.toHaveBeenCalled();
   });
 });

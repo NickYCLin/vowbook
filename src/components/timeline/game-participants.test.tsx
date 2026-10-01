@@ -65,7 +65,9 @@ describe("WeddingGameParticipantLists", () => {
     fireEvent.click(screen.getByRole("button", { name: "編輯 小美" }));
     const editor = screen.getByRole("form", { name: "編輯 小美" });
     expect(within(editor).getByRole("textbox", { name: "姓名" })).toHaveValue("小美");
-    expect(within(editor).getByRole("textbox", { name: "介紹詞" })).toHaveValue("大學室友");
+    const intro = within(editor).getByRole("textbox", { name: "介紹詞" });
+    expect(intro).toHaveValue("大學室友");
+    expect(intro.tagName).toBe("TEXTAREA");
     fireEvent.click(within(editor).getByRole("button", { name: "取消編輯" }));
     expect(screen.queryByRole("form", { name: "編輯 小美" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "編輯 小美" })).toBeInTheDocument();

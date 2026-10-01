@@ -9,7 +9,7 @@ const MAX_NOTE_LENGTH = 200;
 const MAX_ROWS = 20;
 const MAX_PLAN_BYTES = 64 * 1024;
 const GAMES = new Set(["BOUQUET", "BROCCOLI"]);
-const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 
 export const WEDDING_GAME_NOTE_REPOSITORY_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

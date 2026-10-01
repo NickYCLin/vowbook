@@ -25,10 +25,10 @@ export const BUDGET_BALANCE_PAYMENT_METHOD_LABELS = {
   CARD: "刷卡",
 } as const;
 
-/** 表單上可選的付款方式；RED_ENVELOPE 已併入 CASH。 */
+/** 表單上可選的付款方式；RED_ENVELOPE 已併入 CASH，現金紅包是預設值。 */
 export const BUDGET_BALANCE_PAYMENT_METHOD_OPTIONS = [
-  "BANK_TRANSFER",
   "CASH",
+  "BANK_TRANSFER",
   "CARD",
 ] as const satisfies readonly BudgetBalancePaymentMethod[];
 
@@ -475,9 +475,9 @@ export function normalizeBudgetPrimaryContact(
 
 export function normalizeBudgetBalancePaymentMethod(
   value: unknown,
-): BudgetBalancePaymentMethod | null {
+): BudgetBalancePaymentMethod {
   if (value === undefined || value === null || value === "") {
-    return null;
+    return "CASH";
   }
   if (
     typeof value !== "string" ||

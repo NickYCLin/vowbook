@@ -59,8 +59,8 @@ export function BudgetCeremonyPreferences({
   );
 
   return (
-    <details className="group min-w-0 rounded-control border border-line bg-surface">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center px-4 py-2 text-sm font-semibold text-ink-soft outline-none transition hover:bg-clay-soft focus-visible:ring-2 focus-visible:ring-clay [&::-webkit-details-marker]:hidden">
+    <details className="group min-w-0 rounded-[1.375rem] border border-line-strong bg-surface open:basis-full open:rounded-control">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-full px-4 py-2 text-sm font-semibold text-ink-soft outline-none transition hover:bg-clay-soft focus-visible:ring-2 focus-visible:ring-clay [&::-webkit-details-marker]:hidden">
         中式儀式設定（選用）
       </summary>
       <form action={formAction} className="min-w-0 space-y-4 border-t border-line px-4 py-4">

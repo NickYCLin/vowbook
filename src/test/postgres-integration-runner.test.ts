@@ -208,7 +208,22 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 56");
+    expect(runner).toContain("migrationEntries.length !== 58");
+    expect(runner).toContain(
+      'workspaceDocumentMigration !== "20260930090000_workspace_documents"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: workspace documents backfilled",
+    );
+    expect(runner).toContain(
+      "src/test/postgres-workspace-documents.integration.test.ts",
+    );
+    expect(runner).toContain(
+      'budgetPaymentMigration !== "20260929080000_budget_payments"',
+    );
+    expect(runner).toContain(
+      "prior-head upgrade verification failed: budget payments backfilled",
+    );
     expect(runner).toContain(
       'appleSignInMigration !== "20260928020000_apple_sign_in"',
     );

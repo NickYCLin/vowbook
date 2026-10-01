@@ -303,6 +303,9 @@ describe("getWeddingOverview", () => {
         plannedAmount: 200,
         actualAmount: 100,
         balanceAmount: 100,
+        // 加購跟尾款一起結，先匯的 50 要扣掉：100＋30－50＝80。
+        additionalAmount: 30,
+        payments: [{ amount: 50 }],
         bookingStatus: "BOOKED_BALANCE_DUE",
         preparationStatus: "NEEDS_ACTION",
         dueDate: new Date("2026-08-28T00:00:00.000Z"),
@@ -405,7 +408,7 @@ describe("getWeddingOverview", () => {
       paidCount: 1,
       plannedTotal: "600",
       actualTotal: "400",
-      balanceDueTotal: "100",
+      balanceDueTotal: "80",
       selfProvidedCount: 1,
       notPlannedCount: 1,
     });

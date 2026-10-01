@@ -99,10 +99,36 @@ describe("WeddingOverview", () => {
     const metrics = screen.getByRole("region", { name: "婚宴規模摘要" });
     expect(within(metrics).getByRole("link", { name: /確認出席 20\s*位親友/ })).toHaveAttribute("href", "/workspaces/workspace_1/guests");
     expect(screen.getByRole("progressbar", { name: "首頁任務完成進度" })).toHaveAttribute("aria-valuenow", "33");
-    const reception = screen.getByRole("region", { name: "婚宴當天" });
-    expect(within(reception).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual([
-      "/workspaces/workspace_1/check-in", "/workspaces/workspace_1/gifts", "/workspaces/workspace_1/staff",
+    const hrefs = (name: string) => within(screen.getByRole("region", { name })).getAllByRole("link").map(link => link.getAttribute("href"));
+    expect(hrefs("籌備")).toEqual([
+      "/workspaces/workspace_1/guests", "/workspaces/workspace_1/tables", "/workspaces/workspace_1/tasks", "/workspaces/workspace_1/budget",
     ]);
+    expect(hrefs("婚禮當天")).toEqual([
+      "/workspaces/workspace_1/check-in", "/workspaces/workspace_1/gifts", "/workspaces/workspace_1/timeline", "/workspaces/workspace_1/staff",
+    ]);
+    expect(hrefs("管理")).toEqual(["/workspaces/workspace_1/documents", "/workspaces/workspace_1/members", "/workspaces/workspace_1/settings"]);
+  });
+
+  it("puts the wedding-day coordinator tools first for 總召", () => {
+    const { container } = render(<WeddingHome workspaceId="workspace_1" role="COORDINATOR" data={data} />);
+    const desk = screen.getByRole("region", { name: "總召工作台" });
+    expect(container.querySelector("section")).toBe(desk);
+    expect(within(desk).getAllByRole("link").map(link => link.getAttribute("href"))).toEqual([
+      "/workspaces/workspace_1/timeline", "/workspaces/workspace_1/staff/handoffs", "/workspaces/workspace_1/staff",
+      "/workspaces/workspace_1/check-in", "/workspaces/workspace_1/tables", "/workspaces/workspace_1/gifts",
+    ]);
+    expect(within(desk).getByText("8 個流程")).toBeVisible();
+    expect(within(desk).getByText("4 位工作人員")).toBeVisible();
+    expect(within(desk).getByText("20 位出席・3 桌")).toBeVisible();
+    expect(screen.queryByRole("region", { name: "婚禮當天" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /確認 2 筆廠商尾款/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /處理 4 項婚宴任務/ })).toBeVisible();
+  });
+
+  it("keeps the couple's default home unchanged for other roles", () => {
+    render(<WeddingHome workspaceId="workspace_1" role="OWNER" data={data} />);
+    expect(screen.queryByRole("region", { name: "總召工作台" })).toBeNull();
+    expect(screen.getByRole("region", { name: "婚禮當天" })).toBeVisible();
   });
 
   it("renders linked preparation progress and distinguishes groups from headcount", () => {
@@ -150,7 +176,7 @@ describe("WeddingOverview", () => {
     const guestRegion = screen.getByRole("region", { name: "賓客與宴席摘要" });
     expect(within(guestRegion).getByText("男方親友")).toBeInTheDocument();
     expect(within(guestRegion).getByText("女方親友")).toBeInTheDocument();
-    expect(within(guestRegion).getByText("共同親友")).toBeInTheDocument();
+    expect(within(guestRegion).getByText("共同朋友")).toBeInTheDocument();
     expect(within(guestRegion).getByText("紙本 3 組")).toBeInTheDocument();
     expect(within(guestRegion).getByText("數位 4 組")).toBeInTheDocument();
     expect(within(guestRegion).getByText("尚未確認 2 組")).toBeInTheDocument();

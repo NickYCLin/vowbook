@@ -5,6 +5,7 @@ import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
+import { budgetRemainingBalance } from "@/domain/budget-payment";
 import { requireCurrentUser } from "@/lib/current-user";
 import { summarizeWeddingStaffRedEnvelopes } from "@/domain/wedding-staff";
 import { prisma } from "@/lib/prisma";
@@ -45,6 +46,8 @@ type OverviewBudgetRecord = {
   plannedAmount: number;
   actualAmount: number | null;
   balanceAmount: number | null;
+  additionalAmount?: number | null;
+  payments?: ReadonlyArray<{ amount: number }>;
   dueDate: Date | null;
   bookingStatus: "PLANNING" | "BOOKED_BALANCE_DUE" | "PAID";
   preparationStatus: "NEEDS_ACTION" | "ALREADY_OWNED" | "NOT_PLANNED";
@@ -89,7 +92,7 @@ type SideSummary = {
 };
 
 export type WeddingOverviewData = {
-  role: "OWNER" | "PARTNER" | "PLANNER" | "VIEWER";
+  role: "OWNER" | "PARTNER" | "PLANNER" | "COORDINATOR" | "VIEWER";
   workspace: Pick<WeddingWorkspace, "id" | "name" | "timezone"> & { weddingDate: string | null };
   guests: {
     generalGroupTotal: number;
@@ -359,9 +362,17 @@ function summarizeBudget(
     ),
     balanceDueTotal: sumTwdAmounts(
       balanceDue
-        .flatMap((record) =>
-          record.balanceAmount === null ? [] : [record.balanceAmount],
-        )
+        .flatMap((record) => {
+          const remaining = budgetRemainingBalance({
+            balanceAmount: record.balanceAmount,
+            additionalAmount: record.additionalAmount ?? null,
+            paidAmount: (record.payments ?? []).reduce(
+              (total, payment) => total + payment.amount,
+              0,
+            ),
+          });
+          return remaining === null ? [] : [Number(remaining)];
+        })
         .concat(
           pendingRedEnvelopes.pendingAmount === 0
             ? []
@@ -423,6 +434,11 @@ export async function getWeddingOverview(
               plannedAmount: true,
               actualAmount: true,
               balanceAmount: true,
+              additionalAmount: true,
+              payments: {
+                where: { workspaceId },
+                select: { amount: true },
+              },
               dueDate: true,
               bookingStatus: true,
               preparationStatus: true,

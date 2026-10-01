@@ -10,6 +10,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -17,6 +18,9 @@ import { cn } from "@/lib/class-names";
 import { WorkspaceFrameContext } from "./workspace-view-state";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
 import {
+  workspaceGroupNavOrder,
+  workspaceNavOrder,
+  workspaceSectionGroups,
   workspaceSectionHref,
   workspaceSections,
   type WorkspaceSection,
@@ -83,6 +87,8 @@ function WorkspaceNavigationLink({
       data-workspace-section={section.key}
       data-workspace-nav-placement={placement}
       data-workspace-pending={isPending ? "true" : undefined}
+      data-workspace-nav-order
+      style={{ "--workspace-nav-order": workspaceNavOrder(section.key) } as CSSProperties}
       onClick={(event) => {
         if (
           event.button !== 0 ||
@@ -222,8 +228,18 @@ export function WorkspaceNavigation({
           data-workspace-nav-list
           className="max-md:grid max-md:grid-cols-5 md:flex md:w-max md:min-w-full md:flex-nowrap md:gap-x-1"
         >
+          {layout === "sidebar" && workspaceSectionGroups.map(group => (
+            <span
+              key={group.key}
+              data-workspace-nav-order
+              data-workspace-nav-group={group.key}
+              style={{ "--workspace-nav-order": workspaceGroupNavOrder(group.key) } as CSSProperties}
+              className="hidden px-3 pb-1 pt-5 text-eyebrow font-semibold text-ink-faint md:block"
+            >
+              {group.label}
+            </span>
+          ))}
           {primarySections.map(section => <Fragment key={section.key}>
-            {layout === "sidebar" && section.key === "guests" && <span className="hidden px-3 pb-1 pt-5 text-eyebrow font-semibold text-ink-faint md:block">婚宴籌備</span>}
             {renderLink(section, "bar")}
           </Fragment>)}
           <button
@@ -260,7 +276,6 @@ export function WorkspaceNavigation({
             )}
           >
             {secondarySections.map(section => <Fragment key={section.key}>
-              {layout === "sidebar" && (section.key === "check-in" || section.key === "settings") && <span className="hidden px-3 pb-1 pt-5 text-eyebrow font-semibold text-ink-faint md:block">{section.key === "check-in" ? "婚宴當天" : "設定與協作"}</span>}
               {renderLink(section, "panel")}
             </Fragment>)}
           </div>

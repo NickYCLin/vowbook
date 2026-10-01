@@ -24,7 +24,7 @@ const fieldClassName =
 const triggerClassName =
   "inline-flex min-h-11 w-fit max-w-full items-center justify-center rounded-full border border-line-strong bg-surface px-4 py-2 text-sm font-semibold text-clay-strong transition hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2";
 const dialogClassName =
-  "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)] backdrop:bg-stone-950/35 backdrop:backdrop-blur-[1px]";
+  "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-[0_12px_32px_rgba(69,49,38,0.16)]";
 
 type GroupDialogCallbacks = {
   onSuccess?: (message: string) => void;

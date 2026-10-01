@@ -12,6 +12,7 @@ import {
   normalizeSeatingTableAdjustmentInput,
   normalizeSeatingTableInput,
   normalizeSeatingTableVersion,
+  seatingTableNumbers,
   type NormalizedSeatingTableAdjustmentInput,
   type NormalizedSeatingTableInput,
   SeatingTableValidationError,
@@ -224,7 +225,111 @@ function adjustmentInputFromFormData(
   return normalizeSeatingTableAdjustmentInput({
     totalTableCount: formData.get("totalTableCount"),
     defaultCapacity: formData.get("defaultCapacity"),
+    mainTableCapacity: formData.get("mainTableCapacity"),
   });
+}
+
+type PlannedCapacityChange = {
+  table: SeatingSnapshotTable;
+  number: number;
+  capacity: number;
+};
+
+/**
+ * 桌數設定只會改動留下來的主桌（第 1 順位）人數；既有一般桌維持各自的容量，
+ * 一般桌人數只用在新增的桌次。
+ */
+function plannedCapacityChanges(
+  tables: SeatingSnapshotTable[],
+  input: NormalizedSeatingTableAdjustmentInput,
+): PlannedCapacityChange[] {
+  const mainTable = tables[0];
+  const capacity = input.mainTableCapacity;
+  if (
+    input.totalTableCount === 0 ||
+    mainTable === undefined ||
+    capacity === null ||
+    capacity === mainTable.capacity
+  ) {
+    return [];
+  }
+  return [{ table: mainTable, number: seatingTableNumbers(1)[0]!, capacity }];
+}
+
+function withPlannedCapacities(
+  tables: SeatingSnapshotTable[],
+  changes: PlannedCapacityChange[],
+): SeatingSnapshotTable[] {
+  const capacities = new Map(
+    changes.map((change) => [change.table.id, change.capacity]),
+  );
+  return tables.map((table) => ({
+    ...table,
+    capacity: capacities.get(table.id) ?? table.capacity,
+  }));
+}
+
+async function requireCapacityChangesFitSeatedGuests(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  changes: PlannedCapacityChange[],
+): Promise<void> {
+  if (changes.length === 0) {
+    return;
+  }
+  const guests = await transaction.guest.findMany({
+    where: {
+      workspaceId,
+      seatingTableId: { in: changes.map((change) => change.table.id) },
+    },
+    select: { seatingTableId: true, partySize: true },
+  });
+  const seated = new Map<string, number>();
+  for (const guest of guests) {
+    if (guest.seatingTableId !== null) {
+      seated.set(
+        guest.seatingTableId,
+        (seated.get(guest.seatingTableId) ?? 0) + guest.partySize,
+      );
+    }
+  }
+  const violations = changes.flatMap((change) => {
+    const count = seated.get(change.table.id) ?? 0;
+    return count > change.capacity
+      ? [`第 ${change.number} 桌「${change.table.name}」已安排 ${count} 位`]
+      : [];
+  });
+  if (violations.length > 0) {
+    throw new SeatingCapacityError(
+      `以下桌次已安排的人數超過新設定，請先調整賓客：${violations.join("、")}。`,
+    );
+  }
+}
+
+async function applyCapacityChanges(
+  transaction: Prisma.TransactionClient,
+  workspaceId: string,
+  changes: PlannedCapacityChange[],
+): Promise<void> {
+  for (const change of changes) {
+    const update = await transaction.seatingTable.updateMany({
+      where: {
+        id: change.table.id,
+        workspaceId,
+        version: change.table.version,
+      },
+      data: { capacity: change.capacity, version: { increment: 1 } },
+    });
+    if (update.count !== 1) {
+      throw new SeatingTableStaleError();
+    }
+  }
+}
+
+function capacityChangeSuffix(changes: PlannedCapacityChange[]): string {
+  return changes.length === 0
+    ? "。"
+    : `，並更新 ${changes.length} 桌的人數設定。`;
 }
 
 async function lockSeatingTableSequence(
@@ -807,13 +912,34 @@ export async function adjustSeatingTablesAction(
         transaction,
       );
 
+      const changesCapacity = input.mainTableCapacity !== null;
+      if (changesCapacity) {
+        await lockSeatingTableRows(transaction, workspaceId);
+      }
       let tables = await seatingSnapshotTables(transaction, workspaceId);
+      const capacityChanges = plannedCapacityChanges(tables, input);
+      await requireCapacityChangesFitSeatedGuests(
+        transaction,
+        workspaceId,
+        capacityChanges,
+      );
 
       if (input.totalTableCount === tables.length) {
         if (fingerprint !== null) {
           return {
             status: "error" as const,
             message: "確認內容與目前桌數不一致，請重新設定後再試。",
+          };
+        }
+        if (capacityChanges.length > 0) {
+          validateSeatingFloorPlanCandidate(
+            withPlannedCapacities(tables, capacityChanges),
+          );
+          await applyCapacityChanges(transaction, workspaceId, capacityChanges);
+          await advanceSeatingTableSequence(transaction, workspaceId);
+          return {
+            status: "success" as const,
+            message: `已更新 ${capacityChanges.length} 桌的人數設定。`,
           };
         }
         return {
@@ -834,39 +960,49 @@ export async function adjustSeatingTablesAction(
           (maximum, table) => Math.max(maximum, table.position),
           0,
         );
-        const names = defaultTableNames(addCount);
+        const newTables = defaultTableNames(addCount).map((name, index) =>
+          tables.length === 0 && index === 0
+            ? {
+                name: "主桌",
+                capacity: input.mainTableCapacity ?? input.defaultCapacity,
+              }
+            : { name, capacity: input.defaultCapacity },
+        );
         validateSeatingFloorPlanCandidate([
-          ...tables,
-          ...names.map((name, index) => ({
+          ...withPlannedCapacities(tables, capacityChanges),
+          ...newTables.map((table, index) => ({
             id: `candidate:${maximumPosition + index + 1}`,
             workspaceId,
             position: maximumPosition + index + 1,
             version: 0,
-            name,
-            capacity: input.defaultCapacity,
+            name: table.name,
+            capacity: table.capacity,
             notes: null,
             layoutX: null,
             layoutY: null,
           })),
         ]);
+        await applyCapacityChanges(transaction, workspaceId, capacityChanges);
         await transaction.seatingTable.createMany({
-          data: names.map((name, index) => ({
+          data: newTables.map((table, index) => ({
             workspaceId,
             position: maximumPosition + index + 1,
-            name,
-            capacity: input.defaultCapacity,
+            name: table.name,
+            capacity: table.capacity,
           })),
         });
         await advanceSeatingTableSequence(transaction, workspaceId);
         return {
           status: "success" as const,
-          message: `已將總桌數設定為 ${input.totalTableCount} 桌。`,
+          message: `已將總桌數設定為 ${input.totalTableCount} 桌${capacityChangeSuffix(capacityChanges)}`,
         };
       }
 
-      await lockSeatingTableRows(transaction, workspaceId);
-      tables = await seatingSnapshotTables(transaction, workspaceId);
-      return previewOrConfirmSeatingRemoval(
+      if (!changesCapacity) {
+        await lockSeatingTableRows(transaction, workspaceId);
+        tables = await seatingSnapshotTables(transaction, workspaceId);
+      }
+      const removal = await previewOrConfirmSeatingRemoval(
         transaction,
         workspaceId,
         {
@@ -876,6 +1012,21 @@ export async function adjustSeatingTablesAction(
         fingerprint,
         tables,
       );
+      if (removal.status !== "success" || capacityChanges.length === 0) {
+        return removal;
+      }
+      validateSeatingFloorPlanCandidate(
+        withPlannedCapacities(
+          tables.slice(0, input.totalTableCount),
+          capacityChanges,
+        ),
+      );
+      await applyCapacityChanges(transaction, workspaceId, capacityChanges);
+      await advanceSeatingTableSequence(transaction, workspaceId);
+      return {
+        ...removal,
+        message: `${removal.message.replace(/。$/u, "")}${capacityChangeSuffix(capacityChanges)}`,
+      };
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {

@@ -50,7 +50,7 @@ describe("guest domain contract", () => {
     expect(GUEST_SIDE_LABELS).toEqual({
       PARTNER_A: "男方親友",
       PARTNER_B: "女方親友",
-      SHARED: "共同親友",
+      SHARED: "共同朋友",
     });
   });
 

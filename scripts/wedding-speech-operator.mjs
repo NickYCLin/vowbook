@@ -8,7 +8,7 @@ const MAX_TRANSACTION_ATTEMPTS = 3;
 const MAX_SPEECH_LENGTH = 3000;
 const MAX_PLAN_BYTES = 64 * 1024;
 const SPEECH_KINDS = new Set(["GROOM_PARENTS", "BRIDE_PARENTS"]);
-const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER"]);
+const AUTHORIZED_EDITOR_ROLES = new Set(["OWNER", "PARTNER", "PLANNER", "COORDINATOR"]);
 
 export const WEDDING_SPEECH_REPOSITORY_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

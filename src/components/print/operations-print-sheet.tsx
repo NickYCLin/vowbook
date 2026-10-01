@@ -1,6 +1,6 @@
 import type {OperationsPrintData} from "@/domain/operations-print";
 export function OperationsPrintSheet({workspaceName,title,instructions,data}:{workspaceName:string;title:string;instructions:string;data:OperationsPrintData}) {
- return <section data-operations-print aria-label={title} className="mt-6 print:mt-0">
+ return <section data-print-document data-operations-print aria-label={title} className="mt-6 print:mt-0">
   <style>{`@media print {
  @page {size:A4 landscape;margin:12mm}
  html:has([data-operations-print]),body:has([data-operations-print]),body:has([data-operations-print]) * {background:white!important;background-image:none!important;box-shadow:none!important;color:black!important}

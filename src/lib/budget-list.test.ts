@@ -80,6 +80,17 @@ const select = {
       createdAt: true,
     },
   },
+  payments: {
+    where: { workspaceId: "workspace_1" },
+    orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      amount: true,
+      paidOn: true,
+      method: true,
+      notes: true,
+    },
+  },
 };
 
 const deterministicOrder = [
@@ -544,6 +555,7 @@ describe("getBudgetPageData", () => {
         rolledUpBalanceAmount: "0",
         rolledUpBalanceAmountRecorded: false,
         dueDate: "2028-02-29",
+        defaultDueDate: null,
         notes: "含訂金",
         paid: false,
         paidAt: null,
@@ -595,6 +607,7 @@ describe("getBudgetPageData", () => {
         rolledUpBalanceAmount: "0",
         rolledUpBalanceAmountRecorded: false,
         dueDate: null,
+        defaultDueDate: null,
         notes: null,
         paid: true,
         paidAt: "2027-03-01T08:09:10.000Z",
@@ -1342,6 +1355,66 @@ it("puts add-on charges into the balance due total", async () => {
       balanceDueMissingAmountCount: 0,
     }),
   );
+});
+
+it("subtracts partial payments from the balance due and exposes the payment history", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+    },
+  });
+  findMany.mockResolvedValue([
+    {
+      id: "banquet",
+      parentId: null,
+      source: "MANUAL",
+      sourceOrder: null,
+      name: "宴客場地",
+      kind: "EXPENSE",
+      category: "OTHER_PENDING",
+      plannedAmount: 400_000,
+      actualAmount: 230_000,
+      dueDate: null,
+      notes: null,
+      paid: false,
+      paidAt: null,
+      bookingStatus: "BOOKED_BALANCE_DUE",
+      preparationStatus: "NEEDS_ACTION",
+      depositAmount: 80_000,
+      balanceAmount: 300_000,
+      additionalAmount: 20_000,
+      estimatedRange: null,
+      candidateVendors: null,
+      confirmedVendor: null,
+      vendorContact: null,
+      primaryContact: null,
+      balancePaymentMethod: null,
+      version: 2,
+      createdAt: new Date("2027-01-01T00:00:00.000Z"),
+      payments: [
+        { id: "p1", amount: 100_000, paidOn: new Date("2026-10-01T00:00:00.000Z"), method: "BANK_TRANSFER", notes: null },
+        { id: "p2", amount: 50_000, paidOn: new Date("2026-10-05T00:00:00.000Z"), method: null, notes: "第二筆" },
+      ],
+    },
+  ]);
+
+  const data = await getBudgetPageData("workspace_1");
+
+  expect(data.summary.balanceDueTotal).toBe("170000");
+  expect(data.items[0]).toMatchObject({
+    paidAmount: 150_000,
+    payments: [
+      { id: "p1", amount: 100_000, paidOn: "2026-10-01", method: "BANK_TRANSFER", notes: null },
+      { id: "p2", amount: 50_000, paidOn: "2026-10-05", method: null, notes: "第二筆" },
+    ],
+  });
 });
 
 it("counts unsent staff red envelopes into the balance due summary", async () => {

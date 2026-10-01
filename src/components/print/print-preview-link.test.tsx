@@ -13,7 +13,7 @@ it("opens the authorized print route in a local preview and unloads it on close"
   expect(iframe.getAttribute("src")).toContain("/workspaces/w/tables/print?preview=1");
   expect(screen.getByRole("button", { name: "列印／另存 PDF" })).toBeDisabled();
   const printDocument = document.implementation.createHTMLDocument();
-  printDocument.body.innerHTML = '<section data-operations-print></section>';
+  printDocument.body.innerHTML = '<section data-print-document data-seating-print></section>';
   Object.defineProperty(iframe, "contentDocument", { value: printDocument });
   fireEvent.load(iframe);
   expect(screen.getByRole("button", { name: "列印／另存 PDF" })).toBeEnabled();

@@ -112,6 +112,7 @@ export function SeatingChart({
     <>
       <div
         data-testid="seating-chart-poster"
+        data-print-document
         // 列印時海報鋪滿整頁：@page 已固定成 9:16，比例交給紙張。
         className="@container relative mx-auto mt-6 aspect-[9/16] w-full max-w-105 overflow-hidden rounded-card border border-line-strong bg-paper shadow-card print:fixed print:inset-0 print:mt-0 print:aspect-auto print:h-full print:w-full print:max-w-none print:rounded-none print:border-0 print:shadow-none"
       >

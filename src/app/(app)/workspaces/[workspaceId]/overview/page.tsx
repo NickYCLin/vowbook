@@ -43,7 +43,7 @@ export default async function OverviewPage({
         description={`${data.workspace.weddingDate ? new Intl.DateTimeFormat("zh-TW", { dateStyle: "long", timeZone: data.workspace.timezone }).format(new Date(data.workspace.weddingDate)) : "婚期尚未決定"} · 接著把需要確認的事情處理好。`}
         activeSection="overview"
       />
-      <WeddingHome workspaceId={workspaceId} data={data} />
+      <WeddingHome workspaceId={workspaceId} role={data.role} data={data} />
     </main>
   );
 }

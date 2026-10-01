@@ -1,5 +1,6 @@
 import "server-only";
 import { dateKeyInTimezone } from "@/domain/calendar-date";
+import { defaultBalanceDueDate, type DefaultDueDate } from "@/domain/budget-due-date";
 import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
@@ -34,6 +35,10 @@ import {
   type BudgetAttachmentMetadata,
   type BudgetAttachmentMediaType,
 } from "@/domain/budget-attachment";
+import {
+  budgetRemainingBalance,
+  type BudgetPaymentRecord,
+} from "@/domain/budget-payment";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 import { summarizeWeddingStaffRedEnvelopes } from "@/domain/wedding-staff";
@@ -93,6 +98,13 @@ type BudgetItemRecord = {
     byteSize: number;
     createdAt: Date;
   }>;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    paidOn: Date;
+    method: BudgetBalancePaymentMethod | null;
+    notes: string | null;
+  }>;
 };
 
 type BudgetItemTransactionClient = {
@@ -104,6 +116,7 @@ type BudgetItemTransactionClient = {
         | "id"
         | "name"
         | "timezone"
+        | "weddingDate"
         | "hasEngagementCeremony"
         | "hasProcessionCeremony"
         | "ceremonyPreferencesVersion"
@@ -186,6 +199,8 @@ export type BudgetItemListItem = {
   rolledUpBalanceAmount: string;
   rolledUpBalanceAmountRecorded?: boolean;
   dueDate: string | null;
+  /** 沒填期限時的預設（婚禮當天；婚紗、禮服為前一天領件日），只供顯示與排序。 */
+  defaultDueDate?: DefaultDueDate | null;
   notes: string | null;
   paid: boolean;
   paidAt: string | null;
@@ -202,6 +217,10 @@ export type BudgetItemListItem = {
   balancePaymentMethod: BudgetBalancePaymentMethod | null;
   version: number;
   attachments?: BudgetAttachmentMetadata[];
+  /** 尾款分批付款的明細，依付款日排序。 */
+  payments?: BudgetPaymentRecord[];
+  /** 已分批付款合計，不含訂金。 */
+  paidAmount?: number;
 };
 
 export type BudgetSummary = {
@@ -265,6 +284,16 @@ const budgetItemSelect = {
       mediaType: true,
       byteSize: true,
       createdAt: true,
+    },
+  },
+  payments: {
+    orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    select: {
+      id: true,
+      amount: true,
+      paidOn: true,
+      method: true,
+      notes: true,
     },
   },
 };
@@ -382,6 +411,23 @@ function itemViewModel(
     };
   });
 
+  const payments = item.payments?.map((payment) => {
+    if (
+      !Number.isSafeInteger(payment.amount) ||
+      payment.amount < 1 ||
+      Number.isNaN(payment.paidOn.getTime())
+    ) {
+      throw new BudgetItemDataError();
+    }
+    return {
+      id: payment.id,
+      amount: payment.amount,
+      paidOn: payment.paidOn.toISOString().slice(0, 10),
+      method: payment.method,
+      notes: payment.notes,
+    };
+  });
+
   return {
     id: item.id,
     parentId: item.parentId,
@@ -440,6 +486,12 @@ function itemViewModel(
     balancePaymentMethod: item.balancePaymentMethod,
     version: item.version,
     ...(attachments === undefined ? {} : { attachments }),
+    ...(payments === undefined
+      ? {}
+      : {
+          payments,
+          paidAmount: payments.reduce((total, payment) => total + payment.amount, 0),
+        }),
   };
 }
 
@@ -783,6 +835,33 @@ function buildTree(items: BudgetItemRecord[]): BudgetItemListItem[] {
 }
 
 
+function withDefaultDueDates(
+  items: BudgetItemListItem[],
+  weddingDate: string | null,
+): BudgetItemListItem[] {
+  return items.map((item) => ({
+    ...item,
+    defaultDueDate:
+      item.kind === "EXPENSE"
+        ? defaultBalanceDueDate(
+            {
+              name: item.name,
+              breadcrumb: item.breadcrumb ?? [],
+              relatedTaxonomyItemKey: item.relatedTaxonomyItemKey,
+            },
+            weddingDate,
+          )
+        : null,
+  }));
+}
+
+function paidAmountOfRecord(item: BudgetItemRecord): number {
+  return (item.payments ?? []).reduce(
+    (total, payment) => total + payment.amount,
+    0,
+  );
+}
+
 function summarize(
   items: BudgetItemRecord[],
   workspaceToday: string,
@@ -826,14 +905,17 @@ function summarize(
         item.actualAmount === null ? [] : [item.actualAmount],
       ),
     ),
-    // 加購通常是當天連同尾款一起結給廠商，所以合在同一筆金額裡。
+    // 加購通常是當天連同尾款一起結給廠商，所以合在同一筆金額裡；
+    // 已經先分批匯出去的錢要扣掉，剩下的才是還要準備的。
     balanceDueTotal: sumTwdAmounts(
       balanceDueItems
-        .flatMap((item) =>
-          [item.balanceAmount, item.additionalAmount].filter(
-            (amount): amount is number => amount !== null,
-          ),
-        )
+        .flatMap((item) => {
+          const remaining = budgetRemainingBalance({
+            ...item,
+            paidAmount: paidAmountOfRecord(item),
+          });
+          return remaining === null ? [] : [Number(remaining)];
+        })
         .concat(
           pendingRedEnvelopes.pendingAmount === 0
             ? []
@@ -970,6 +1052,7 @@ export async function loadBudgetPageData(
             | "id"
             | "name"
             | "timezone"
+            | "weddingDate"
             | "hasEngagementCeremony"
             | "hasProcessionCeremony"
             | "ceremonyPreferencesVersion"
@@ -989,6 +1072,10 @@ export async function loadBudgetPageData(
             ...budgetItemSelect,
             attachments: {
               ...budgetItemSelect.attachments,
+              where: { workspaceId },
+            },
+            payments: {
+              ...budgetItemSelect.payments,
               where: { workspaceId },
             },
           },
@@ -1079,7 +1166,10 @@ export async function loadBudgetPageData(
                   access.workspace.hasProcessionCeremony,
               })
             : [],
-          items: buildTree(records),
+          items: withDefaultDueDates(
+            buildTree(records),
+            access.workspace.weddingDate?.toISOString().slice(0, 10) ?? null,
+          ),
           staffRedEnvelopes,
           derivedCosts,
           mealPricing: {

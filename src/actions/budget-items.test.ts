@@ -17,6 +17,7 @@ const {
   queryRaw,
   transaction,
   revalidatePath,
+  paymentAggregate,
 } = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   requireWorkspaceAccess: vi.fn(),
@@ -32,6 +33,7 @@ const {
   queryRaw: vi.fn(),
   transaction: vi.fn(),
   revalidatePath: vi.fn(),
+  paymentAggregate: vi.fn(),
 }));
 
 vi.mock("@/lib/current-user", () => ({ requireCurrentUser }));
@@ -345,6 +347,7 @@ describe("budget item server actions", () => {
     });
     create.mockResolvedValue({ id: "budget_1" });
     createMany.mockResolvedValue({ count: 2 });
+    paymentAggregate.mockResolvedValue({ _sum: { amount: null } });
     findFirst.mockImplementation((args) =>
       args?.where?.systemTaxonomyKey
         ? Promise.resolve({ id: `fixed_${args.where.systemTaxonomyKey}` })
@@ -391,6 +394,7 @@ describe("budget item server actions", () => {
           updateMany,
           deleteMany,
         },
+        budgetPayment: { aggregate: paymentAggregate },
         weddingWorkspace: { findFirst: workspaceFindFirst },
       }),
     );
@@ -910,7 +914,7 @@ describe("budget item server actions", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
-        balancePaymentMethod: null,
+        balancePaymentMethod: "CASH",
         paid: false,
         paidAt: null,
       },
@@ -1389,7 +1393,7 @@ describe("budget item server actions", () => {
         confirmedVendor: null,
         vendorContact: null,
         primaryContact: null,
-        balancePaymentMethod: null,
+        balancePaymentMethod: "CASH",
         relatedTaxonomyItemKey: null,
         version: { increment: 1 },
         parentId: "fixed_ITEM_WEDDING_VENUE",
@@ -1711,7 +1715,7 @@ describe("budget item server actions", () => {
     };
     expect(statement.sql).toMatch(/UPDATE "budget_items"[\s\S]*CASE[\s\S]*"booking_status" = 'PAID'/u);
     expect(statement.sql).toMatch(
-      /"actual_amount" = CASE[\s\S]*WHEN 'PLANNING' THEN NULL[\s\S]*WHEN 'BOOKED_BALANCE_DUE' THEN "deposit_amount"[\s\S]*WHEN 'PAID' THEN "planned_amount"[\s\S]*END/u,
+      /"actual_amount" = CASE[\s\S]*WHEN 'PLANNING' THEN NULL[\s\S]*WHEN 'BOOKED_BALANCE_DUE' THEN \([\s\S]*COALESCE\("deposit_amount", 0\)[\s\S]*SUM\("amount"\)[\s\S]*FROM "budget_payments"[\s\S]*WHEN 'PAID' THEN "planned_amount"[\s\S]*END/u,
     );
     expect(statement.sql).toMatch(/"id" = [^\s]+[\s\S]*"workspace_id" = [^\s]+[\s\S]*"version" =/u);
     expect(statement.sql).toMatch(
@@ -1740,7 +1744,7 @@ describe("budget item server actions", () => {
       ),
     ).resolves.toEqual({
       status: "success",
-      message: "已更新準備方式；原有金額仍保留，但不再計入預算。",
+      message: "已更新準備方式；此項目不列入計算。",
     });
 
     expect(updateMany).toHaveBeenCalledWith({

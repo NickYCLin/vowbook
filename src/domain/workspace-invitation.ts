@@ -3,6 +3,7 @@ import type { MembershipRole } from "@prisma/client";
 export const INVITABLE_WORKSPACE_ROLES = [
   "PARTNER",
   "PLANNER",
+  "COORDINATOR",
   "VIEWER",
 ] as const satisfies readonly MembershipRole[];
 

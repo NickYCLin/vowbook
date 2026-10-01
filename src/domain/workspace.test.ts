@@ -88,6 +88,7 @@ describe("workspace domain contract", () => {
   it("only accepts defined workspace roles", () => {
     expect(isWorkspaceRole("OWNER")).toBe(true);
     expect(isWorkspaceRole("VIEWER")).toBe(true);
+    expect(isWorkspaceRole("COORDINATOR")).toBe(true);
     expect(isWorkspaceRole("ADMIN")).toBe(false);
   });
 
@@ -95,6 +96,7 @@ describe("workspace domain contract", () => {
     ["OWNER", true, true, true],
     ["PARTNER", true, true, false],
     ["PLANNER", true, true, false],
+    ["COORDINATOR", true, true, false],
     ["VIEWER", true, false, false],
     [null, false, false, false],
   ] as const)(

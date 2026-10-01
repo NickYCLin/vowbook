@@ -38,12 +38,24 @@ import {
   budgetCeremonyStageLabel,
   isBudgetCeremonyStageKey,
 } from "@/domain/budget-ceremony-stage";
+import {
+  normalizeBudgetPayment,
+  type NormalizedBudgetPayment,
+} from "@/domain/budget-payment";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import {
   normalizeWorkspaceDeletionConfirmation,
   normalizeWorkspaceName,
 } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
+import {
+  addBudgetPaymentInTransaction,
+  bookedActualAmount,
+  BudgetPaymentOverflowError,
+  deleteBudgetPaymentInTransaction,
+  updateBudgetPaymentInTransaction,
+  paidAmountOf,
+} from "@/lib/budget-payment-ledger";
 
 import { runSerializableTransaction } from "@/lib/serializable-transaction";
 import { requireWorkspaceAccess } from "@/lib/workspace-access";
@@ -128,6 +140,12 @@ type BudgetItemPrismaClient = {
     findMany<Result = BudgetResetSnapshotRow[]>(args: unknown): Promise<Result>;
     updateMany(args: unknown): Promise<CountResult>;
     deleteMany(args: unknown): Promise<CountResult>;
+  };
+  budgetPayment: {
+    create(args: unknown): Promise<unknown>;
+    deleteMany(args: unknown): Promise<CountResult>;
+    updateMany(args: unknown): Promise<CountResult>;
+    aggregate(args: unknown): Promise<{ _sum: { amount: number | null } }>;
   };
   weddingWorkspace: {
     findFirst(args: unknown): Promise<{
@@ -1276,7 +1294,10 @@ export async function updateBudgetItemAction(
           authoritativeItem.bookingStatus === "PLANNING"
             ? null
             : authoritativeItem.bookingStatus === "BOOKED_BALANCE_DUE"
-              ? details.depositAmount
+              ? bookedActualAmount(
+                  details.depositAmount,
+                  await paidAmountOf(transaction, workspaceId, itemId),
+                )
               : details.plannedAmount;
 
         return transaction.budgetItem.updateMany({
@@ -1354,7 +1375,18 @@ export async function changeBudgetItemBookingStatusAction(
           "paid" = ${targetPaid},
           "actual_amount" = CASE CAST(${targetStatus} AS "BudgetBookingStatus")
             WHEN 'PLANNING' THEN NULL
-            WHEN 'BOOKED_BALANCE_DUE' THEN "deposit_amount"
+            WHEN 'BOOKED_BALANCE_DUE' THEN (
+              SELECT CASE
+                WHEN "deposit_amount" IS NULL AND COUNT(*) = 0 THEN NULL
+                ELSE LEAST(
+                  COALESCE("deposit_amount", 0)::bigint + COALESCE(SUM("amount"), 0),
+                  2147483647
+                )::integer
+              END
+              FROM "budget_payments"
+              WHERE "budget_item_id" = ${itemId}
+                AND "workspace_id" = ${workspaceId}
+            )
             WHEN 'PAID' THEN "planned_amount"
           END,
           "paid_at" = CASE
@@ -1439,7 +1471,7 @@ export async function changeBudgetItemPreparationStatusAction(
   const message =
     preparationStatus === "NEEDS_ACTION"
       ? "已更新準備方式；項目已重新計入預算。"
-      : "已更新準備方式；原有金額仍保留，但不再計入預算。";
+      : "已更新準備方式；此項目不列入計算。";
   return successAfterRevalidation(
     message,
     await revalidateBudgetView(workspaceId),
@@ -2247,6 +2279,171 @@ export async function resetBudgetDataAction(
 
   return successAfterRevalidation(
     `已清除 ${outcome.itemCount} 筆花費與 ${outcome.attachmentCount} 個附件，Drive 固定分類已保留。`,
+    await revalidateBudgetView(workspaceId),
+  );
+}
+
+function paymentFromFormData(formData: FormData): NormalizedBudgetPayment {
+  return normalizeBudgetPayment({
+    amount: formData.get("amount"),
+    paidOn: formData.get("paidOn"),
+    method: formData.get("method"),
+    notes: formData.get("notes"),
+  });
+}
+
+export async function addBudgetPaymentAction(
+  workspaceId: string,
+  itemId: string,
+  _previousState: BudgetItemMutationState,
+  formData: FormData,
+): Promise<BudgetItemMutationState> {
+  const authorization = await authorizeBudgetMutation(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+  const currentUserId = authorization;
+
+  let payment: NormalizedBudgetPayment;
+  let expectedVersion: number;
+  try {
+    payment = paymentFromFormData(formData);
+    expectedVersion = expectedVersionFromFormData(formData);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await runLockedBudgetTransaction(
+      workspaceId,
+      currentUserId,
+      (transaction) =>
+        addBudgetPaymentInTransaction(transaction, {
+          workspaceId,
+          itemId,
+          expectedVersion,
+          currentUserId,
+          payment,
+        }),
+    );
+  } catch (error) {
+    const authorizationFailure = authorizationFailureState(error);
+    if (authorizationFailure) return authorizationFailure;
+    if (error instanceof BudgetPaymentOverflowError) {
+      return validationState(
+        new BudgetItemValidationError("已付款合計超過可記錄的上限。"),
+      );
+    }
+    return unavailableState("目前無法記錄付款，請稍後再試。");
+  }
+
+  if (result.count === 0) {
+    return returnStaleAfterRevalidation(workspaceId);
+  }
+
+  return successAfterRevalidation(
+    "已記錄這筆付款。",
+    await revalidateBudgetView(workspaceId),
+  );
+}
+
+export async function deleteBudgetPaymentAction(
+  workspaceId: string,
+  itemId: string,
+  paymentId: string,
+  _previousState: BudgetItemMutationState,
+  formData: FormData,
+): Promise<BudgetItemMutationState> {
+  const authorization = await authorizeBudgetMutation(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+  const currentUserId = authorization;
+
+  let expectedVersion: number;
+  try {
+    expectedVersion = expectedVersionFromFormData(formData);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await runLockedBudgetTransaction(
+      workspaceId,
+      currentUserId,
+      (transaction) =>
+        deleteBudgetPaymentInTransaction(transaction, {
+          workspaceId,
+          itemId,
+          expectedVersion,
+          paymentId,
+        }),
+    );
+  } catch (error) {
+    const authorizationFailure = authorizationFailureState(error);
+    if (authorizationFailure) return authorizationFailure;
+    return unavailableState("目前無法刪除付款紀錄，請稍後再試。");
+  }
+
+  if (result.count === 0) {
+    return returnStaleAfterRevalidation(workspaceId);
+  }
+
+  return successAfterRevalidation(
+    "已刪除這筆付款紀錄。",
+    await revalidateBudgetView(workspaceId),
+  );
+}
+
+export async function updateBudgetPaymentAction(
+  workspaceId: string,
+  itemId: string,
+  paymentId: string,
+  _previousState: BudgetItemMutationState,
+  formData: FormData,
+): Promise<BudgetItemMutationState> {
+  const authorization = await authorizeBudgetMutation(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+  const currentUserId = authorization;
+
+  let payment: NormalizedBudgetPayment;
+  let expectedVersion: number;
+  try {
+    payment = paymentFromFormData(formData);
+    expectedVersion = expectedVersionFromFormData(formData);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await runLockedBudgetTransaction(
+      workspaceId,
+      currentUserId,
+      (transaction) =>
+        updateBudgetPaymentInTransaction(transaction, {
+          workspaceId,
+          itemId,
+          expectedVersion,
+          paymentId,
+          payment,
+        }),
+    );
+  } catch (error) {
+    const authorizationFailure = authorizationFailureState(error);
+    if (authorizationFailure) return authorizationFailure;
+    if (error instanceof BudgetPaymentOverflowError) {
+      return validationState(
+        new BudgetItemValidationError("已付款合計超過可記錄的上限。"),
+      );
+    }
+    return unavailableState("目前無法更新付款紀錄，請稍後再試。");
+  }
+
+  if (result.count === 0) {
+    return returnStaleAfterRevalidation(workspaceId);
+  }
+
+  return successAfterRevalidation(
+    "已更新這筆付款紀錄。",
     await revalidateBudgetView(workspaceId),
   );
 }

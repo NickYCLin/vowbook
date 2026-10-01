@@ -11,6 +11,7 @@ enum MembershipRole {
   OWNER
   PARTNER
   PLANNER
+  COORDINATOR
   VIEWER
 }
 
@@ -172,6 +173,8 @@ model User {
   createdWorkspaces         WeddingWorkspace[] @relation("WorkspaceCreator")
   memberships               Membership[]
   uploadedBudgetAttachments BudgetAttachment[]
+  recordedBudgetPayments BudgetPayment[]
+  uploadedWorkspaceDocuments WorkspaceDocument[]
   workspaceInvitationsSent  WorkspaceInvitation[] @relation("WorkspaceInvitationInviter")
   workspaceInvitationsAccepted WorkspaceInvitation[] @relation("WorkspaceInvitationAccepter")
 
@@ -220,6 +223,7 @@ model WeddingWorkspace {
   tasks                           WeddingTask[]
   budgetItems                     BudgetItem[]
   budgetAttachments               BudgetAttachment[]
+  budgetPayments                  BudgetPayment[]
   ceremonies                      WeddingCeremony[]
   ceremonyGuestAttendances        WeddingCeremonyGuestAttendance[]
   weddingStaffAssignments         WeddingStaffAssignment[]
@@ -230,6 +234,7 @@ model WeddingWorkspace {
   guestImportBatchRows             GuestImportBatchRow[]
   weddingGifts                     WeddingGift[]
   guestCheckIns                    GuestCheckIn[]
+  documents                        WorkspaceDocument[]
 
   @@index([createdById])
   @@map("wedding_workspaces")
@@ -540,6 +545,7 @@ model BudgetItem {
   parent            BudgetItem?           @relation("BudgetItemHierarchy", fields: [parentId, workspaceId], references: [id, workspaceId], onDelete: NoAction, onUpdate: Cascade)
   children          BudgetItem[]           @relation("BudgetItemHierarchy")
   attachments       BudgetAttachment[]
+  payments          BudgetPayment[]
 
   @@unique([id, workspaceId])
   @@unique([workspaceId, source, externalId], map: "budget_items_workspace_source_external_id_key")
@@ -572,6 +578,55 @@ model BudgetAttachment {
   @@index([workspaceId, budgetItemId, createdAt, id], map: "budget_attachments_ws_item_created_id_idx")
   @@index([uploadedByUserId], map: "budget_attachments_uploader_idx")
   @@map("budget_attachments")
+}
+
+enum WorkspaceDocumentCategory {
+  INVITATION
+  VENDOR_SCHEDULE
+  VENDOR_CONTRACT
+  OTHER
+}
+
+/// 電子喜帖與廠商文件（行程表、合約）存在資料庫，不會像聊天軟體的檔案一樣過期；只有成員能讀取。
+model WorkspaceDocument {
+  id               String                    @id @default(cuid())
+  workspaceId      String                    @map("workspace_id")
+  category         WorkspaceDocumentCategory
+  title            String                    @db.VarChar(80)
+  notes            String?                   @db.VarChar(200)
+  originalName     String                    @db.VarChar(200) @map("original_name")
+  mediaType        String                    @db.VarChar(100) @map("media_type")
+  byteSize         Int                       @map("byte_size")
+  sha256           String                    @db.Char(64)
+  data             Bytes                     @db.ByteA
+  uploadedByUserId String?                   @map("uploaded_by_user_id")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  workspace        WeddingWorkspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploadedBy       User?                     @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, category, createdAt, id], map: "workspace_documents_ws_category_created_id_idx")
+  @@index([uploadedByUserId], map: "workspace_documents_uploader_idx")
+  @@map("workspace_documents")
+}
+
+/// 尾款常分好幾天匯款；每一筆各記一列，剩餘尾款＝尾款＋加購－已付。
+model BudgetPayment {
+  id               String                      @id @default(cuid())
+  workspaceId      String                      @map("workspace_id")
+  budgetItemId     String                      @map("budget_item_id")
+  amount           Int
+  paidOn           DateTime                    @db.Date @map("paid_on")
+  method           BudgetBalancePaymentMethod?
+  notes            String?                     @db.VarChar(200)
+  createdByUserId  String?                     @map("created_by_user_id")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  workspace        WeddingWorkspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  budgetItem       BudgetItem                  @relation(fields: [budgetItemId, workspaceId], references: [id, workspaceId], onDelete: Cascade)
+  createdBy        User?                       @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, budgetItemId, paidOn, createdAt, id], map: "budget_payments_ws_item_paid_on_idx")
+  @@index([createdByUserId], map: "budget_payments_creator_idx")
+  @@map("budget_payments")
 }
 
 model WeddingCeremony {

@@ -76,7 +76,7 @@ describe("BudgetPage", () => {
     );
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(12);
     expect(within(navigation).getByRole("link", { name: "花費" })).toHaveAttribute(
       "aria-current",
       "page",

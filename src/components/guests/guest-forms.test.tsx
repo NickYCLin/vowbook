@@ -72,7 +72,7 @@ describe("guest forms", () => {
       screen.getByRole("option", { name: "女方親友" }),
     ).toHaveValue("PARTNER_B");
     expect(
-      screen.getByRole("option", { name: "共同親友" }),
+      screen.getByRole("option", { name: "共同朋友" }),
     ).toHaveValue("SHARED");
     expect(screen.queryByRole("option", { name: "新人一方" })).toBeNull();
     expect(screen.queryByRole("option", { name: "新人另一方" })).toBeNull();

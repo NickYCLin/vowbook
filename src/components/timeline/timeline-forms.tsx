@@ -209,12 +209,12 @@ function TimelineFields({
       </fieldset>
       <div>
         <label htmlFor={`${idPrefix}-notes`} className="font-medium">
-          備註 <span className="text-sm font-normal text-ink-faint">選填</span>
+          備註 <span className="text-sm font-normal text-ink-faint">選填，可按 Enter 換行</span>
         </label>
         <textarea
           id={`${idPrefix}-notes`}
           name="notes"
-          rows={3}
+          rows={4}
           maxLength={1000}
           value={values.notes}
           onChange={(event) => onFieldChange("notes", event.target.value)}
@@ -270,7 +270,6 @@ function TimelineDialog({
         </span>
       </button>
       <dialog
-        data-dialog-presentation="panel"
         ref={dialogRef}
         aria-labelledby={id}
         onKeyDown={(event) => containDialogFocus(event, event.currentTarget)}
@@ -278,7 +277,7 @@ function TimelineDialog({
           if (pending) event.preventDefault();
         }}
         onClose={() => triggerRef.current?.focus({ preventScroll: true })}
-        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-stone-950/35"
+        className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl"
       >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-line bg-surface px-5 py-5 sm:px-7">
           <h2 id={id} className="min-w-0 break-words font-serif text-2xl font-semibold [overflow-wrap:anywhere]">

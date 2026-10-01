@@ -71,6 +71,7 @@ A wedding planning app for couples and planners to manage guests, seating, budge
 | 擁有者 `OWNER` | 查看與編輯 | 可以 |
 | 伴侶 `PARTNER` | 查看與編輯 | 不可以 |
 | 婚顧 `PLANNER` | 查看與編輯 | 不可以 |
+| 總召 `COORDINATOR` | 查看與編輯 | 不可以 |
 | 檢視者 `VIEWER` | 僅查看 | 不可以 |
 
 伺服器每次讀寫都會檢查目前帳號的成員權限。下述一次性離線匯入另有操作者授權限制，不是網站登入方式。

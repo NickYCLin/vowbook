@@ -138,3 +138,34 @@ export async function loadSeatingPlanForUser(workspaceId: string, userId: string
     throw new SeatingPlanDataError("目前無法載入桌次安排，請稍後再試。");
   }
 }
+
+/** 稱謂與同一戶設定屬於賓客明細，沿用 editor 邊界；只給帶位紙本使用，不併入桌次共用資料。 */
+export type SeatingPrintDetails = { relationships: Map<string, string>; households: Map<string, string> };
+export async function getSeatingPrintDetails(workspaceId: string): Promise<SeatingPrintDetails> {
+  const currentUser = await requireCurrentUser();
+  return prisma.$transaction(
+    async (transaction) => {
+      await requireWorkspaceAccess(workspaceId, currentUser.id, "edit", transaction);
+      const guests = await transaction.guest.findMany({
+        where: { workspaceId },
+        select: {
+          id: true,
+          cakeHouseholdId: true,
+          importRecords: {
+            orderBy: [{ source: "asc" }, { sourceInstance: "asc" }],
+            select: { source: true, sourceInstance: true, sourceManaged: true, relationshipLabel: true },
+          },
+        },
+      });
+      const relationships = new Map<string, string>();
+      const households = new Map<string, string>();
+      for (const guest of guests) {
+        const label = effectiveGuestDetailValue(guest.importRecords, (record) => record.relationshipLabel)?.trim();
+        if (label) relationships.set(guest.id, label);
+        if (guest.cakeHouseholdId) households.set(guest.id, guest.cakeHouseholdId);
+      }
+      return { relationships, households };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+}

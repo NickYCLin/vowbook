@@ -47,7 +47,7 @@ describe("OverviewPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("合成完整婚宴總覽")).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", { name: "工作區功能" });
-    expect(within(navigation).getAllByRole("link")).toHaveLength(11);
+    expect(within(navigation).getAllByRole("link")).toHaveLength(12);
     expect(within(navigation).getByRole("link", { name: "婚宴首頁" })).toHaveAttribute(
       "aria-current",
       "page",

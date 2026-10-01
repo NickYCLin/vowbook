@@ -2,6 +2,7 @@ export const WORKSPACE_ROLES = [
   "OWNER",
   "PARTNER",
   "PLANNER",
+  "COORDINATOR",
   "VIEWER",
 ] as const;
 
@@ -125,7 +126,11 @@ export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
 export function getWorkspacePermissions(role: WorkspaceRole | null) {
   return {
     canRead: role !== null,
-    canEdit: role === "OWNER" || role === "PARTNER" || role === "PLANNER",
+    canEdit:
+      role === "OWNER" ||
+      role === "PARTNER" ||
+      role === "PLANNER" ||
+      role === "COORDINATOR",
     canManageMembers: role === "OWNER",
   };
 }

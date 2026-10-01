@@ -93,6 +93,22 @@ describe("WeddingTimelineList", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("keeps line breaks inside notes", () => {
+    const { container } = render(
+      <WeddingTimelineList
+        workspaceId="workspace_internal"
+        items={[{ ...items[0], notes: "第一行\n第二行" }]}
+        staff={staff}
+        canEdit={false}
+      />,
+    );
+    const note = Array.from(container.querySelectorAll("p")).find((element) =>
+      element.textContent?.includes("第一行"),
+    )!;
+    expect(note.textContent).toBe("第一行\n第二行");
+    expect(note).toHaveClass("whitespace-pre-wrap");
+  });
+
   it("wraps every unbroken timeline field", () => {
     const phase = "P".repeat(60);
     const title = "T".repeat(120);
