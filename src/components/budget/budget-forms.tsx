@@ -1243,7 +1243,7 @@ export function ChangeBudgetItemPreparationStatusForm({
         )}
       </select>
       <p className="text-xs leading-5 text-ink-faint">
-        已有／自備與不打算準備都不列入計算；改回需要安排即可恢復。
+        已有／自備、廠商提供與不打算準備都不列入計算；改回需要安排即可恢復。
       </p>
       <button
         type="submit"

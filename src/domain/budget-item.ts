@@ -9,6 +9,7 @@ export const BUDGET_BOOKING_STATUS_LABELS = {
 export const BUDGET_PREPARATION_STATUS_LABELS = {
   NEEDS_ACTION: "需要安排",
   ALREADY_OWNED: "已有／自備",
+  VENDOR_PROVIDED: "廠商提供",
   NOT_PLANNED: "不打算準備",
 } as const;
 

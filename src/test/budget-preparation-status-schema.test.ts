@@ -17,7 +17,7 @@ describe("budget preparation status schema contract", () => {
 
   it("keeps preparation decisions independent from booking and payment", () => {
     expect(schema).toMatch(
-      /enum BudgetPreparationStatus\s*\{[\s\S]*?NEEDS_ACTION\s+ALREADY_OWNED\s+NOT_PLANNED\s*\}/u,
+      /enum BudgetPreparationStatus\s*\{[\s\S]*?NEEDS_ACTION\s+ALREADY_OWNED\s+VENDOR_PROVIDED\s+NOT_PLANNED\s*\}/u,
     );
     expect(schema).toMatch(
       /preparationStatus\s+BudgetPreparationStatus\s+@default\(NEEDS_ACTION\)\s+@map\("preparation_status"\)/u,
@@ -46,5 +46,22 @@ describe("budget preparation status schema contract", () => {
       'CREATE INDEX "budget_items_ws_preparation_booking_due_created_id_idx"',
     );
     expect(migration).not.toMatch(/\b(?:DELETE|TRUNCATE)\b/iu);
+  });
+
+  it("adds the vendor-provided decision without touching existing rows", () => {
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "prisma",
+        "migrations",
+        "20261001100000_budget_vendor_provided",
+        "migration.sql",
+      ),
+      "utf8",
+    );
+    expect(migration).toContain(
+      `ALTER TYPE "BudgetPreparationStatus" ADD VALUE IF NOT EXISTS 'VENDOR_PROVIDED' AFTER 'ALREADY_OWNED'`,
+    );
+    expect(migration).not.toMatch(/\b(?:DELETE|TRUNCATE|UPDATE)\b/iu);
   });
 });

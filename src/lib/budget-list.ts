@@ -234,6 +234,7 @@ export type BudgetSummary = {
   balanceDueMissingAmountCount: number;
   nearestUpcomingBalanceDueDate: string | null;
   selfProvidedCount: number;
+  vendorProvidedCount: number;
   notPlannedCount: number;
 };
 
@@ -320,6 +321,7 @@ function preparationStatusOf(
   if (
     status !== "NEEDS_ACTION" &&
     status !== "ALREADY_OWNED" &&
+    status !== "VENDOR_PROVIDED" &&
     status !== "NOT_PLANNED"
   ) {
     throw new BudgetItemDataError();
@@ -936,6 +938,9 @@ function summarize(
         : upcomingBalanceDueDates.sort()[0],
     selfProvidedCount: expenseItems.filter(
       (item) => preparationStatusOf(item) === "ALREADY_OWNED",
+    ).length,
+    vendorProvidedCount: expenseItems.filter(
+      (item) => preparationStatusOf(item) === "VENDOR_PROVIDED",
     ).length,
     notPlannedCount: expenseItems.filter(
       (item) => preparationStatusOf(item) === "NOT_PLANNED",

@@ -410,6 +410,7 @@ describe("getWeddingOverview", () => {
       actualTotal: "400",
       balanceDueTotal: "80",
       selfProvidedCount: 1,
+      vendorProvidedCount: 0,
       notPlannedCount: 1,
     });
     expect(data.operations).toEqual({

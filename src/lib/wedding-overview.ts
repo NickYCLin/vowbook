@@ -50,7 +50,7 @@ type OverviewBudgetRecord = {
   payments?: ReadonlyArray<{ amount: number }>;
   dueDate: Date | null;
   bookingStatus: "PLANNING" | "BOOKED_BALANCE_DUE" | "PAID";
-  preparationStatus: "NEEDS_ACTION" | "ALREADY_OWNED" | "NOT_PLANNED";
+  preparationStatus: "NEEDS_ACTION" | "ALREADY_OWNED" | "VENDOR_PROVIDED" | "NOT_PLANNED";
   paid: boolean;
 };
 type OverviewWorkspace = Pick<
@@ -137,6 +137,7 @@ export type WeddingOverviewData = {
     actualTotal: string;
     balanceDueTotal: string;
     selfProvidedCount: number;
+    vendorProvidedCount: number;
     notPlannedCount: number;
   };
   operations: {
@@ -381,6 +382,9 @@ function summarizeBudget(
     ),
     selfProvidedCount: expenses.filter(
       (record) => record.preparationStatus === "ALREADY_OWNED",
+    ).length,
+    vendorProvidedCount: expenses.filter(
+      (record) => record.preparationStatus === "VENDOR_PROVIDED",
     ).length,
     notPlannedCount: expenses.filter(
       (record) => record.preparationStatus === "NOT_PLANNED",

@@ -256,6 +256,7 @@ describe("getBudgetPageData", () => {
         balanceDueMissingAmountCount: 0,
         nearestUpcomingBalanceDueDate: null,
         selfProvidedCount: 0,
+        vendorProvidedCount: 0,
         notPlannedCount: 0,
       },
     });
@@ -636,6 +637,7 @@ describe("getBudgetPageData", () => {
       balanceDueMissingAmountCount: 0,
       nearestUpcomingBalanceDueDate: null,
       selfProvidedCount: 0,
+      vendorProvidedCount: 0,
       notPlannedCount: 0,
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
@@ -673,6 +675,17 @@ describe("getBudgetPageData", () => {
       depositAmount: 50,
       balanceAmount: 150,
     };
+    const vendorProvided = {
+      ...taxonomyExpense({
+        id: "vendor_flowers",
+        primaryKey: "ITEM_ATTIRE_RENTAL",
+        relatedTaxonomyItemKey: null,
+        plannedAmount: 500,
+        actualAmount: 500,
+      }),
+      parentId: group.id,
+      preparationStatus: "VENDOR_PROVIDED",
+    };
     const skipped = {
       ...taxonomyExpense({
         id: "skipped_shoes",
@@ -692,6 +705,7 @@ describe("getBudgetPageData", () => {
       group,
       active,
       owned,
+      vendorProvided,
       skipped,
     ]);
 
@@ -720,6 +734,7 @@ describe("getBudgetPageData", () => {
       balanceDueMissingAmountCount: 0,
       nearestUpcomingBalanceDueDate: null,
       selfProvidedCount: 1,
+      vendorProvidedCount: 1,
       notPlannedCount: 1,
     });
   });

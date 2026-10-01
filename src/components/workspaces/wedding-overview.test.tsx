@@ -57,6 +57,7 @@ const data = {
     actualTotal: "340000",
     balanceDueTotal: "120000",
     selfProvidedCount: 2,
+    vendorProvidedCount: 0,
     notPlannedCount: 1,
   },
   operations: {
@@ -325,6 +326,7 @@ describe("WeddingOverview", () => {
             actualTotal: "0",
             balanceDueTotal: "0",
             selfProvidedCount: 0,
+            vendorProvidedCount: 0,
             notPlannedCount: 0,
           },
           operations: {

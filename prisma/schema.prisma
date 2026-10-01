@@ -107,6 +107,7 @@ enum BudgetBookingStatus {
 enum BudgetPreparationStatus {
   NEEDS_ACTION
   ALREADY_OWNED
+  VENDOR_PROVIDED
   NOT_PLANNED
 }
 

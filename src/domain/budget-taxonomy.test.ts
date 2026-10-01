@@ -27,6 +27,7 @@ describe("budget preparation status", () => {
     expect(BUDGET_PREPARATION_STATUS_LABELS).toEqual({
       NEEDS_ACTION: "需要安排",
       ALREADY_OWNED: "已有／自備",
+      VENDOR_PROVIDED: "廠商提供",
       NOT_PLANNED: "不打算準備",
     });
     expect(normalizeBudgetPreparationStatus("NEEDS_ACTION")).toBe(
@@ -37,6 +38,9 @@ describe("budget preparation status", () => {
     );
     expect(normalizeBudgetPreparationStatus("NOT_PLANNED")).toBe(
       "NOT_PLANNED",
+    );
+    expect(normalizeBudgetPreparationStatus("VENDOR_PROVIDED")).toBe(
+      "VENDOR_PROVIDED",
     );
   });
 

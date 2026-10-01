@@ -382,6 +382,7 @@ const budgetSummary = {
   balanceDueMissingAmountCount: 0,
   nearestUpcomingBalanceDueDate: "2026-09-30",
   selfProvidedCount: 1,
+  vendorProvidedCount: 0,
   notPlannedCount: 1,
 };
 
@@ -591,6 +592,7 @@ const surfaces: { name: string; element: ReactNode }[] = [
               actualTotal: "2143500",
               balanceDueTotal: "680000",
               selfProvidedCount: 6,
+              vendorProvidedCount: 0,
               notPlannedCount: 4,
             },
             operations: {
@@ -1502,6 +1504,7 @@ const variantSurfaces: { name: string; element: ReactNode }[] = [
             balanceDueMissingAmountCount: 0,
             nearestUpcomingBalanceDueDate: null,
             selfProvidedCount: 0,
+            vendorProvidedCount: 0,
             notPlannedCount: 0,
           }}
         />

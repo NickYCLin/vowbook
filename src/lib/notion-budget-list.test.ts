@@ -115,6 +115,7 @@ describe("Notion Budget tree query", () => {
       balanceDueMissingAmountCount: 0,
       nearestUpcomingBalanceDueDate: null,
       selfProvidedCount: 0,
+      vendorProvidedCount: 0,
       notPlannedCount: 0,
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);

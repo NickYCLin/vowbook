@@ -40,6 +40,7 @@ const emptySummary: BudgetSummary = {
   balanceDueMissingAmountCount: 0,
   nearestUpcomingBalanceDueDate: null,
   selfProvidedCount: 0,
+  vendorProvidedCount: 0,
   notPlannedCount: 0,
 };
 

@@ -168,7 +168,7 @@ export function WeddingOverview({
           <ProgressCard
             title="婚禮花費"
             value={`${data.budget.paidCount}/${data.budget.itemCount} 項`}
-            detail={`預計 ${twd(data.budget.plannedTotal)}・已記錄 ${twd(data.budget.actualTotal)}・規劃中 ${data.budget.planningCount} 項・待付尾款 ${data.budget.balanceDueCount} 項／${twd(data.budget.balanceDueTotal)}・逾期尾款 ${data.budget.overdueBalanceDueCount} 項・已有／自備 ${data.budget.selfProvidedCount} 項・不準備 ${data.budget.notPlannedCount} 項`}
+            detail={`預計 ${twd(data.budget.plannedTotal)}・已記錄 ${twd(data.budget.actualTotal)}・規劃中 ${data.budget.planningCount} 項・待付尾款 ${data.budget.balanceDueCount} 項／${twd(data.budget.balanceDueTotal)}・逾期尾款 ${data.budget.overdueBalanceDueCount} 項・已有／自備 ${data.budget.selfProvidedCount} 項・廠商提供 ${data.budget.vendorProvidedCount} 項・不準備 ${data.budget.notPlannedCount} 項`}
             progressLabel="婚禮花費付清進度"
             progressValue={data.budget.paidCount}
             progressMax={data.budget.itemCount}

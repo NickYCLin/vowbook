@@ -2788,6 +2788,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
       actualTotal: "0",
       balanceDueTotal: "0",
       selfProvidedCount: 1,
+      vendorProvidedCount: 0,
       notPlannedCount: 0,
     });
 
@@ -2818,6 +2819,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
     expect((await getBudgetPageData(workspace.id)).summary).toMatchObject({
       itemCount: 0,
       selfProvidedCount: 0,
+      vendorProvidedCount: 0,
       notPlannedCount: 1,
     });
 
@@ -2835,6 +2837,7 @@ describeDatabase.sequential("PostgreSQL BudgetItem invariants", () => {
       actualTotal: "48000",
       balanceDueTotal: "2000",
       selfProvidedCount: 0,
+      vendorProvidedCount: 0,
       notPlannedCount: 0,
     });
 

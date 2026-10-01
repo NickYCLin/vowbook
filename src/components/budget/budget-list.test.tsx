@@ -290,6 +290,7 @@ const summary: BudgetSummary = {
   balanceDueMissingAmountCount: 1,
   nearestUpcomingBalanceDueDate: "2027-12-31",
   selfProvidedCount: 0,
+  vendorProvidedCount: 0,
   notPlannedCount: 0,
 };
 
@@ -493,6 +494,14 @@ describe("BudgetList", () => {
       plannedAmount: 50000,
       rolledUpPlannedAmount: "0",
     };
+    const vendorProvided = {
+      ...items[0],
+      id: "budget_vendor_provided",
+      name: "主桌桌花",
+      preparationStatus: "VENDOR_PROVIDED" as const,
+      plannedAmount: 4000,
+      rolledUpPlannedAmount: "0",
+    };
     const skipped = {
       ...items[0],
       id: "budget_skipped",
@@ -505,7 +514,7 @@ describe("BudgetList", () => {
     render(
       <BudgetList
         workspaceId="workspace_internal"
-        items={[active, owned, skipped]}
+        items={[active, owned, vendorProvided, skipped]}
         summary={{
           ...summary,
           itemCount: 1,
@@ -513,6 +522,7 @@ describe("BudgetList", () => {
           plannedTotal: "88000",
           actualTotal: "0",
           selfProvidedCount: 1,
+          vendorProvidedCount: 1,
           notPlannedCount: 1,
         }}
         canEdit
@@ -522,6 +532,15 @@ describe("BudgetList", () => {
     expect(screen.getByText("已有／自備 1 筆")).toBeVisible();
     expect(screen.getByText("不打算準備 1 筆")).toBeVisible();
     expect(within(ledgerListItem("budget_owned")).getByText("已有／自備")).toBeVisible();
+    expect(screen.getByText("廠商提供 1 筆")).toBeVisible();
+    expect(
+      within(ledgerListItem("budget_vendor_provided")).getByText("廠商提供"),
+    ).toBeVisible();
+    expect(
+      ledgerListItem("budget_vendor_provided").querySelector(
+        '[data-budget-non-cost="true"]',
+      ),
+    ).toHaveTextContent(/^不列入計算$/u);
     // 不準備的項目在「全部」裡不列出，點摘要才看得到。
     expect(ledgerListItem("budget_skipped")).toHaveAttribute("hidden");
     fireEvent.click(screen.getByRole("button", { name: "不打算準備 1 筆" }));
@@ -559,6 +578,11 @@ describe("BudgetList", () => {
     expect(ledgerListItem("budget_owned")).not.toHaveAttribute("hidden");
     expect(ledgerListItem("budget_active")).toHaveAttribute("hidden");
     expect(ledgerListItem("budget_skipped")).toHaveAttribute("hidden");
+    expect(ledgerListItem("budget_vendor_provided")).toHaveAttribute("hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "廠商提供" }));
+    expect(ledgerListItem("budget_vendor_provided")).not.toHaveAttribute("hidden");
+    expect(ledgerListItem("budget_owned")).toHaveAttribute("hidden");
   });
 
   it("does not show first-expense onboarding when every recorded item is self-provided", () => {
@@ -587,6 +611,7 @@ describe("BudgetList", () => {
           balanceDueMissingAmountCount: 0,
           nearestUpcomingBalanceDueDate: null,
           selfProvidedCount: 1,
+          vendorProvidedCount: 0,
           notPlannedCount: 0,
         }}
         canEdit
@@ -1877,6 +1902,7 @@ describe("BudgetList", () => {
           balanceDueMissingAmountCount: 0,
           nearestUpcomingBalanceDueDate: null,
           selfProvidedCount: 0,
+          vendorProvidedCount: 0,
           notPlannedCount: 0,
         }}
         canEdit={false}
@@ -3205,6 +3231,7 @@ describe("BudgetList", () => {
           balanceDueMissingAmountCount: 0,
           nearestUpcomingBalanceDueDate: null,
           selfProvidedCount: 0,
+          vendorProvidedCount: 0,
           notPlannedCount: 0,
         }}
         canEdit={false}

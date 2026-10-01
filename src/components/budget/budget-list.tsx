@@ -82,6 +82,7 @@ type BudgetStatusFilter =
   | "BOOKED_BALANCE_DUE"
   | "PAID"
   | "ALREADY_OWNED"
+  | "VENDOR_PROVIDED"
   | "NOT_PLANNED";
 
 type GroupExpansionState = {
@@ -407,6 +408,7 @@ const STATUS_FILTERS: Array<{
   { value: "BOOKED_BALANCE_DUE", label: "已下訂" },
   { value: "PAID", label: "已付清" },
   { value: "ALREADY_OWNED", label: "已有／自備" },
+  { value: "VENDOR_PROVIDED", label: "廠商提供" },
   { value: "NOT_PLANNED", label: "不準備" },
 ];
 
@@ -498,6 +500,7 @@ function BudgetSummaryView({
   onShowPaid,
   onShowBalanceDue,
   onShowSelfProvided,
+  onShowVendorProvided,
   onShowNotPlanned,
 }: {
   summary: BudgetSummary;
@@ -505,6 +508,7 @@ function BudgetSummaryView({
   onShowPaid: () => void;
   onShowBalanceDue: () => void;
   onShowSelfProvided: () => void;
+  onShowVendorProvided: () => void;
   onShowNotPlanned: () => void;
 }) {
   return (
@@ -514,6 +518,7 @@ function BudgetSummaryView({
       </h2>
       {summary.itemCount === 0 &&
       summary.selfProvidedCount === 0 &&
+      (summary.vendorProvidedCount ?? 0) === 0 &&
       summary.notPlannedCount === 0 ? (
         <div
           data-budget-empty-onboarding="true"
@@ -619,7 +624,9 @@ function BudgetSummaryView({
           </dd>
         </div>
       </dl>
-      {summary.selfProvidedCount > 0 || summary.notPlannedCount > 0 ? (
+      {summary.selfProvidedCount > 0 ||
+      (summary.vendorProvidedCount ?? 0) > 0 ||
+      summary.notPlannedCount > 0 ? (
         <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-x border-b border-line bg-surface-sunken px-4 py-2 text-xs text-ink-soft sm:px-5">
           {summary.selfProvidedCount > 0 ? (
             <button
@@ -628,6 +635,15 @@ function BudgetSummaryView({
               className="min-h-11 font-semibold text-clay-strong underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
             >
               已有／自備 {summary.selfProvidedCount} 筆
+            </button>
+          ) : null}
+          {(summary.vendorProvidedCount ?? 0) > 0 ? (
+            <button
+              type="button"
+              onClick={onShowVendorProvided}
+              className="min-h-11 font-semibold text-clay-strong underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+            >
+              廠商提供 {summary.vendorProvidedCount} 筆
             </button>
           ) : null}
           {summary.notPlannedCount > 0 ? (
@@ -2487,7 +2503,9 @@ function filterBudgetItems(
       (statusFilter === "ALL" ||
         (item.kind === "EXPENSE" &&
           !isPassThroughSourceNode(item) &&
-          (statusFilter === "ALREADY_OWNED" || statusFilter === "NOT_PLANNED"
+          (statusFilter === "ALREADY_OWNED" ||
+          statusFilter === "VENDOR_PROVIDED" ||
+          statusFilter === "NOT_PLANNED"
             ? preparationStatusOfItem(item) === statusFilter
             : preparationStatusOfItem(item) === "NEEDS_ACTION" &&
               item.bookingStatus === statusFilter))),
@@ -3185,6 +3203,7 @@ export function BudgetList({
         onShowPaid={() => showSummaryStatus("PAID")}
         onShowBalanceDue={() => showSummaryStatus("BOOKED_BALANCE_DUE")}
         onShowSelfProvided={() => showSummaryStatus("ALREADY_OWNED")}
+        onShowVendorProvided={() => showSummaryStatus("VENDOR_PROVIDED")}
         onShowNotPlanned={() => showSummaryStatus("NOT_PLANNED")}
       />
       {derivedCosts.length > 0 || (canEdit && mealPricing) ? (
