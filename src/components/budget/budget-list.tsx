@@ -1477,9 +1477,7 @@ function BudgetItemRow({
               }
               className={
                 "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-line border-l-[3px] bg-white py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
-                (nestedDepth > 0
-                  ? " border-l-line-strong"
-                  : " border-l-transparent")
+                " border-l-transparent"
               }
             >
               <div
@@ -1498,9 +1496,24 @@ function BudgetItemRow({
                     {needsReclassification ? "待重新分類" : taxonomyItemLabel}
                   </p>
                 )}
-                <RowHeading className="break-words font-serif text-base font-semibold leading-6 text-ink">
-                  {item.name}
-                </RowHeading>
+                {nestedDepth > 0 ? (
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <span
+                      aria-hidden="true"
+                      data-budget-branch-marker="true"
+                      className="shrink-0 text-line-strong"
+                    >
+                      └
+                    </span>
+                    <RowHeading className="min-w-0 break-words font-sans text-sm font-semibold leading-5 text-ink">
+                      {item.name}
+                    </RowHeading>
+                  </div>
+                ) : (
+                  <RowHeading className="break-words font-serif text-base font-semibold leading-6 text-ink">
+                    {item.name}
+                  </RowHeading>
+                )}
                 {/* 廠商是輔助資訊：有才顯示成小標籤，沒設定就不佔版面。 */}
                 {tracksCost && ledgerBrand ? (
                   <p

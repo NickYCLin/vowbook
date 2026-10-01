@@ -3110,6 +3110,49 @@ describe("BudgetList", () => {
     ).toBeInTheDocument();
   });
 
+  it("marks a nested parent expense as a sibling under its group", () => {
+    const parent: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_gown_rental",
+      name: "租婚紗",
+      depth: 3,
+      breadcrumb: ["婚紗拍攝", "租婚紗"],
+      hasChildren: true,
+      directChildCount: 1,
+      descendantCount: 1,
+      plannedAmount: 0,
+      rolledUpPlannedAmount: "3000",
+      bookingStatus: "PAID",
+      paid: true,
+    };
+    const child: BudgetItemListItem = {
+      ...items[0],
+      id: "budget_gown_addon",
+      parentId: parent.id,
+      name: "My Dear加購費用",
+      depth: 4,
+      breadcrumb: ["婚紗拍攝", "租婚紗", "My Dear加購費用"],
+      plannedAmount: 3000,
+      rolledUpPlannedAmount: "3000",
+      bookingStatus: "PAID",
+      paid: true,
+    };
+    const { container } = render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={[parent, child]}
+        summary={summary}
+        canEdit
+      />,
+    );
+    const row = container.querySelector<HTMLElement>(
+      '[data-budget-item-id="budget_gown_rental"] [data-budget-scan-layout="expense-row"]',
+    );
+    expect(row).not.toBeNull();
+    expect(row?.querySelector("[data-budget-branch-marker]")).toHaveTextContent("└");
+    expect(row?.className).not.toContain("border-l-line-strong");
+  });
+
   it("keeps owned props on one compact line beside priced siblings", () => {
     const owned: BudgetItemListItem = {
       ...items[0],
