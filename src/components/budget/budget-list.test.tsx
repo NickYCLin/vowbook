@@ -3151,7 +3151,7 @@ describe("BudgetList", () => {
     expect(row).not.toBeNull();
     expect(row?.querySelector("[data-budget-branch-marker]")).toHaveTextContent("└");
     expect(row?.className).not.toContain("border-l-line-strong");
-    expect(row?.className).toContain("pl-[calc(3.75rem+var(--budget-indent,0px))]");
+    expect(row?.className).toContain("pl-[calc(5rem+var(--budget-indent,0px))]");
     expect(row?.className).not.toContain("border-l-[3px]");
   });
 

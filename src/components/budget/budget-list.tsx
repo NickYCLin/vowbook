@@ -1478,7 +1478,7 @@ function BudgetItemRow({
               className={
                 "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-line bg-white py-3 pr-4 hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
                 (nestedDepth > 0
-                  ? " pl-[calc(3.75rem+var(--budget-indent,0px))] sm:pl-[calc(5.25rem+var(--budget-indent,0px))]"
+                  ? " pl-[calc(5rem+var(--budget-indent,0px))] sm:pl-[calc(6.5rem+var(--budget-indent,0px))]"
                   : " border-l-[3px] border-l-transparent pl-[calc(1rem+var(--budget-indent,0px))]")
               }
             >
