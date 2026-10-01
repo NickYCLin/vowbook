@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, Printer, X } from "@phosphor-icons/react";
-import { useActionState, useId, useRef } from "react";
+import { Check, PencilSimple, Printer, X } from "@phosphor-icons/react";
+import { useActionState, useId, useRef, useState } from "react";
 import {
   createPackingItemAction,
   deletePackingItemAction,
   type PackingItemMutationState,
   setPackingItemPackedAction,
+  updatePackingItemAction,
 } from "@/actions/packing-items";
 import {
   PACKING_SIDE_LABELS,
@@ -26,6 +27,15 @@ export type PackingListItem = {
 };
 
 const initialState: PackingItemMutationState = { status: "idle" };
+
+const strokeCollator = new Intl.Collator("zh-Hant-TW", { numeric: true });
+
+function byStroke(left: PackingListItem, right: PackingListItem): number {
+  return (
+    strokeCollator.compare(left.title, right.title) ||
+    (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+  );
+}
 
 function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -82,6 +92,76 @@ function AddPackingItemForm({ workspaceId }: { workspaceId: string }) {
   );
 }
 
+function EditPackingItemForm({
+  workspaceId,
+  item,
+  onDone,
+}: {
+  workspaceId: string;
+  item: PackingListItem;
+  onDone: () => void;
+}) {
+  const titleId = useId();
+  const sideId = useId();
+  const [state, formAction, isPending] = useActionState(
+    async (previous: PackingItemMutationState, formData: FormData) => {
+      const result = await updatePackingItemAction(
+        workspaceId,
+        item.id,
+        previous,
+        formData,
+      );
+      if (result.status === "success") onDone();
+      return result;
+    },
+    initialState,
+  );
+
+  return (
+    <li className="py-1.5 print:hidden">
+      <form action={formAction} className="flex min-w-0 flex-col gap-2">
+        <input type="hidden" name="expectedVersion" value={item.version} />
+        <label htmlFor={titleId} className="sr-only">
+          編輯物品名稱
+        </label>
+        <Input
+          id={titleId}
+          name="title"
+          required
+          maxLength={80}
+          defaultValue={item.title}
+          autoFocus
+          className="min-w-0"
+        />
+        <div className="flex min-w-0 items-center gap-2">
+          <label htmlFor={sideId} className="sr-only">
+            誰要帶
+          </label>
+          <Select
+            id={sideId}
+            name="side"
+            defaultValue={item.side}
+            className="min-w-0 flex-1"
+          >
+            {PACKING_SIDE_ORDER.map((side) => (
+              <option key={side} value={side}>
+                {PACKING_SIDE_LABELS[side]}
+              </option>
+            ))}
+          </Select>
+          <Button type="button" variant="secondary" onClick={onDone}>
+            取消
+          </Button>
+          <SubmitButton isPending={isPending} pendingLabel="儲存中…">
+            儲存
+          </SubmitButton>
+        </div>
+        <ActionFeedback state={state.status === "error" ? state : initialState} />
+      </form>
+    </li>
+  );
+}
+
 function PackingRow({
   workspaceId,
   item,
@@ -107,6 +187,7 @@ function PackingRow({
       deletePackingItemAction(workspaceId, item.id, previous, formData),
     initialState,
   );
+  const [editing, setEditing] = useState(false);
   const box = (
     <span
       aria-hidden="true"
@@ -121,8 +202,18 @@ function PackingRow({
     </span>
   );
 
+  if (editing && canEdit) {
+    return (
+      <EditPackingItemForm
+        workspaceId={workspaceId}
+        item={item}
+        onDone={() => setEditing(false)}
+      />
+    );
+  }
+
   return (
-    <li className="flex min-w-0 items-center gap-2 py-1.5 print:py-0.5">
+    <li className="flex min-w-0 items-center gap-1 py-1.5 print:py-0.5">
       {canEdit ? (
         <form action={toggleAction} className="flex min-w-0 flex-1">
           <input type="hidden" name="expectedVersion" value={item.version} />
@@ -150,6 +241,16 @@ function PackingRow({
           <span className="min-w-0 break-words text-sm text-ink">{item.title}</span>
         </span>
       )}
+      {canEdit ? (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label={"編輯：" + item.title}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-ink-faint transition hover:bg-clay-soft hover:text-clay-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay print:hidden"
+        >
+          <PencilSimple size={16} aria-hidden="true" />
+        </button>
+      ) : null}
       {canEdit ? (
         <form action={deleteAction} className="shrink-0 print:hidden">
           <input type="hidden" name="expectedVersion" value={item.version} />
@@ -200,7 +301,9 @@ export function PackingList({
       ) : (
         <div className="grid min-w-0 gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-3">
           {PACKING_SIDE_ORDER.map((side) => {
-            const sideItems = items.filter((item) => item.side === side);
+            const sideItems = items
+              .filter((item) => item.side === side)
+              .sort(byStroke);
             const packedCount = sideItems.filter((item) => item.packed).length;
             const headingId = `${workspaceId}-packing-${side}`;
             return (

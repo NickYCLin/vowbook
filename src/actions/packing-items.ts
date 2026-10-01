@@ -189,6 +189,41 @@ export async function setPackingItemPackedAction(
   return success(workspaceId, packed ? "已打包。" : "已改回未打包。");
 }
 
+export async function updatePackingItemAction(
+  workspaceId: string,
+  itemId: string,
+  _previousState: PackingItemMutationState,
+  formData: FormData,
+): Promise<PackingItemMutationState> {
+  const authorization = await authorize(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+
+  let expectedVersion: number;
+  let title: string;
+  let side: ReturnType<typeof normalizePackingSide>;
+  try {
+    expectedVersion = expectedVersionFrom(formData);
+    title = normalizePackingItemTitle(formData.get("title"));
+    side = normalizePackingSide(formData.get("side"));
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await withLockedEdit(workspaceId, authorization, (transaction) =>
+      transaction.packingItem.updateMany({
+        where: { id: itemId, workspaceId, version: expectedVersion },
+        data: { title, side, version: { increment: 1 } },
+      }),
+    );
+  } catch (error) {
+    return writeFailureState(error, "目前無法更新物品，請稍後再試。");
+  }
+  if (result.count === 0) return staleState(workspaceId);
+  return success(workspaceId, "已更新物品。");
+}
+
 export async function deletePackingItemAction(
   workspaceId: string,
   itemId: string,

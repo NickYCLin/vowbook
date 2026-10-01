@@ -39,6 +39,7 @@ import {
   createPackingItemAction,
   deletePackingItemAction,
   setPackingItemPackedAction,
+  updatePackingItemAction,
 } from "./packing-items";
 
 const idleState = { status: "idle" as const };
@@ -154,6 +155,48 @@ describe("packing item server actions", () => {
         idleState,
         versionFormData("1"),
       ),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
+  });
+
+  it("edits title and side within the workspace and version, ignoring forged fields", async () => {
+    const formData = versionFormData("2");
+    formData.set("title", "  睡衣 （前開式） ");
+    formData.set("side", "PARTNER_B");
+    formData.set("workspaceId", "workspace_attacker");
+    formData.set("packed", "true");
+
+    await expect(
+      updatePackingItemAction("workspace_1", "packing_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已更新物品。" });
+
+    expect(requireLockedWorkspaceAccess).toHaveBeenCalledWith(
+      "workspace_1",
+      "session_user",
+      "edit",
+      transactionClient,
+    );
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "packing_1", workspaceId: "workspace_1", version: 2 },
+      data: { title: "睡衣 （前開式）", side: "PARTNER_B", version: { increment: 1 } },
+    });
+    expect(revalidatePath).toHaveBeenCalledWith(packingPath);
+  });
+
+  it("rejects an empty edited title and reports STALE on version mismatch", async () => {
+    const empty = versionFormData("1");
+    empty.set("title", "  ");
+    empty.set("side", "SHARED");
+    await expect(
+      updatePackingItemAction("workspace_1", "packing_1", idleState, empty),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(updateMany).not.toHaveBeenCalled();
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    const stale = versionFormData("1");
+    stale.set("title", "牙刷");
+    stale.set("side", "SHARED");
+    await expect(
+      updatePackingItemAction("workspace_1", "packing_1", idleState, stale),
     ).resolves.toMatchObject({ status: "error", code: "STALE" });
   });
 
