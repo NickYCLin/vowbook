@@ -3151,6 +3151,8 @@ describe("BudgetList", () => {
     expect(row).not.toBeNull();
     expect(row?.querySelector("[data-budget-branch-marker]")).toHaveTextContent("└");
     expect(row?.className).not.toContain("border-l-line-strong");
+    expect(row?.className).toContain("pl-[calc(3.75rem+var(--budget-indent,0px))]");
+    expect(row?.className).not.toContain("border-l-[3px]");
   });
 
   it("keeps owned props on one compact line beside priced siblings", () => {

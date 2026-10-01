@@ -1476,16 +1476,22 @@ function BudgetItemRow({
                   : undefined
               }
               className={
-                "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-line border-l-[3px] bg-white py-3 pr-4 pl-[calc(1rem+var(--budget-indent,0px))] hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
-                " border-l-transparent"
+                "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 border-b border-line bg-white py-3 pr-4 hover:bg-surface md:grid-cols-[minmax(0,1fr)_minmax(12rem,0.72fr)_16rem] md:items-center md:gap-5" +
+                (nestedDepth > 0
+                  ? " pl-[calc(3.75rem+var(--budget-indent,0px))] sm:pl-[calc(5.25rem+var(--budget-indent,0px))]"
+                  : " border-l-[3px] border-l-transparent pl-[calc(1rem+var(--budget-indent,0px))]")
               }
             >
               <div
                 data-budget-mobile-row="primary"
                 data-budget-ledger-content-name="true"
-                data-budget-leaf-indent={visualDepth >= 2 ? "taxonomy" : undefined}
+                data-budget-leaf-indent={
+                  visualDepth >= 2 && nestedDepth === 0 ? "taxonomy" : undefined
+                }
                 className={
-                  visualDepth >= 2 ? "min-w-0 pl-11 sm:pl-[4.25rem]" : "min-w-0"
+                  visualDepth >= 2 && nestedDepth === 0
+                    ? "min-w-0 pl-11 sm:pl-[4.25rem]"
+                    : "min-w-0"
                 }
               >
                 {categoryEyebrowIsRedundant ? null : (
