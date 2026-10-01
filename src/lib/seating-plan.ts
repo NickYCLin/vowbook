@@ -74,6 +74,7 @@ export async function loadSeatingPlanForUser(workspaceId: string, userId: string
                   version: true,
                   name: true,
                   category: true,
+                  seniority: true,
                   partySize: true,
                   side: true,
                   notes: true,

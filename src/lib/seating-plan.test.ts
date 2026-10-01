@@ -68,7 +68,7 @@ describe("getSeatingPlan", () => {
     const source = { source: "LINEIN", sourceManaged: true, childSeatCount: 2, vegetarianCount: 1 };
     findGuests.mockResolvedValue([
       { ...guest, importRecords: [source] },
-      { ...guest, id: "cleared", importRecords: [source, {
+      { ...guest, id: "waiting_cleared", importRecords: [source, {
         source: "MANUAL", sourceInstance: "guest-details", sourceManaged: false,
         childSeatCount: null, vegetarianCount: null,
       }] },
@@ -112,6 +112,7 @@ describe("getSeatingPlan", () => {
             version: true,
             name: true,
             category: true,
+            seniority: true,
             partySize: true,
             side: true,
             notes: true,

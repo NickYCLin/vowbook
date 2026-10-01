@@ -1,11 +1,14 @@
 import {seatingTableLabel} from "./seating-table";
-type Guest={id:string;name:string;partySize:number;category?:string|null;vegetarianCount?:number|null;childSeatCount?:number|null};
+import {compareGuestsBySeniorityThenSurnameStroke,type GuestSeniorityValue} from "./guest";
+import {familyRelationshipRank} from "./family-relationship";
+type Guest={id:string;name:string;partySize:number;category?:string|null;seniority?:GuestSeniorityValue|null;vegetarianCount?:number|null;childSeatCount?:number|null};
 type Table={id:string;number:number;name:string;capacity:number;guests:readonly Guest[]};
 export type SeatingPrintGuest={key:string;name:string;relationship:string;partySize:number;needs:string};
 /**
  * 同一戶通常一起到，同桌的同戶成員共用一個勾選框；沒設定同一戶的人各自一組。
  * 同一戶分坐不同桌時，勾選框跟著「這一桌的這一戶」，elsewhere 提醒招待其他人要帶到哪一桌。
- * 新人本人一定會到，照樣列出座位但不需要帶位勾選（needsCheck=false）。
+ * 新人本人一定會到，照樣列出座位但不需要帶位勾選（needsCheck=false），也不併進家人那一戶的勾選框。
+ * 每桌順序比照賓客名單：新人、家人（依稱謂）、一般賓客（依輩份、姓氏筆劃）。
  */
 export type SeatingPrintParty={key:string;guests:SeatingPrintGuest[];elsewhere:string;needsCheck:boolean};
 export type SeatingPrintGroup={key:string;title:string;meta:string;assigned:boolean;full:boolean;parties:SeatingPrintParty[]};
@@ -32,10 +35,15 @@ export function seatingPrintData(tables:readonly Table[],unassigned:readonly Gue
   const household=details?.households.get(g.id);
   if(household)members.set(household,[...(members.get(household)??[]),{id:g.id,name:g.name,place:place(table)}]);
  }
+ const categoryRank=(g:Guest)=>g.category==="COUPLE"?0:g.category==="FAMILY"?1:2;
+ const sortable=(g:Guest)=>({id:g.id,name:g.name,seniority:g.seniority??"UNSPECIFIED"});
+ const byGuestList=(a:Guest,b:Guest)=>categoryRank(a)-categoryRank(b)
+  ||(a.category==="FAMILY"&&b.category==="FAMILY"?familyRelationshipRank(details?.relationships.get(a.id))-familyRelationshipRank(details?.relationships.get(b.id)):0)
+  ||compareGuestsBySeniorityThenSurnameStroke(sortable(a),sortable(b));
  const parties=(prefix:string,table:Table|null,guests:readonly Guest[]):SeatingPrintParty[]=>{
   const byKey=new Map<string,SeatingPrintParty&{household?:string}>();
-  for(const g of guests){
-   const household=details?.households.get(g.id);
+  for(const g of [...guests].sort(byGuestList)){
+   const household=g.category==="COUPLE"?undefined:details?.households.get(g.id);
    const key=household?`${prefix}:household:${household}`:`${prefix}:guest:${g.id}`;
    const party=byKey.get(key)??{key,guests:[],elsewhere:"",needsCheck:false,household};
    party.guests.push(guest(prefix)(g));if(g.category!=="COUPLE")party.needsCheck=true;byKey.set(key,party);
