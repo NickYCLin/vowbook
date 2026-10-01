@@ -222,6 +222,7 @@ model WeddingWorkspace {
   seatingTables                   SeatingTable[]
   seatingScenarios                SeatingScenario[]
   tasks                           WeddingTask[]
+  packingItems                    PackingItem[]
   budgetItems                     BudgetItem[]
   budgetAttachments               BudgetAttachment[]
   budgetPayments                  BudgetPayment[]
@@ -504,6 +505,23 @@ model WeddingTask {
   @@unique([id, workspaceId])
   @@index([workspaceId, status, dueDate, createdAt, id], map: "wedding_tasks_ws_status_due_created_id_idx")
   @@map("wedding_tasks")
+}
+
+/// 婚禮前一晚入住會館要帶的物品；不需要的工作區不會有任何資料。
+model PackingItem {
+  id          String           @id @default(cuid())
+  workspaceId String           @map("workspace_id")
+  title       String
+  side        WeddingTaskSide  @default(SHARED)
+  packed      Boolean          @default(false)
+  version     Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  workspace   WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([id, workspaceId])
+  @@index([workspaceId, createdAt, id])
+  @@map("packing_items")
 }
 
 model BudgetItem {

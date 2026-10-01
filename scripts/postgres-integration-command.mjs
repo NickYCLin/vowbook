@@ -50,63 +50,66 @@ const migrationEntries = readdirSync(migrationsDirectory, { withFileTypes: true 
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
+// 入住打包清單：新增 packing_items，不改既有資料。
+const packingItemsMigration = migrationEntries.at(-1);
 // 準備方式「廠商提供」：BudgetPreparationStatus 新增 VENDOR_PROVIDED，不改既有花費。
-const budgetVendorProvidedMigration = migrationEntries.at(-1);
+const budgetVendorProvidedMigration = migrationEntries.at(-2);
 // 總召角色：MembershipRole 新增 COORDINATOR，不改既有成員。
-const coordinatorRoleMigration = migrationEntries.at(-2);
+const coordinatorRoleMigration = migrationEntries.at(-3);
 // 電子喜帖與廠商文件：新表，不回填既有婚宴。
-const workspaceDocumentMigration = migrationEntries.at(-3);
+const workspaceDocumentMigration = migrationEntries.at(-4);
 // 尾款分批付款：新表，不回填既有花費。
-const budgetPaymentMigration = migrationEntries.at(-4);
+const budgetPaymentMigration = migrationEntries.at(-5);
 // Apple 登入：users 新增可空 apple_subject，google_subject 改可空，不回填。
-const appleSignInMigration = migrationEntries.at(-5);
+const appleSignInMigration = migrationEntries.at(-6);
 // 謝親恩致詞稿：新表，不回填既有婚宴。
-const speechMigration = migrationEntries.at(-6);
+const speechMigration = migrationEntries.at(-7);
 // 遊戲名單：新表，不回填既有婚宴。
-const gameParticipantMigration = migrationEntries.at(-7);
+const gameParticipantMigration = migrationEntries.at(-8);
 // 尾款付款方式：budget_items 新增可空欄位，不回填既有花費。
-const budgetBalancePaymentMethodMigration = migrationEntries.at(-8);
+const budgetBalancePaymentMethodMigration = migrationEntries.at(-9);
 // 座位方案：三張新表，不回填任何既有桌次或賓客。
-const seatingScenarioMigration = migrationEntries.at(-9);
+const seatingScenarioMigration = migrationEntries.at(-10);
 // 便當、素食套餐單價與服務費率，additive 且不回填既有婚宴。
-const mealUnitPricesMigration = migrationEntries.at(-10);
-const mobileAuthMigration = migrationEntries.at(-11);
+const mealUnitPricesMigration = migrationEntries.at(-11);
+const mobileAuthMigration = migrationEntries.at(-12);
 // 發餅家庭新增空表與可空關聯，不回填既有名單。
-const cakeHouseholdMigration = migrationEntries.at(-12);
-const coordinatorHandoffMigration = migrationEntries.at(-13);
-const guestGiftExemptionMigration = migrationEntries.at(-14);
-const dropVendorMigration = migrationEntries.at(-15);
-const budgetStaffRedEnvelopeMigration = migrationEntries.at(-16);
-const staffRedEnvelopeMigration = migrationEntries.at(-17);
-const giftReturnMigration = migrationEntries.at(-18);
-const staffMealMigration = migrationEntries.at(-19);
-const guestCheckInMigration = migrationEntries.at(-20);
-const planningPreferencesMigration = migrationEntries.at(-21);
-const giftMigration = migrationEntries.at(-22);
-const declinedSeatingConsistencyMigration = migrationEntries.at(-23);
-const ceremonyAttendanceMigration = migrationEntries.at(-24);
-const ceremonyMigration = migrationEntries.at(-25);
-const vendorMigration = migrationEntries.at(-26);
-const preparationStatusMigration = migrationEntries.at(-27);
-const guestSeniorityMigration = migrationEntries.at(-28);
-const familyPartySizeMigration = migrationEntries.at(-29);
-const userAccessMigration = migrationEntries.at(-30);
-const guestDetailsMigration = migrationEntries.at(-31);
-const avatarMigration = migrationEntries.at(-32);
-const taskSidesMigration = migrationEntries.at(-33);
-const rosterCategoriesMigration = migrationEntries.at(-34);
-const duplicateNamesMigration = migrationEntries.at(-35);
-const floorPlanMigration = migrationEntries.at(-36);
-const preparationSuggestionMigration = migrationEntries.at(-37);
-const engagementSuggestionMigration = migrationEntries.at(-38);
-const proposalLabelMigration = migrationEntries.at(-39);
-const repairMigration = migrationEntries.at(-40);
-const sourceHierarchyMigration = migrationEntries.at(-41);
-const relatedTaxonomyMigration = migrationEntries.at(-42);
-const fixedGroupsMigration = migrationEntries.at(-43);
-const failClosedMigration = migrationEntries.at(-44);
-const priorHeadMigration = migrationEntries.at(-45);
+const cakeHouseholdMigration = migrationEntries.at(-13);
+const coordinatorHandoffMigration = migrationEntries.at(-14);
+const guestGiftExemptionMigration = migrationEntries.at(-15);
+const dropVendorMigration = migrationEntries.at(-16);
+const budgetStaffRedEnvelopeMigration = migrationEntries.at(-17);
+const staffRedEnvelopeMigration = migrationEntries.at(-18);
+const giftReturnMigration = migrationEntries.at(-19);
+const staffMealMigration = migrationEntries.at(-20);
+const guestCheckInMigration = migrationEntries.at(-21);
+const planningPreferencesMigration = migrationEntries.at(-22);
+const giftMigration = migrationEntries.at(-23);
+const declinedSeatingConsistencyMigration = migrationEntries.at(-24);
+const ceremonyAttendanceMigration = migrationEntries.at(-25);
+const ceremonyMigration = migrationEntries.at(-26);
+const vendorMigration = migrationEntries.at(-27);
+const preparationStatusMigration = migrationEntries.at(-28);
+const guestSeniorityMigration = migrationEntries.at(-29);
+const familyPartySizeMigration = migrationEntries.at(-30);
+const userAccessMigration = migrationEntries.at(-31);
+const guestDetailsMigration = migrationEntries.at(-32);
+const avatarMigration = migrationEntries.at(-33);
+const taskSidesMigration = migrationEntries.at(-34);
+const rosterCategoriesMigration = migrationEntries.at(-35);
+const duplicateNamesMigration = migrationEntries.at(-36);
+const floorPlanMigration = migrationEntries.at(-37);
+const preparationSuggestionMigration = migrationEntries.at(-38);
+const engagementSuggestionMigration = migrationEntries.at(-39);
+const proposalLabelMigration = migrationEntries.at(-40);
+const repairMigration = migrationEntries.at(-41);
+const sourceHierarchyMigration = migrationEntries.at(-42);
+const relatedTaxonomyMigration = migrationEntries.at(-43);
+const fixedGroupsMigration = migrationEntries.at(-44);
+const failClosedMigration = migrationEntries.at(-45);
+const priorHeadMigration = migrationEntries.at(-46);
 if (
+  !packingItemsMigration ||
   !budgetVendorProvidedMigration ||
   !coordinatorRoleMigration ||
   !workspaceDocumentMigration ||
@@ -152,16 +155,17 @@ if (
   !failClosedMigration ||
   !fixedGroupsMigration ||
   !priorHeadMigration ||
-  migrationEntries.length !== 60
+  migrationEntries.length !== 61
 ) {
   throw new Error(
-    "Exactly sixty migrations are required for the upgrade gate.",
+    "Exactly sixty-one migrations are required for the upgrade gate.",
   );
 }
 const priorHeadPosition = migrationEntries.indexOf(priorHeadMigration) + 1;
 if (
-  migrationEntries.length !== 60 ||
+  migrationEntries.length !== 61 ||
   priorHeadPosition !== 16 ||
+  packingItemsMigration !== "20261001120000_packing_items" ||
   budgetVendorProvidedMigration !== "20261001100000_budget_vendor_provided" ||
   coordinatorRoleMigration !== "20261001090000_coordinator_role" ||
   workspaceDocumentMigration !== "20260930090000_workspace_documents" ||

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suitcase } from "@phosphor-icons/react/dist/ssr";
+import { buttonClassName } from "@/components/ui/button";
 import { CreateWeddingTaskDialog } from "@/components/tasks/task-forms";
 import { WeddingTaskList } from "@/components/tasks/task-list";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
@@ -61,7 +64,18 @@ export default async function TasksPage({ params }: TasksPageProps) {
             : "你目前是唯讀成員，可以查看任務，但不能新增、編輯、變更狀態或刪除。"
         }
         actions={
-          canEdit ? <CreateWeddingTaskDialog workspaceId={workspaceId} /> : null
+          <>
+            <Link
+              href={`/workspaces/${workspaceId}/tasks/packing`}
+              className={buttonClassName({ variant: "secondary" })}
+            >
+              <Suitcase size={18} aria-hidden="true" />
+              入住打包清單
+            </Link>
+            {canEdit ? (
+              <CreateWeddingTaskDialog workspaceId={workspaceId} />
+            ) : null}
+          </>
         }
       />
 
