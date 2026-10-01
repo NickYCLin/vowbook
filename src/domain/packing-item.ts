@@ -92,7 +92,12 @@ export type PackingSupplySource = {
   kind: string;
   systemTaxonomyKey: string | null;
   relatedTaxonomyItemKey: string | null;
+  preparationStatus?: string | null;
+  plannedAmount?: number | null;
+  actualAmount?: number | null;
 };
+
+const PACKING_SKIPPED_PREPARATION = new Set(["NOT_PLANNED", "VENDOR_PROVIDED"]);
 
 export function suggestPackingSupplies(
   budgetItems: readonly PackingSupplySource[],
@@ -118,6 +123,14 @@ export function suggestPackingSupplies(
   const suggestions: string[] = [];
   for (const item of budgetItems) {
     if (item.kind !== "EXPENSE" || !belongsToSupplies(item)) continue;
+    if (PACKING_SKIPPED_PREPARATION.has(item.preparationStatus ?? "")) continue;
+    if (
+      item.plannedAmount !== undefined &&
+      (item.plannedAmount ?? 0) <= 0 &&
+      (item.actualAmount ?? 0) <= 0
+    ) {
+      continue;
+    }
     const title = item.name.trim().replace(/\s+/gu, " ");
     const length = Array.from(title).length;
     if (length < 1 || length > 80 || seen.has(title)) continue;

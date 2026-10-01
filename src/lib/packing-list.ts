@@ -83,6 +83,9 @@ export async function getPackingList(workspaceId: string) {
             kind: true,
             systemTaxonomyKey: true,
             relatedTaxonomyItemKey: true,
+            preparationStatus: true,
+            plannedAmount: true,
+            actualAmount: true,
           },
         });
         return {

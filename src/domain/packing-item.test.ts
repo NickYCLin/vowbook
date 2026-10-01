@@ -61,4 +61,19 @@ describe("packing item domain", () => {
     );
     expect(suggestions).toEqual(["位上禮 堅果", "花椰菜遊戲禮"]);
   });
+
+  it("skips not-planned, vendor-provided and zero-amount placeholder expenses", () => {
+    const base = { parentId: null, kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_FAVORS" };
+    const suggestions = suggestPackingSupplies(
+      [
+        { ...base, id: "a", name: "位上禮 堅果", preparationStatus: "NEEDS_ACTION", plannedAmount: 3432, actualAmount: null },
+        { ...base, id: "b", name: "迎賓禮", preparationStatus: "NEEDS_ACTION", plannedAmount: 0, actualAmount: null },
+        { ...base, id: "c", name: "閨密禮", preparationStatus: "NOT_PLANNED", plannedAmount: 2000, actualAmount: null },
+        { ...base, id: "d", name: "拍拍印", preparationStatus: "VENDOR_PROVIDED", plannedAmount: 8000, actualAmount: 8000 },
+        { ...base, id: "e", name: "壓克力透明箱", preparationStatus: "ALREADY_OWNED", plannedAmount: 0, actualAmount: 450 },
+      ],
+      [],
+    );
+    expect(suggestions).toEqual(["位上禮 堅果", "壓克力透明箱"]);
+  });
 });
