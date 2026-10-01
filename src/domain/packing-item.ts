@@ -46,3 +46,83 @@ export function normalizePackingSide(value: unknown): PackingSideValue {
   }
   return value as PackingSideValue;
 }
+
+export const PACKING_CATEGORIES = ["PERSONAL", "WEDDING_SUPPLY"] as const;
+
+export type PackingCategoryValue = (typeof PACKING_CATEGORIES)[number];
+
+export const PACKING_CATEGORY_LABELS: Record<PackingCategoryValue, string> = {
+  PERSONAL: "個人物品",
+  WEDDING_SUPPLY: "宴客用品",
+};
+
+/** 表單未帶分類時視為個人物品，相容既有的新增表單。 */
+export function normalizePackingCategory(value: unknown): PackingCategoryValue {
+  if (value === null || value === undefined || value === "") return "PERSONAL";
+  if (
+    typeof value !== "string" ||
+    !(PACKING_CATEGORIES as readonly string[]).includes(value)
+  ) {
+    throw new PackingItemValidationError("請選擇個人物品或宴客用品。");
+  }
+  return value as PackingCategoryValue;
+}
+
+export function normalizePackingNote(value: unknown): string | null {
+  const normalized =
+    typeof value === "string" ? value.trim().replace(/\s+/gu, " ") : "";
+  if (normalized.length === 0) return null;
+  if (Array.from(normalized).length > 60) {
+    throw new PackingItemValidationError("數量／備註最多 60 個字元。");
+  }
+  return normalized;
+}
+
+/** 婚禮小物、婚禮互動、婚禮佈置底下的花費，通常要帶去會場。 */
+export const PACKING_SUPPLY_TAXONOMY_KEYS: readonly string[] = [
+  "ITEM_WEDDING_FAVORS",
+  "ITEM_WEDDING_INTERACTION",
+  "ITEM_WEDDING_DECOR",
+];
+
+export type PackingSupplySource = {
+  id: string;
+  parentId: string | null;
+  name: string;
+  kind: string;
+  systemTaxonomyKey: string | null;
+  relatedTaxonomyItemKey: string | null;
+};
+
+export function suggestPackingSupplies(
+  budgetItems: readonly PackingSupplySource[],
+  existingTitles: readonly string[],
+): string[] {
+  const byId = new Map(budgetItems.map((item) => [item.id, item]));
+  const isSupplyNode = (item: PackingSupplySource) =>
+    PACKING_SUPPLY_TAXONOMY_KEYS.includes(item.systemTaxonomyKey ?? "") ||
+    PACKING_SUPPLY_TAXONOMY_KEYS.includes(item.relatedTaxonomyItemKey ?? "");
+  const belongsToSupplies = (item: PackingSupplySource) => {
+    const visited = new Set<string>();
+    let current: PackingSupplySource | undefined = item;
+    while (current && !visited.has(current.id)) {
+      if (isSupplyNode(current)) return true;
+      visited.add(current.id);
+      current = current.parentId ? byId.get(current.parentId) : undefined;
+    }
+    return false;
+  };
+  const seen = new Set(
+    existingTitles.map((title) => title.trim().replace(/\s+/gu, " ")),
+  );
+  const suggestions: string[] = [];
+  for (const item of budgetItems) {
+    if (item.kind !== "EXPENSE" || !belongsToSupplies(item)) continue;
+    const title = item.name.trim().replace(/\s+/gu, " ");
+    const length = Array.from(title).length;
+    if (length < 1 || length > 80 || seen.has(title)) continue;
+    seen.add(title);
+    suggestions.push(title);
+  }
+  return suggestions;
+}

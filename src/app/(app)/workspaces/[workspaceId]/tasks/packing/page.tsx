@@ -48,7 +48,7 @@ export default async function PackingPage({ params }: PackingPageProps) {
           workspaceId={workspaceId}
           workspaceName={data.workspace.name}
           sectionTitle="入住打包清單"
-          description="前一晚入住會館要帶的物品，依新郎、新娘、共用分開整理。"
+          description="前一晚入住會館要帶的物品：個人物品依新郎、新娘、共用分開，位上禮、遊戲禮等宴客用品另列一區。"
           activeSection="tasks"
           readOnlyNotice={
             canEdit ? undefined : "你目前是唯讀成員，可以查看清單，但不能修改。"
@@ -64,7 +64,12 @@ export default async function PackingPage({ params }: PackingPageProps) {
         />
       </div>
       <h1 className="hidden text-lg font-semibold print:block">入住打包清單</h1>
-      <PackingList workspaceId={workspaceId} items={data.items} canEdit={canEdit} />
+      <PackingList
+        workspaceId={workspaceId}
+        items={data.items}
+        supplySuggestions={data.supplySuggestions}
+        canEdit={canEdit}
+      />
     </main>
   );
 }

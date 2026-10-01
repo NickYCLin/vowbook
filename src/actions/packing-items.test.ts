@@ -38,6 +38,7 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 import {
   createPackingItemAction,
   deletePackingItemAction,
+  movePackingItemAction,
   setPackingItemPackedAction,
   updatePackingItemAction,
 } from "./packing-items";
@@ -93,6 +94,8 @@ describe("packing item server actions", () => {
         workspaceId: "workspace_1",
         title: "隱形眼鏡 藥水",
         side: "PARTNER_A",
+        category: "PERSONAL",
+        note: null,
         packed: false,
       },
     });
@@ -100,6 +103,39 @@ describe("packing item server actions", () => {
       requireLockedWorkspaceAccess.mock.invocationCallOrder[0],
     ).toBeLessThan(create.mock.invocationCallOrder[0]);
     expect(revalidatePath).toHaveBeenCalledWith(packingPath);
+  });
+
+  it("creates a wedding supply with a trimmed note", async () => {
+    const formData = new FormData();
+    formData.set("title", "位上禮 堅果");
+    formData.set("side", "SHARED");
+    formData.set("category", "WEDDING_SUPPLY");
+    formData.set("note", "  120 份   兩箱 ");
+
+    await expect(
+      createPackingItemAction("workspace_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已加入宴客用品。" });
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        workspaceId: "workspace_1",
+        title: "位上禮 堅果",
+        side: "SHARED",
+        category: "WEDDING_SUPPLY",
+        note: "120 份 兩箱",
+        packed: false,
+      },
+    });
+  });
+
+  it("rejects an unknown category without writing", async () => {
+    const formData = new FormData();
+    formData.set("title", "喜糖");
+    formData.set("side", "SHARED");
+    formData.set("category", "SECRET");
+    await expect(
+      createPackingItemAction("workspace_1", idleState, formData),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("rejects an empty title without writing", async () => {
@@ -164,6 +200,7 @@ describe("packing item server actions", () => {
     formData.set("side", "PARTNER_B");
     formData.set("workspaceId", "workspace_attacker");
     formData.set("packed", "true");
+    formData.set("category", "WEDDING_SUPPLY");
 
     await expect(
       updatePackingItemAction("workspace_1", "packing_1", idleState, formData),
@@ -177,7 +214,12 @@ describe("packing item server actions", () => {
     );
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: "packing_1", workspaceId: "workspace_1", version: 2 },
-      data: { title: "睡衣 （前開式）", side: "PARTNER_B", version: { increment: 1 } },
+      data: {
+        title: "睡衣 （前開式）",
+        side: "PARTNER_B",
+        note: null,
+        version: { increment: 1 },
+      },
     });
     expect(revalidatePath).toHaveBeenCalledWith(packingPath);
   });
@@ -212,5 +254,48 @@ describe("packing item server actions", () => {
     expect(deleteMany).toHaveBeenCalledWith({
       where: { id: "packing_1", workspaceId: "workspace_1", version: 2 },
     });
+  });
+
+  it("moves an item to another side and category within the workspace and version", async () => {
+    const formData = versionFormData("4");
+    formData.set("side", "SHARED");
+    formData.set("category", "WEDDING_SUPPLY");
+    formData.set("workspaceId", "workspace_attacker");
+    formData.set("title", "forged");
+
+    await expect(
+      movePackingItemAction("workspace_1", "packing_1", idleState, formData),
+    ).resolves.toEqual({ status: "success", message: "已移到宴客用品。" });
+    expect(requireLockedWorkspaceAccess).toHaveBeenCalledWith(
+      "workspace_1",
+      "session_user",
+      "edit",
+      transactionClient,
+    );
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "packing_1", workspaceId: "workspace_1", version: 4 },
+      data: {
+        side: "SHARED",
+        category: "WEDDING_SUPPLY",
+        version: { increment: 1 },
+      },
+    });
+  });
+
+  it("requires an explicit category when moving and reports STALE on mismatch", async () => {
+    const missing = versionFormData("1");
+    missing.set("side", "PARTNER_B");
+    await expect(
+      movePackingItemAction("workspace_1", "packing_1", idleState, missing),
+    ).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
+    expect(transaction).not.toHaveBeenCalled();
+
+    updateMany.mockResolvedValueOnce({ count: 0 });
+    const stale = versionFormData("1");
+    stale.set("side", "PARTNER_B");
+    stale.set("category", "PERSONAL");
+    await expect(
+      movePackingItemAction("workspace_1", "packing_1", idleState, stale),
+    ).resolves.toMatchObject({ status: "error", code: "STALE" });
   });
 });

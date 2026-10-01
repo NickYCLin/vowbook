@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/actions/packing-items", () => ({
@@ -6,8 +6,10 @@ vi.mock("@/actions/packing-items", () => ({
   setPackingItemPackedAction: vi.fn(),
   deletePackingItemAction: vi.fn(),
   updatePackingItemAction: vi.fn(),
+  movePackingItemAction: vi.fn(async () => ({ status: "success", message: "已移到宴客用品。" })),
 }));
 
+import { movePackingItemAction } from "@/actions/packing-items";
 import { PackingList, type PackingListItem } from "./packing-list";
 
 const items: PackingListItem[] = [
@@ -77,6 +79,74 @@ describe("PackingList", () => {
     expect(
       within(groom).getAllByRole("listitem").map((row) => row.textContent),
     ).toEqual(["手機充電器", "西裝", "睡衣(前開式)", "隱形眼鏡"]);
+  });
+
+  it("lists wedding supplies separately with note, owner and budget shortcuts", () => {
+    render(
+      <PackingList
+        workspaceId="ws"
+        canEdit
+        supplySuggestions={["花椰菜遊戲禮"]}
+        items={[
+          ...items,
+          {
+            id: "s1",
+            title: "位上禮 堅果",
+            side: "PARTNER_A",
+            category: "WEDDING_SUPPLY",
+            note: "120 份",
+            packed: false,
+            version: 0,
+          },
+        ]}
+      />,
+    );
+    const supplies = screen.getByRole("region", { name: "宴客用品" });
+    expect(supplies).toHaveTextContent("位上禮 堅果");
+    expect(supplies).toHaveTextContent("120 份");
+    expect(supplies).toHaveTextContent("新郎帶");
+    expect(supplies).toHaveTextContent("0/1 已打包");
+    expect(screen.getByRole("region", { name: "新郎" })).not.toHaveTextContent(
+      "位上禮",
+    );
+    expect(
+      within(supplies).getByRole("button", { name: "從花費帶入：花椰菜遊戲禮" }),
+    ).toBeInTheDocument();
+    expect(
+      within(supplies).getByRole("textbox", { name: "數量／備註" }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(supplies).getByRole("button", { name: "編輯：位上禮 堅果" }));
+    expect(
+      within(supplies).getByRole("textbox", { name: "編輯數量／備註" }),
+    ).toHaveValue("120 份");
+  });
+
+  it("moves an item to another section by drag and drop", async () => {
+    render(<PackingList workspaceId="ws" items={items} canEdit />);
+    const store = new Map<string, string>();
+    const dataTransfer = {
+      get types() {
+        return Array.from(store.keys());
+      },
+      setData: (type: string, value: string) => store.set(type, value),
+      getData: (type: string) => store.get(type) ?? "",
+      effectAllowed: "all",
+      dropEffect: "none",
+    };
+    const row = within(screen.getByRole("region", { name: "共用" })).getByRole("listitem");
+    const supplies = screen.getByRole("region", { name: "宴客用品" });
+    fireEvent.dragStart(row, { dataTransfer });
+    fireEvent.dragOver(supplies, { dataTransfer });
+    expect(supplies).toHaveAttribute("data-drop-active", "true");
+    await act(async () => {
+      fireEvent.drop(supplies, { dataTransfer });
+    });
+    expect(movePackingItemAction).toHaveBeenCalledTimes(1);
+    const [workspaceId, itemId, , formData] = vi.mocked(movePackingItemAction).mock.calls[0];
+    expect([workspaceId, itemId]).toEqual(["ws", "p4"]);
+    expect(formData.get("category")).toBe("WEDDING_SUPPLY");
+    expect(formData.get("side")).toBe("SHARED");
+    expect(formData.get("expectedVersion")).toBe("0");
   });
 
   it("shows a friendly empty state", () => {

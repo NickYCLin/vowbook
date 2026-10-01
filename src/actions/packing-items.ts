@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  PACKING_CATEGORY_LABELS,
+  PACKING_SIDE_LABELS,
+  normalizePackingCategory,
   normalizePackingItemTitle,
+  normalizePackingNote,
   normalizePackingSide,
   PackingItemValidationError,
 } from "@/domain/packing-item";
@@ -138,9 +142,13 @@ export async function createPackingItemAction(
 
   let title: string;
   let side: ReturnType<typeof normalizePackingSide>;
+  let category: ReturnType<typeof normalizePackingCategory>;
+  let note: string | null;
   try {
     title = normalizePackingItemTitle(formData.get("title"));
     side = normalizePackingSide(formData.get("side"));
+    category = normalizePackingCategory(formData.get("category"));
+    note = normalizePackingNote(formData.get("note"));
   } catch (error) {
     return validationState(error);
   }
@@ -148,13 +156,16 @@ export async function createPackingItemAction(
   try {
     await withLockedEdit(workspaceId, authorization, (transaction) =>
       transaction.packingItem.create({
-        data: { workspaceId, title, side, packed: false },
+        data: { workspaceId, title, side, category, note, packed: false },
       }),
     );
   } catch (error) {
     return writeFailureState(error, "目前無法加入打包清單，請稍後再試。");
   }
-  return success(workspaceId, "已加入打包清單。");
+  return success(
+    workspaceId,
+    category === "WEDDING_SUPPLY" ? "已加入宴客用品。" : "已加入打包清單。",
+  );
 }
 
 export async function setPackingItemPackedAction(
@@ -201,10 +212,12 @@ export async function updatePackingItemAction(
   let expectedVersion: number;
   let title: string;
   let side: ReturnType<typeof normalizePackingSide>;
+  let note: string | null;
   try {
     expectedVersion = expectedVersionFrom(formData);
     title = normalizePackingItemTitle(formData.get("title"));
     side = normalizePackingSide(formData.get("side"));
+    note = normalizePackingNote(formData.get("note"));
   } catch (error) {
     return validationState(error);
   }
@@ -214,7 +227,7 @@ export async function updatePackingItemAction(
     result = await withLockedEdit(workspaceId, authorization, (transaction) =>
       transaction.packingItem.updateMany({
         where: { id: itemId, workspaceId, version: expectedVersion },
-        data: { title, side, version: { increment: 1 } },
+        data: { title, side, note, version: { increment: 1 } },
       }),
     );
   } catch (error) {
@@ -222,6 +235,50 @@ export async function updatePackingItemAction(
   }
   if (result.count === 0) return staleState(workspaceId);
   return success(workspaceId, "已更新物品。");
+}
+
+/** 拖曳換區：只改分欄與分類，名稱、備註與打包狀態不動。 */
+export async function movePackingItemAction(
+  workspaceId: string,
+  itemId: string,
+  _previousState: PackingItemMutationState,
+  formData: FormData,
+): Promise<PackingItemMutationState> {
+  const authorization = await authorize(workspaceId);
+  if (typeof authorization !== "string") return authorization;
+
+  let expectedVersion: number;
+  let side: ReturnType<typeof normalizePackingSide>;
+  let category: ReturnType<typeof normalizePackingCategory>;
+  try {
+    expectedVersion = expectedVersionFrom(formData);
+    side = normalizePackingSide(formData.get("side"));
+    const rawCategory = formData.get("category");
+    if (typeof rawCategory !== "string" || rawCategory.length === 0) {
+      throw new PackingItemValidationError("請選擇要移到哪一區。");
+    }
+    category = normalizePackingCategory(rawCategory);
+  } catch (error) {
+    return validationState(error);
+  }
+
+  let result: CountResult;
+  try {
+    result = await withLockedEdit(workspaceId, authorization, (transaction) =>
+      transaction.packingItem.updateMany({
+        where: { id: itemId, workspaceId, version: expectedVersion },
+        data: { side, category, version: { increment: 1 } },
+      }),
+    );
+  } catch (error) {
+    return writeFailureState(error, "目前無法移動物品，請稍後再試。");
+  }
+  if (result.count === 0) return staleState(workspaceId);
+  const destination =
+    category === "WEDDING_SUPPLY"
+      ? PACKING_CATEGORY_LABELS[category]
+      : PACKING_SIDE_LABELS[side];
+  return success(workspaceId, `已移到${destination}。`);
 }
 
 export async function deletePackingItemAction(

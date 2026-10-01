@@ -1,7 +1,12 @@
 import "server-only";
 
 import { Prisma, type WeddingWorkspace } from "@prisma/client";
-import type { PackingSideValue } from "@/domain/packing-item";
+import {
+  type PackingCategoryValue,
+  type PackingSideValue,
+  type PackingSupplySource,
+  suggestPackingSupplies,
+} from "@/domain/packing-item";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +16,8 @@ type PackingItemRecord = {
   id: string;
   title: string;
   side: PackingSideValue;
+  category: PackingCategoryValue;
+  note: string | null;
   packed: boolean;
   version: number;
 };
@@ -24,6 +31,9 @@ type PackingTransaction = {
   };
   packingItem: {
     findMany(args: unknown): Promise<PackingItemRecord[]>;
+  };
+  budgetItem: {
+    findMany(args: unknown): Promise<PackingSupplySource[]>;
   };
 };
 
@@ -57,14 +67,34 @@ export async function getPackingList(workspaceId: string) {
             id: true,
             title: true,
             side: true,
+            category: true,
+            note: true,
             packed: true,
             version: true,
+          },
+        });
+        const budgetItems = await transaction.budgetItem.findMany({
+          where: { workspaceId },
+          orderBy: [{ sourceOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            parentId: true,
+            name: true,
+            kind: true,
+            systemTaxonomyKey: true,
+            relatedTaxonomyItemKey: true,
           },
         });
         return {
           role: access.role,
           workspace: { id: access.workspace.id, name: access.workspace.name },
           items,
+          supplySuggestions: suggestPackingSupplies(
+            budgetItems,
+            items
+              .filter((item) => item.category === "WEDDING_SUPPLY")
+              .map((item) => item.title),
+          ),
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

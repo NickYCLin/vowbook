@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   PACKING_SIDE_LABELS,
   PackingItemValidationError,
+  normalizePackingCategory,
   normalizePackingItemTitle,
+  normalizePackingNote,
+  suggestPackingSupplies,
 } from "./packing-item";
 
 describe("packing item domain", () => {
@@ -25,5 +28,37 @@ describe("packing item domain", () => {
       PARTNER_B: "新娘",
       SHARED: "共用",
     });
+  });
+
+  it("defaults a missing category to personal and rejects unknown values", () => {
+    expect(normalizePackingCategory(null)).toBe("PERSONAL");
+    expect(normalizePackingCategory("WEDDING_SUPPLY")).toBe("WEDDING_SUPPLY");
+    expect(() => normalizePackingCategory("OTHER")).toThrow(
+      PackingItemValidationError,
+    );
+  });
+
+  it("normalizes an optional note up to 60 characters", () => {
+    expect(normalizePackingNote("   ")).toBeNull();
+    expect(normalizePackingNote(null)).toBeNull();
+    expect(normalizePackingNote(" 120 份  ")).toBe("120 份");
+    expect(() => normalizePackingNote("字".repeat(61))).toThrow(
+      PackingItemValidationError,
+    );
+  });
+
+  it("suggests favor, interaction and decor expenses not already listed", () => {
+    const suggestions = suggestPackingSupplies(
+      [
+        { id: "g1", parentId: null, name: "婚禮小物", kind: "GROUP", systemTaxonomyKey: "ITEM_WEDDING_FAVORS", relatedTaxonomyItemKey: null },
+        { id: "e1", parentId: "g1", name: "位上禮 堅果", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
+        { id: "e2", parentId: "g1", name: "捧花禮", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
+        { id: "e3", parentId: null, name: "花椰菜遊戲禮", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_WEDDING_INTERACTION" },
+        { id: "e4", parentId: null, name: "婚宴場地", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: "ITEM_VENUE" },
+        { id: "e5", parentId: "g1", name: "位上禮 堅果", kind: "EXPENSE", systemTaxonomyKey: null, relatedTaxonomyItemKey: null },
+      ],
+      ["捧花禮"],
+    );
+    expect(suggestions).toEqual(["位上禮 堅果", "花椰菜遊戲禮"]);
   });
 });

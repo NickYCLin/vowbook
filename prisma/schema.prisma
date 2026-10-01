@@ -87,6 +87,11 @@ enum WeddingTaskStatus {
   DONE
 }
 
+enum PackingCategory {
+  PERSONAL
+  WEDDING_SUPPLY
+}
+
 enum WeddingTaskSide {
   SHARED
   PARTNER_A
@@ -513,6 +518,9 @@ model PackingItem {
   workspaceId String           @map("workspace_id")
   title       String
   side        WeddingTaskSide  @default(SHARED)
+  /// 個人物品依新郎／新娘／共用分欄；宴客用品（位上禮、遊戲禮等）另列一區。
+  category    PackingCategory  @default(PERSONAL)
+  note        String?          @db.VarChar(120)
   packed      Boolean          @default(false)
   version     Int              @default(0)
   createdAt   DateTime         @default(now()) @map("created_at")
