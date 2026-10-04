@@ -290,25 +290,21 @@ describe("wedding gift actions", () => {
     expect(mocks.checkInCreate).not.toHaveBeenCalled();
   });
 
-  it("rejects registration for a currently exempt guest even from a stale client", async () => {
-    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",giftExemptWithCake:true,importRecords:[]});
-    await expect(createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).resolves.toMatchObject({status:"error",code:"VALIDATION",message:"此親友不收禮金（新人、雙方父母手足及其配偶或已設定不收禮金），無法新增登記。"});
-    expect(mocks.giftCreate).not.toHaveBeenCalled();
+  it("still records a gift for a guest marked as not collecting gifts", async () => {
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",category:"GUEST",giftExemptWithCake:true,importRecords:[],attendanceStatus:"ATTENDING",partySize:1,checkIn:{id:"check_in_1"}});
+    expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"success"});
+    expect(mocks.giftCreate).toHaveBeenCalledOnce();
   });
 
-  it.each(["父親","母親","哥哥","弟弟","姊姊","妹妹"])("rejects direct registration for %s", async relationshipLabel => {
-    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",importRecords:[{source:"MANUAL",sourceInstance:"guest-details",sourceManaged:false,relationshipLabel}],giftExemptWithCake:false,category:"FAMILY"});
-    expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"error",code:"VALIDATION"});
-    expect(mocks.giftCreate).not.toHaveBeenCalled();
+  it.each(["父親","母親","哥哥","弟弟","姊姊","妹妹"])("records a gift that %s chose to give anyway", async relationshipLabel => {
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",importRecords:[{source:"MANUAL",sourceInstance:"guest-details",sourceManaged:false,relationshipLabel}],giftExemptWithCake:false,category:"FAMILY",attendanceStatus:"ATTENDING",partySize:1,checkIn:{id:"check_in_1"}});
+    expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"success"});
+    expect(mocks.giftCreate).toHaveBeenCalledOnce();
   });
 
-  it("uses imported relationship labels when no manual details exist", async () => {
-    mocks.guestFindFirst.mockResolvedValue({
-      id: "guest_1", category: "FAMILY", giftExemptWithCake: false,
-      importRecords: [{ source: "LINEIN", sourceInstance: "rsvp", sourceManaged: true, relationshipLabel: "父親" }],
-    });
-    expect(await createWeddingGiftAction("workspace_1", "guest_1", idleState, giftForm()))
-      .toMatchObject({ status: "error", code: "VALIDATION" });
+  it("rejects registration for the newlyweds themselves", async () => {
+    mocks.guestFindFirst.mockResolvedValue({id:"guest_1",category:"COUPLE",giftExemptWithCake:false,importRecords:[]});
+    expect(await createWeddingGiftAction("workspace_1","guest_1",idleState,giftForm())).toMatchObject({status:"error",code:"VALIDATION",message:"新人本人不收禮金，無法新增登記。"});
     expect(mocks.giftCreate).not.toHaveBeenCalled();
   });
 

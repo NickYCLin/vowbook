@@ -1312,7 +1312,7 @@ it("saves and cancels the exemption and adopts newer server versions", async () 
   await waitFor(() => expect(screen.getByText("沒有等著登記的親友。")).toBeInTheDocument());
   fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"), { target: { value: "EXEMPT_WITH_CAKE" } });
   expect(screen.getByText("不收禮金・會送餅")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "登記 長輩朋友 的禮金" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "登記 長輩朋友 的禮金" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "取消 長輩朋友 的不收禮金、會送餅標記" }));
   await waitFor(() => expect(screen.queryByText("不收禮金・會送餅")).not.toBeInTheDocument());
   showAllGroups();
@@ -1327,4 +1327,24 @@ it.each(["PARTNER_A","PARTNER_B"] as const)("hides registration for immediate fa
  render(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={guests}/>);
  for(const name of ["父親","母親","哥哥","弟弟","姊姊","妹妹"])expect(screen.queryByRole("button",{name:`登記 ${name} 的禮金`})).not.toBeInTheDocument();
  expect(screen.getByRole("button",{name:"登記 表姊 的禮金"})).toBeInTheDocument();
+});
+
+it("lets immediate family who gave anyway be found and recorded", async () => {
+ createWeddingGiftAction.mockResolvedValue({status:"success",message:"已登記禮金。",gift:{id:"gift_father",amount:6600,notes:null,createdAt:new Date("2026-08-30T02:00:00.000Z"),returnGiftSentAt:null,returnGiftNote:null,version:0}});
+ render(<WeddingGiftBook workspaceId="workspace_1" canEdit defaultExpanded guests={[
+  {id:"father",name:"林爸爸",relationshipLabel:"父親",category:"FAMILY",side:"PARTNER_A",attendanceStatus:"ATTENDING",weddingGift:null},
+  {id:"groom",name:"新郎",category:"COUPLE",side:"PARTNER_A",attendanceStatus:"ATTENDING",weddingGift:null},
+ ]}/>);
+ expect(screen.queryByRole("heading",{name:"林爸爸"})).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText("搜尋禮金簿名單"),{target:{value:"爸爸"}});
+ expect(screen.getByRole("heading",{name:"林爸爸"})).toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText("搜尋禮金簿名單"),{target:{value:""}});
+ fireEvent.change(screen.getByLabelText("禮金登記狀態篩選"),{target:{value:"EXEMPT_WITH_CAKE"}});
+ expect(screen.queryByRole("heading",{name:"新郎"})).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button",{name:"登記 林爸爸 的禮金"}));
+ const dialog=screen.getByRole("dialog",{name:"登記 林爸爸 的禮金"});
+ fireEvent.change(within(dialog).getByLabelText("禮金金額"),{target:{value:"6600"}});
+ fireEvent.click(within(dialog).getByRole("button",{name:"儲存禮金"}));
+ await waitFor(()=>expect(createWeddingGiftAction).toHaveBeenCalledOnce());
+ expect(createWeddingGiftAction.mock.calls[0][1]).toBe("father");
 });

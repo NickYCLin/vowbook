@@ -26,7 +26,7 @@ import {
   validateGuestRequirementsWithinPartySize,
 } from "@/domain/guest-details";
 import { normalizeWeddingGiftDetails } from "@/domain/wedding-gift";
-import { isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
+import { canRecordWeddingGift, isGiftCollectionExcluded } from "@/domain/wedding-gift-policy";
 import {
   normalizeWeddingTaskDetails,
   normalizeWeddingTaskSide,
@@ -774,12 +774,8 @@ export async function mobileRecordGift(
       if (!guest) {
         throw new MobileRequestError(409, "STALE", "名單已更新，請重新整理後再試。");
       }
-      const relationshipLabel = effectiveGuestDetailValue(
-        guest.importRecords,
-        (record) => record.relationshipLabel,
-      );
-      if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) {
-        throw new MobileRequestError(400, "VALIDATION", "此親友不收禮金，無法登記。");
+      if (!canRecordWeddingGift(guest)) {
+        throw new MobileRequestError(400, "VALIDATION", "新人本人不收禮金，無法登記。");
       }
       const created = await client.weddingGift.create({
         data: { workspaceId, guestId, ...details },

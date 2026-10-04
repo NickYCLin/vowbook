@@ -2,7 +2,7 @@
 
 import { useWorkspaceViewState } from "@/components/workspaces/workspace-view-state";
 
-import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
+import {canRecordWeddingGift, isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
 import {
   useActionState,
   useEffect,
@@ -173,6 +173,7 @@ type GiftLedgerRow = {
   primary: WeddingGiftBookGuest;
   recorded: WeddingGiftBookGuest[];
   collectible: WeddingGiftBookGuest[];
+  recordable: WeddingGiftBookGuest[];
   weddingGift: { amount: number; createdAt?: Date | string | null } | null;
 };
 
@@ -191,6 +192,7 @@ function giftLedgerRows(guests: readonly WeddingGiftBookGuest[]): GiftLedgerRow[
     const collectible = members.filter(
       (member) => !isGiftCollectionExcluded(member),
     );
+    const recordable = members.filter(canRecordWeddingGift);
     let amount = 0;
     let latest: Date | string | null | undefined = null;
     for (const member of recorded) {
@@ -210,6 +212,7 @@ function giftLedgerRows(guests: readonly WeddingGiftBookGuest[]): GiftLedgerRow[
       primary: recorded[0] ?? collectible[0] ?? members[0],
       recorded,
       collectible,
+      recordable,
       weddingGift:
         recorded.length > 0 ? { amount, createdAt: latest } : null,
     };
@@ -1076,12 +1079,19 @@ export function WeddingGiftBook({
       ) {
         return false;
       }
+      const defaultExempt =
+        row.collectible.length === 0 && row.recordable.length > 0;
       if (filter === "EXEMPT_WITH_CAKE") {
-        return row.members.some((member) => member.giftExemptWithCake);
+        return (
+          defaultExempt ||
+          row.members.some((member) => member.giftExemptWithCake)
+        );
       }
-      // 不收禮金的人不該佔著禮金簿；但已經登記過的紀錄仍要看得到，
-      // 想改回收禮金就切到「不收禮金、會送餅」那個篩選。
-      if (row.recorded.length === 0 && row.collectible.length === 0) return false;
+      // 不收禮金的人預設不佔著禮金簿；但家人真的包了還是要能登記，
+      // 所以搜尋姓名時一併列出，或切到「不收禮金（家人、會送餅）」。
+      if (row.recorded.length === 0 && row.collectible.length === 0) {
+        return normalizedSearch.length > 0 && row.recordable.length > 0;
+      }
       if (filter === "ALL") return true;
       if (filter === "RECORDED") return row.recorded.length > 0;
       if (filter === "WITHOUT_ATTENDANCE") {
@@ -1240,10 +1250,10 @@ export function WeddingGiftBook({
               </h2>
               <p className="mt-1 text-caption leading-6 text-ink-soft">
                 預設只列出還沒登記的一般賓客。每個邀請群組最多一筆；禮金不屬於婚宴支出，也不受出席狀態影響。
-                爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。新人、雙方父母、親兄弟姊妹及其配偶也不開放新增禮金登記。
+                爸媽請客的親友可逐位點選「不收禮金、會送餅」，紙本禮金簿會排除該位親友，發餅名單仍依出席狀態保留。雙方父母、親兄弟姊妹及其配偶預設不收禮金，但真的有包時仍可登記。
               </p>
               <p className="mt-0.5 text-caption leading-6 text-ink-faint">
-                新人、雙方父母、親兄弟姊妹及其配偶與標記不收禮金的親友不會出現在名單上，但既有紀錄仍會保留並顯示；要取消標記請切到「不收禮金、會送餅」。
+                預設不收禮金的家人與標記不收禮金的親友不會出現在名單上；搜尋姓名或切到「不收禮金（家人、會送餅）」即可找到並登記，既有紀錄也會保留並顯示。
               </p>
             </div>
             {collapsible ? (
@@ -1315,7 +1325,7 @@ export function WeddingGiftBook({
                 <option value="UNRECORDED">尚未登記</option>
                 <option value="RECORDED">已登記</option>
                 <option value="WITHOUT_ATTENDANCE">禮到人不到</option>
-                <option value="EXEMPT_WITH_CAKE">不收禮金、會送餅</option>
+                <option value="EXEMPT_WITH_CAKE">不收禮金（家人、會送餅）</option>
                 <option value="ALL">全部（不含不收禮金）</option>
               </Select>
               <Select
@@ -1409,6 +1419,7 @@ export function WeddingGiftBook({
                       (member) => member.attendanceStatus === "ATTENDING",
                     ).length;
                     const singleHolder = recorded.length === 1 ? recorded[0] : null;
+                    const giftRecipient = row.collectible[0] ?? row.recordable[0] ?? null;
                     const giftNotes = (holder: WeddingGiftBookGuest) => {
                       const gift = holder.weddingGift;
                       if (!gift) return null;
@@ -1516,18 +1527,18 @@ export function WeddingGiftBook({
                               )}
                               {singleHolder ? (
                                 <GiftEntryActions workspaceId={workspaceId} holder={singleHolder} label={displayName} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
-                              ) : recorded.length === 0 && row.collectible.length > 0 ? (
+                              ) : recorded.length === 0 && giftRecipient ? (
                                 <Button
-                                  id={`gift-create-${row.collectible[0].id}`}
+                                  id={`gift-create-${giftRecipient.id}`}
                                   variant="secondary"
                                   size="sm"
                                   className="min-h-11 sm:min-h-9"
                                   aria-label={`登記 ${displayName} 的禮金`}
                                   onClick={() =>
                                     setEditorSelection({
-                                      guestId: row.collectible[0].id,
+                                      guestId: giftRecipient.id,
                                       mode: "CREATE",
-                                      guest: { ...row.collectible[0], name: displayName },
+                                      guest: { ...giftRecipient, name: displayName },
                                     })
                                   }
                                 >
@@ -1546,7 +1557,7 @@ export function WeddingGiftBook({
         </div>
       </Card>
 
-      {editorSelection?.mode === "CREATE" && selectedEditorGuest && !isGiftCollectionExcluded(selectedEditorGuest) ? (
+      {editorSelection?.mode === "CREATE" && selectedEditorGuest && canRecordWeddingGift(selectedEditorGuest) ? (
         <CreateWeddingGiftDialog
           workspaceId={workspaceId}
           guest={selectedEditorGuest}

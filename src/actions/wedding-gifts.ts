@@ -1,12 +1,11 @@
 "use server";
 
-import {isGiftCollectionExcluded} from "@/domain/wedding-gift-policy";
+import {canRecordWeddingGift} from "@/domain/wedding-gift-policy";
 import {
   canGuestCheckIn,
   MAX_GUEST_CHECK_IN_HEADCOUNT,
 } from "@/domain/guest-check-in";
 import type { Prisma } from "@prisma/client";
-import { effectiveGuestDetailValue } from "@/domain/guest-detail-value";
 import { revalidatePath } from "next/cache";
 import {
   normalizeWeddingGiftDetails,
@@ -276,8 +275,7 @@ export async function createWeddingGiftAction(
         select: giftPolicyGuestSelect,
       });
       if (!guest) throw new WeddingGiftStaleError();
-      const relationshipLabel = effectiveGuestDetailValue(guest.importRecords, record => record.relationshipLabel);
-      if (isGiftCollectionExcluded({ ...guest, relationshipLabel })) throw new WeddingGiftValidationError("此親友不收禮金（新人、雙方父母手足及其配偶或已設定不收禮金），無法新增登記。");
+      if (!canRecordWeddingGift(guest)) throw new WeddingGiftValidationError("新人本人不收禮金，無法新增登記。");
 
       const created = await client.weddingGift.create({
         data: { workspaceId, guestId, ...details },

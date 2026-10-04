@@ -49,8 +49,8 @@ describe("手機禮金 API", () => {
     expect(mocks.record).not.toHaveBeenCalled();
   });
 
-  it("不收禮金的親友由服務層擋下並回傳原因", async () => {
-    mocks.record.mockRejectedValue(new MobileRequestError(400, "VALIDATION", "此親友不收禮金，無法登記。"));
+  it("新人本人由服務層擋下並回傳原因", async () => {
+    mocks.record.mockRejectedValue(new MobileRequestError(400, "VALIDATION", "新人本人不收禮金，無法登記。"));
     const response = await POST(send({ amount: 3600 }, "POST"), context);
     expect(response.status).toBe(400);
     expect((await response.json()).message).toContain("不收禮金");

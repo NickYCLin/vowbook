@@ -4,3 +4,7 @@ const immediateFamilyRanks = new Set(["父親", "母親", "哥哥", "弟弟", "�
 export function isGiftCollectionExcluded(guest:{category?:string;relationshipLabel?:string|null;giftExemptWithCake?:boolean}) {
  return guest.category === "COUPLE" || !!guest.giftExemptWithCake || immediateFamilyRanks.has(familyRelationshipRank(guest.relationshipLabel));
 }
+/** 不收禮金只是預設不列入；家人或已標記不收的親友真的包了，仍要能登記。只有新人本人不收禮金。 */
+export function canRecordWeddingGift(guest:{category?:string}) {
+ return guest.category !== "COUPLE";
+}
