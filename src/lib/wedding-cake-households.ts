@@ -52,3 +52,16 @@ export async function writeCakeHousehold(w: CakeHouseholdWrite) {
     return {householdId};
   });
 }
+
+/** 發餅當天在網頁上勾選已領取；整戶一起標記，寫入前在交易內重新確認 Membership。 */
+export async function writeCakeCollected(w: {workspaceId: string; userId: string; guestIds: string[]; collected: boolean}) {
+  const ids = [...new Set(w.guestIds)];
+  if (!ids.length || ids.length > 100) throw new CakeValidationError("請重新整理名單後再試。");
+  return runSerializableTransaction(async tx => {
+    await requireLockedWorkspaceAccess(w.workspaceId, w.userId, "edit", tx);
+    const guests = await tx.guest.findMany({where: {workspaceId: w.workspaceId, id: {in: ids}}, select: {id: true, category: true}});
+    if (guests.length !== ids.length) throw new StaleCakeError();
+    if (guests.some(g => g.category === "COUPLE")) throw new CakeValidationError("新人本人不領取喜餅。");
+    await tx.guest.updateMany({where: {workspaceId: w.workspaceId, id: {in: ids}}, data: {cakeCollectedAt: w.collected ? new Date() : null}});
+  });
+}

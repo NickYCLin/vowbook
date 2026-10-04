@@ -1,6 +1,6 @@
 import { familyRelationshipRank } from "./family-relationship";
 import { compareGuestsBySeniorityThenSurnameStroke, type GuestCategoryValue, type GuestSeniorityValue, type GuestSideValue } from "./guest";
-export type CakeGuest = { id: string; category: GuestCategoryValue; name: string; seniority: GuestSeniorityValue; side: GuestSideValue; attendanceStatus: string; checkedIn: boolean; relationshipLabel: string | null; cakeHouseholdId: string | null };
+export type CakeGuest = { id: string; category: GuestCategoryValue; name: string; seniority: GuestSeniorityValue; side: GuestSideValue; attendanceStatus: string; checkedIn: boolean; relationshipLabel: string | null; cakeHouseholdId: string | null; cakeCollectedAt?: Date | string | null };
 /** 匯入的名單常把側別寫進稱謂，例如「男方親友」；再冠一次會變成「新郎的男方親友」。 */
 const SIDE_STATED = /^(新郎|新娘|男方|女方)/;
 /** 「男方親友」「男方」和沒填稱謂講的是同一件事，一律收斂成「新郎親友」。 */
@@ -21,7 +21,7 @@ export const CAKE_GROUPS = [
 ] as const;
 export type CakeGroup = typeof CAKE_GROUPS[number]["id"];
 export type HouseholdMemberLabel = { name: string; relationship: string };
-export type CakeRow = { key: string; group: CakeGroup; names: string; relationships: string; members: HouseholdMemberLabel[]; boxes: number };
+export type CakeRow = { key: string; group: CakeGroup; names: string; relationships: string; members: HouseholdMemberLabel[]; boxes: number; guestIds: string[]; collected: boolean };
 export function householdMemberLabels(members: readonly Pick<CakeGuest, "name" | "side" | "relationshipLabel">[]): HouseholdMemberLabel[] {
   return members.map(member=>({name:member.name,relationship:cakeRelationshipLabel(member)}));
 }
@@ -60,6 +60,7 @@ export function cakeRows(guests: readonly CakeGuest[], households: readonly { id
     if(!attending.length)return [];
     return [{key,group,names:attending.map(g=>g.name).join("、"),relationships:attending.map(g=>`${g.name}：${cakeRelationshipLabel(g)}`).join("；"),members:householdMemberLabels(attending),
       boxes:members[0].cakeHouseholdId?(counts.get(members[0].cakeHouseholdId)??1):1,
+      guestIds:members.map(guest=>guest.id),collected:attending.some(guest=>Boolean(guest.cakeCollectedAt)),
     }];
   });
 }

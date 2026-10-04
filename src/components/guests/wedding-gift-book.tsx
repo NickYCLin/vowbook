@@ -166,6 +166,13 @@ function formatTwdAmount(decimalAmount: string) {
   return `NT$ ${grouped}`;
 }
 
+function householdAttendance(members: readonly WeddingGiftBookGuest[]) {
+  return members.map((member) => ({
+    attendanceStatus: member.attendanceStatus,
+    checkIn: member.checkIn ?? null,
+  }));
+}
+
 type GiftLedgerRow = {
   key: string;
   name: string;
@@ -797,6 +804,7 @@ function GiftExemptionForm({ workspaceId, guest, onSaved }: {
 function GiftEntryActions({
   workspaceId,
   holder,
+  household,
   label,
   onEdit,
   onDelete,
@@ -804,6 +812,7 @@ function GiftEntryActions({
 }: {
   workspaceId: string;
   holder: WeddingGiftBookGuest;
+  household: readonly WeddingGiftBookGuest[];
   label: string;
   onEdit: (guestId: string, guest: WeddingGiftBookGuest, gift: WeddingGiftMutationSnapshot) => void;
   onDelete: (guestId: string, guest: WeddingGiftBookGuest, gift: WeddingGiftMutationSnapshot) => void;
@@ -816,7 +825,7 @@ function GiftEntryActions({
     attendanceStatus: holder.attendanceStatus,
     weddingGift: gift,
     checkIn: holder.checkIn ?? null,
-  });
+  }, householdAttendance(household));
   return (
     <>
       <Button
@@ -1055,14 +1064,16 @@ export function WeddingGiftBook({
   const summary = useMemo(() => giftSummary(ledgerRows), [ledgerRows]);
   const returnPendingCount = useMemo(
     () =>
-      ledgerGuests.filter((guest) =>
-        isWeddingGiftReturnPending({
-          attendanceStatus: guest.attendanceStatus,
-          weddingGift: guest.weddingGift,
-          checkIn: guest.checkIn ?? null,
-        }),
+      ledgerRows.flatMap((row) =>
+        row.recorded.filter((guest) =>
+          isWeddingGiftReturnPending({
+            attendanceStatus: guest.attendanceStatus,
+            weddingGift: guest.weddingGift,
+            checkIn: guest.checkIn ?? null,
+          }, householdAttendance(row.members)),
+        ),
       ).length,
-    [ledgerGuests],
+    [ledgerRows],
   );
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
@@ -1100,7 +1111,7 @@ export function WeddingGiftBook({
             attendanceStatus: member.attendanceStatus,
             weddingGift: member.weddingGift,
             checkIn: member.checkIn ?? null,
-          }),
+          }, householdAttendance(row.members)),
         );
       }
       // 走到這裡已經濾掉不收禮金的人，剩下就是還能登記卻還沒登記的。
@@ -1427,7 +1438,7 @@ export function WeddingGiftBook({
                         attendanceStatus: holder.attendanceStatus,
                         weddingGift: gift,
                         checkIn: holder.checkIn ?? null,
-                      });
+                      }, householdAttendance(members));
                       return (
                         <>
                           {gift.notes ? (
@@ -1495,7 +1506,7 @@ export function WeddingGiftBook({
                                       </span>
                                       {canEdit ? (
                                         <span className="flex flex-wrap gap-1">
-                                          <GiftEntryActions workspaceId={workspaceId} holder={holder} label={holder.name} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
+                                          <GiftEntryActions workspaceId={workspaceId} holder={holder} household={members} label={holder.name} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
                                         </span>
                                       ) : null}
                                     </div>
@@ -1526,7 +1537,7 @@ export function WeddingGiftBook({
                                 <GiftExemptionForm workspaceId={workspaceId} guest={primary} onSaved={recordExemption} />
                               )}
                               {singleHolder ? (
-                                <GiftEntryActions workspaceId={workspaceId} holder={singleHolder} label={displayName} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
+                                <GiftEntryActions workspaceId={workspaceId} holder={singleHolder} household={members} label={displayName} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
                               ) : recorded.length === 0 && giftRecipient ? (
                                 <Button
                                   id={`gift-create-${giftRecipient.id}`}

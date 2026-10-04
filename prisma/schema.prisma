@@ -252,6 +252,7 @@ model Guest {
   cakeHousehold WeddingCakeHousehold? @relation(fields: [cakeHouseholdId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
   /// 長輩請客等不收禮金、仍會送喜餅的安排；不代表已送餅。
   giftExemptWithCake Boolean @default(false) @map("gift_exempt_with_cake")
+  cakeCollectedAt   DateTime? @map("cake_collected_at")
   id               String                @id @default(cuid())
   workspaceId      String                @map("workspace_id")
   name             String

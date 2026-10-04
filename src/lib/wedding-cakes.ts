@@ -22,7 +22,7 @@ export type WeddingCakeData = Awaited<ReturnType<typeof getWeddingCakes>>;
 
 async function readHouseholdRoster(tx:Prisma.TransactionClient,workspaceId:string) {
     const [guests, households] = await Promise.all([
-      tx.guest.findMany({ where:{workspaceId}, select:{id:true, name:true, category:true, giftExemptWithCake:true, version:true, side:true, seniority:true, attendanceStatus:true, partySize:true, cakeHouseholdId:true, checkIn:{select:{id:true}}, importRecords:{orderBy:[{source:"asc"},{sourceInstance:"asc"}],select:{source:true,sourceInstance:true,sourceManaged:true,relationshipLabel:true}}} }),
+      tx.guest.findMany({ where:{workspaceId}, select:{id:true, name:true, category:true, giftExemptWithCake:true, version:true, side:true, seniority:true, attendanceStatus:true, partySize:true, cakeHouseholdId:true, cakeCollectedAt:true, checkIn:{select:{id:true}}, importRecords:{orderBy:[{source:"asc"},{sourceInstance:"asc"}],select:{source:true,sourceInstance:true,sourceManaged:true,relationshipLabel:true}}} }),
       tx.weddingCakeHousehold.findMany({where:{workspaceId},orderBy:[{createdAt:"asc"},{id:"asc"}],select:{id:true,name:true,boxes:true,version:true}}),
     ]);
     return { households, guests:guests.map(({checkIn,importRecords,...g}) => ({...g,checkedIn:Boolean(checkIn),relationshipLabel:effectiveGuestDetailValue(importRecords, r => r.relationshipLabel)})).sort(compareGuestsBySeniorityThenSurnameStroke) };

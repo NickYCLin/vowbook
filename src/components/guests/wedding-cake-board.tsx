@@ -76,6 +76,6 @@ export function WeddingCakeBoard({workspaceId,data,defaultCreateOpen=false}:{wor
   <section className="mt-6 print:hidden" aria-label="已設定家庭"><h2 className="font-serif text-lg font-semibold">已設定家庭</h2>
    {!data.households.length?<p className="mt-2 text-sm text-ink-soft">尚未合併家庭；可勾選共同出席的人，設定為同一家。</p>:<div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">{data.households.map(h=><div key={h.id} className="min-w-0 rounded-card border border-line p-4"><p className="break-words font-semibold">{h.name} · {h.boxes} 盒</p><p className="my-2 break-words text-sm text-ink-soft">{data.guests.filter(g=>g.category!=="COUPLE"&&g.cakeHouseholdId===h.id).map(g=>g.name).join("、")||"目前沒有成員"}</p><Button variant="secondary" onClick={event=>{triggerRef.current=event.currentTarget;setEditing(h);}} aria-label={`編輯家庭 ${h.name}`}>編輯家庭</Button></div>)}</div>}
   </section>
-  <HouseholdPrintSheet workspaceName={data.workspace.name} rows={rows} kind="cakes"/>
+  <HouseholdPrintSheet workspaceName={data.workspace.name} workspaceId={workspaceId} rows={rows} kind="cakes"/>
  </>;
 }

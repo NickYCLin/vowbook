@@ -1,5 +1,7 @@
-import {render,screen,within} from "@testing-library/react";
-import {expect,it} from "vitest";
+import {fireEvent,render,screen,waitFor,within} from "@testing-library/react";
+import {expect,it,vi} from "vitest";
+const action=vi.hoisted(()=>vi.fn());
+vi.mock("@/actions/wedding-cakes",()=>({setCakeCollectedAction:action}));
 import {HouseholdPrintSheet} from "./household-print-sheet";
 it("keeps zero-box households for reference without a collection checkbox",()=>{
  render(<HouseholdPrintSheet workspaceName="婚宴" kind="cakes" rows={[
@@ -59,4 +61,26 @@ it("fits both the cake list and the gift book on one A4 page with two compact co
   expect(text).toMatch(/\.household-table-wrap \{[^}]*break-inside: avoid/u);
  }
  expect(css("gifts").text).toMatch(/\[data-gift-print\] td \{ height: 6mm; \}/u);
+});
+
+it("lets editors tick a household as collected on screen and saves the whole household",async()=>{
+ action.mockResolvedValue({status:"success"});
+ render(<HouseholdPrintSheet workspaceName="婚宴" workspaceId="w" kind="cakes" rows={[
+  {key:"household:h",group:"GROOM_FAMILY",names:"阿姨、姨丈",relationships:"",boxes:1,guestIds:["a","b"],collected:false},
+  {key:"guest:c",group:"GROOM_FAMILY",names:"表哥",relationships:"",boxes:1,guestIds:["c"],collected:true},
+ ]}/>);
+ expect(screen.getAllByText("已領 1／2 戶").length).toBeGreaterThan(0);
+ const box=screen.getByRole("checkbox",{name:"標記 阿姨、姨丈 已領取喜餅"});
+ expect(box).not.toBeChecked();
+ fireEvent.click(box);
+ expect(box).toBeChecked();
+ await waitFor(()=>expect(action).toHaveBeenCalledWith("w",["a","b"],true));
+ expect(screen.getByRole("checkbox",{name:"標記 表哥 已領取喜餅"})).toBeChecked();
+});
+it("reverts the tick when saving fails",async()=>{
+ action.mockResolvedValue({status:"error",message:"目前無法儲存領取狀態，請稍後再試。"});
+ render(<HouseholdPrintSheet workspaceName="婚宴" workspaceId="w" kind="cakes" rows={[{key:"guest:c",group:"GROOM_FAMILY",names:"表哥",relationships:"",boxes:1,guestIds:["c"],collected:false}]}/>);
+ fireEvent.click(screen.getByRole("checkbox",{name:"標記 表哥 已領取喜餅"}));
+ expect(await screen.findByRole("alert")).toHaveTextContent("目前無法儲存");
+ expect(screen.getByRole("checkbox",{name:"標記 表哥 已領取喜餅"})).not.toBeChecked();
 });

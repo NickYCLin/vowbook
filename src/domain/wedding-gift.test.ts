@@ -168,6 +168,15 @@ describe("wedding gift return tracking", () => {
     }
   });
 
+  it("does not flag a household gift when another member attended or checked in", () => {
+    const entry = { attendanceStatus: "DECLINED" as const, weddingGift: gift, checkIn: null };
+    const declined = { attendanceStatus: "DECLINED" as const, checkIn: null };
+    expect(isWeddingGiftWithoutAttendance(entry, [declined, { attendanceStatus: "ATTENDING", checkIn: null }])).toBe(false);
+    expect(isWeddingGiftWithoutAttendance(entry, [declined, { attendanceStatus: "DECLINED", checkIn: { id: "c" } }])).toBe(false);
+    expect(isWeddingGiftReturnPending(entry, [declined, { attendanceStatus: "ATTENDING", checkIn: null }])).toBe(false);
+    expect(isWeddingGiftWithoutAttendance(entry, [declined, declined])).toBe(true);
+  });
+
   it("never flags an invitation group without a gift", () => {
     for (const attendanceStatus of ["UNDECIDED", "ATTENDING", "DECLINED"] as const) {
       expect(

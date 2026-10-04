@@ -189,22 +189,30 @@ export type WeddingGiftReturnEntry = {
   checkIn: unknown | null;
 };
 
+export type WeddingGiftHouseholdMember = Pick<WeddingGiftReturnEntry, "attendanceStatus" | "checkIn">;
+
 /**
  * 禮到人不到：已收到禮金、明確回覆不出席，且沒有實際報到紀錄。
  * 未報到不代表缺席，尤其婚宴尚未開始時；已報到則優先於先前的不出席回覆。
+ * 同一家人只包一包：只要同戶有人出席或報到，喜餅已當場領走，就不算人不到。
  */
 export function isWeddingGiftWithoutAttendance(
   entry: WeddingGiftReturnEntry,
+  household: readonly WeddingGiftHouseholdMember[] = [],
 ): boolean {
   if (entry.weddingGift === null) return false;
-  return entry.attendanceStatus === "DECLINED" && entry.checkIn === null;
+  if (entry.attendanceStatus !== "DECLINED" || entry.checkIn !== null) return false;
+  return !household.some(
+    (member) => member.attendanceStatus === "ATTENDING" || (member.checkIn ?? null) !== null,
+  );
 }
 
 export function isWeddingGiftReturnPending(
   entry: WeddingGiftReturnEntry,
+  household: readonly WeddingGiftHouseholdMember[] = [],
 ): boolean {
   return (
-    isWeddingGiftWithoutAttendance(entry) &&
+    isWeddingGiftWithoutAttendance(entry, household) &&
     !entry.weddingGift?.returnGiftSentAt
   );
 }
