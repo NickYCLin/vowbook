@@ -1375,6 +1375,64 @@ it("puts add-on charges into the balance due total", async () => {
   );
 });
 
+it("does not count amount-less imported Notion headings as unpaid expenses", async () => {
+  requireCurrentUser.mockResolvedValue({ id: "user_1" });
+  requireWorkspaceAccess.mockResolvedValue({
+    role: "OWNER",
+    workspace: {
+      id: "workspace_1",
+      name: "我們的婚宴",
+      timezone: "Asia/Taipei",
+      hasEngagementCeremony: false,
+      hasProcessionCeremony: false,
+      ceremonyPreferencesVersion: 0,
+    },
+  });
+  const record = (
+    id: string,
+    parentId: string | null,
+    plannedAmount: number,
+    paid: boolean,
+  ) => ({
+    id,
+    parentId,
+    source: "NOTION",
+    sourceOrder: 0,
+    name: id,
+    kind: "EXPENSE",
+    category: "OTHER_PENDING",
+    plannedAmount,
+    actualAmount: paid ? plannedAmount : null,
+    dueDate: null,
+    notes: null,
+    paid,
+    paidAt: null,
+    bookingStatus: paid ? "PAID" : "PLANNING",
+    preparationStatus: "NEEDS_ACTION",
+    depositAmount: null,
+    balanceAmount: null,
+    additionalAmount: null,
+    estimatedRange: null,
+    candidateVendors: null,
+    confirmedVendor: null,
+    vendorContact: null,
+    primaryContact: null,
+    balancePaymentMethod: null,
+    version: 0,
+    createdAt: new Date("2027-01-01T00:00:00.000Z"),
+  });
+  findMany.mockResolvedValue([
+    record("heading", null, 0, false),
+    record("child", "heading", 500, true),
+  ]);
+
+  const data = await getBudgetPageData("workspace_1");
+
+  expect(data.summary).toEqual(
+    expect.objectContaining({ itemCount: 1, paidCount: 1, plannedTotal: "500" }),
+  );
+});
+
 it("subtracts partial payments from the balance due and exposes the payment history", async () => {
   requireCurrentUser.mockResolvedValue({ id: "user_1" });
   requireWorkspaceAccess.mockResolvedValue({

@@ -876,7 +876,23 @@ function summarize(
     summarizeWeddingStaffRedEnvelopes(staffRedEnvelopes);
   // 衍生費用沒有自己的 BudgetItem，總計要另外加，才不會少算便當與素食。
   const derivedPlanned = derivedCosts.map((cost) => cost.amount);
-  const expenseItems = items.filter((item) => item.kind === "EXPENSE");
+  const parentIds = new Set(
+    items.flatMap((item) => (item.parentId === null ? [] : [item.parentId])),
+  );
+  // Notion 匯入的中繼標題沒有自己的金額，只是子項目的分組；列表也不把它當花費。
+  const expenseItems = items.filter(
+    (item) =>
+      item.kind === "EXPENSE" &&
+      !(
+        item.source === "NOTION" &&
+        parentIds.has(item.id) &&
+        item.plannedAmount === 0 &&
+        item.actualAmount === null &&
+        item.depositAmount === null &&
+        item.balanceAmount === null &&
+        item.additionalAmount === null
+      ),
+  );
   const trackedExpenseItems = expenseItems.filter(
     (item) => preparationStatusOf(item) === "NEEDS_ACTION",
   );
