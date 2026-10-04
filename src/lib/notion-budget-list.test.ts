@@ -108,6 +108,7 @@ describe("Notion Budget tree query", () => {
       itemCount: 5,
       paidCount: 1,
       plannedTotal: "8589934688",
+      unpaidPlannedTotal: "6442451041",
       actualTotal: "60",
       balanceDueTotal: "0",
       balanceDueCount: 0,

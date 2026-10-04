@@ -82,6 +82,7 @@ type BudgetStatusFilter =
   | "PLANNING"
   | "BOOKED_BALANCE_DUE"
   | "PAID"
+  | "UNPAID"
   | "ALREADY_OWNED"
   | "VENDOR_PROVIDED"
   | "NOT_PLANNED";
@@ -499,6 +500,7 @@ function BudgetSummaryView({
   summary,
   onShowAll,
   onShowPaid,
+  onShowUnpaid,
   onShowBalanceDue,
   onShowSelfProvided,
   onShowVendorProvided,
@@ -507,6 +509,7 @@ function BudgetSummaryView({
   summary: BudgetSummary;
   onShowAll: () => void;
   onShowPaid: () => void;
+  onShowUnpaid: () => void;
   onShowBalanceDue: () => void;
   onShowSelfProvided: () => void;
   onShowVendorProvided: () => void;
@@ -579,6 +582,27 @@ function BudgetSummaryView({
               >
                 顯示已付清 {summary.paidCount} 筆花費
               </button>
+            )}
+            {summary.itemCount - summary.paidCount > 0 && (
+              <>
+                <span
+                  data-budget-unpaid-gap="true"
+                  className="mt-1 block font-sans text-xs tabular-nums text-ink-soft"
+                >
+                  尚未付清 {summary.itemCount - summary.paidCount} 筆
+                  {summary.unpaidPlannedTotal !== undefined &&
+                  summary.unpaidPlannedTotal !== "0"
+                    ? "・預計 " + formatTwdAmount(summary.unpaidPlannedTotal)
+                    : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={onShowUnpaid}
+                  className="mt-1 block min-h-11 max-w-full break-words text-left text-xs font-semibold text-clay underline decoration-line-strong underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+                >
+                  顯示尚未付清 {summary.itemCount - summary.paidCount} 筆花費
+                </button>
+              </>
             )}
           </dd>
         </div>
@@ -2704,7 +2728,9 @@ function filterBudgetItems(
           statusFilter === "NOT_PLANNED"
             ? preparationStatusOfItem(item) === statusFilter
             : preparationStatusOfItem(item) === "NEEDS_ACTION" &&
-              item.bookingStatus === statusFilter))),
+              (statusFilter === "UNPAID"
+                ? !item.paid
+                : item.bookingStatus === statusFilter)))),
   );
   const includedIndexes = new Set<number>();
   const contextIndexes = new Set<number>();
@@ -3483,6 +3509,7 @@ export function BudgetList({
         summary={summary}
         onShowAll={showAllSummaryItems}
         onShowPaid={() => showSummaryStatus("PAID")}
+        onShowUnpaid={() => showSummaryStatus("UNPAID")}
         onShowBalanceDue={() => showSummaryStatus("BOOKED_BALANCE_DUE")}
         onShowSelfProvided={() => showSummaryStatus("ALREADY_OWNED")}
         onShowVendorProvided={() => showSummaryStatus("VENDOR_PROVIDED")}

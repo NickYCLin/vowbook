@@ -228,6 +228,8 @@ export type BudgetSummary = {
   paidCount: number;
   plannedTotal: string;
   actualTotal: string;
+  /** 尚未付清項目的預計金額合計，用來說明預計總花費與已記錄實付的差距。 */
+  unpaidPlannedTotal?: string;
   balanceDueTotal: string;
   balanceDueCount: number;
   overdueBalanceDueCount: number;
@@ -906,6 +908,11 @@ function summarize(
       trackedExpenseItems.flatMap((item) =>
         item.actualAmount === null ? [] : [item.actualAmount],
       ),
+    ),
+    unpaidPlannedTotal: sumTwdAmounts(
+      trackedExpenseItems
+        .filter((item) => !item.paid)
+        .map((item) => item.plannedAmount),
     ),
     // 加購通常是當天連同尾款一起結給廠商，所以合在同一筆金額裡；
     // 已經先分批匯出去的錢要扣掉，剩下的才是還要準備的。

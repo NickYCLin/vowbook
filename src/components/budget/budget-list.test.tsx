@@ -1041,6 +1041,23 @@ describe("BudgetList", () => {
     expect(within(amounts).queryByText("—")).not.toBeInTheDocument();
   });
 
+  it("explains the planned-versus-paid gap and filters unpaid expenses", () => {
+    render(
+      <BudgetList
+        workspaceId="workspace_internal"
+        items={groupedItems}
+        summary={{ ...summary, itemCount: 2, unpaidPlannedTotal: "1400" }}
+        canEdit={false}
+      />,
+    );
+
+    expect(screen.getByText("尚未付清 1 筆・預計 NT$1,400")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "顯示尚未付清 1 筆花費" }),
+    );
+    expect(screen.getByText(/符合 1 \/ 2 筆花費/u)).toBeVisible();
+  });
+
   it("uses explicit expense and group units in summary and active-filter result counts", () => {
     render(
       <BudgetList
