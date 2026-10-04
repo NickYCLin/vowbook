@@ -96,6 +96,7 @@ describe("WeddingGiftBook", () => {
     createWeddingGiftAction.mockReset();
     updateWeddingGiftAction.mockReset();
     deleteWeddingGiftAction.mockReset();
+    setGuestGiftExemptionAction.mockReset();
     setWeddingGiftReturnAction.mockReset();
   });
 
@@ -406,6 +407,87 @@ describe("WeddingGiftBook", () => {
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "收合禮金簿" }))
       .toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("lists a cake household as one gift row and records one envelope for the family", async () => {
+    createWeddingGiftAction.mockResolvedValue({
+      status: "success",
+      message: "已登記禮金。",
+      gift: {
+        id: "gift_household",
+        amount: 6600,
+        notes: null,
+        createdAt: new Date("2026-08-30T02:00:00.000Z"),
+        returnGiftSentAt: null,
+        returnGiftNote: null,
+        version: 0,
+      },
+    });
+    render(<WeddingGiftBook workspaceId="workspace_1" canEdit collapsible={false} guests={[
+      { ...guests[1], id: "uncle", name: "張叔叔", attendanceStatus: "ATTENDING", cakeHouseholdId: "house_1" },
+      { ...guests[1], id: "aunt", name: "張嬸嬸", attendanceStatus: "ATTENDING", cakeHouseholdId: "house_1" },
+      guests[1],
+    ]} />);
+    showAllGroups();
+
+    expect(screen.getByRole("heading", { name: "張叔叔、張嬸嬸" })).toBeInTheDocument();
+    expect(screen.getByText("同一家・2 位")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "張嬸嬸" })).not.toBeInTheDocument();
+    const missing = screen.getByText("一般賓客未有紀錄").closest("div");
+    expect(within(missing as HTMLElement).getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("符合 2 / 2 組")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("搜尋禮金簿名單"), { target: { value: "嬸嬸" } });
+    expect(screen.getByRole("heading", { name: "張叔叔、張嬸嬸" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "登記 張叔叔、張嬸嬸 的禮金" }));
+    const dialog = screen.getByRole("dialog", { name: "登記 張叔叔、張嬸嬸 的禮金" });
+    fireEvent.change(within(dialog).getByLabelText("禮金金額"), { target: { value: "6600" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "儲存禮金" }));
+
+    await waitFor(() => expect(createWeddingGiftAction).toHaveBeenCalledOnce());
+    expect(createWeddingGiftAction.mock.calls[0][1]).toBe("uncle");
+    expect(await screen.findByRole("button", { name: "編輯 張叔叔、張嬸嬸 的禮金" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /登記 張/u })).not.toBeInTheDocument();
+  });
+
+  it("sums separate legacy gifts inside one household and keeps each editable", () => {
+    const gift = {
+      notes: null,
+      createdAt: new Date("2026-08-30T02:00:00.000Z"),
+      returnGiftSentAt: null,
+      returnGiftNote: null,
+      version: 1,
+    };
+    render(<WeddingGiftBook workspaceId="workspace_1" canEdit collapsible={false} guests={[
+      { ...guests[1], id: "uncle", name: "張叔叔", cakeHouseholdId: "house_1", weddingGift: { ...gift, id: "gift_a", amount: 1000 } },
+      { ...guests[1], id: "aunt", name: "張嬸嬸", cakeHouseholdId: "house_1", weddingGift: { ...gift, id: "gift_b", amount: 2000 } },
+    ]} />);
+    showAllGroups();
+
+    const row = screen.getByRole("heading", { name: "張叔叔、張嬸嬸" }).closest("article") as HTMLElement;
+    expect(within(row).getByText("NT$ 3,000")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "編輯 張叔叔 的禮金" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "編輯 張嬸嬸 的禮金" })).toBeInTheDocument();
+    const recorded = screen.getByText("已登記組數").closest("div");
+    expect(within(recorded as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("marks the whole household as not collecting gifts at once", async () => {
+    setGuestGiftExemptionAction.mockImplementation(async (_w: string, guestId: string) => ({
+      status: "success",
+      message: "已更新。",
+      guest: { id: guestId, giftExemptWithCake: true, version: 1 },
+    }));
+    render(<WeddingGiftBook workspaceId="workspace_1" canEdit collapsible={false} guests={[
+      { ...guests[1], id: "uncle", name: "張叔叔", version: 0, cakeHouseholdId: "house_1" },
+      { ...guests[1], id: "aunt", name: "張嬸嬸", version: 0, cakeHouseholdId: "house_1" },
+    ]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "標記 張叔叔、張嬸嬸 不收禮金、會送餅" }));
+    await waitFor(() => expect(setGuestGiftExemptionAction).toHaveBeenCalledTimes(2));
+    expect(setGuestGiftExemptionAction.mock.calls.map((call) => call[1]).sort()).toEqual(["aunt", "uncle"]);
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "張叔叔、張嬸嬸" })).not.toBeInTheDocument());
   });
 
   it("summarizes gifts without treating hosts as general guests without records", () => {

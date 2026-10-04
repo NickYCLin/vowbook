@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import {
   setGuestGiftExemptionAction,
@@ -69,6 +70,8 @@ export type WeddingGiftBookGuest = {
   version?: number;
   giftExemptWithCake?: boolean;
   relationshipLabel?: string | null;
+  /** 發餅設定的同一家人；同一家通常只包一包禮金，禮金簿合併成一列。 */
+  cakeHouseholdId?: string | null;
   id: string;
   name: string;
   category: GuestCategoryValue;
@@ -163,16 +166,68 @@ function formatTwdAmount(decimalAmount: string) {
   return `NT$ ${grouped}`;
 }
 
-function giftSummary(guests: readonly WeddingGiftBookGuest[]) {
+type GiftLedgerRow = {
+  key: string;
+  name: string;
+  members: WeddingGiftBookGuest[];
+  primary: WeddingGiftBookGuest;
+  recorded: WeddingGiftBookGuest[];
+  collectible: WeddingGiftBookGuest[];
+  weddingGift: { amount: number; createdAt?: Date | string | null } | null;
+};
+
+/** 同一家人只包一包：依發餅的家庭設定合併，新人永遠自成一列。 */
+function giftLedgerRows(guests: readonly WeddingGiftBookGuest[]): GiftLedgerRow[] {
+  const groups = new Map<string, WeddingGiftBookGuest[]>();
+  for (const guest of guests) {
+    const key =
+      guest.cakeHouseholdId && guest.category !== "COUPLE"
+        ? `household:${guest.cakeHouseholdId}`
+        : `guest:${guest.id}`;
+    groups.set(key, [...(groups.get(key) ?? []), guest]);
+  }
+  return [...groups].map(([key, members]) => {
+    const recorded = members.filter((member) => member.weddingGift !== null);
+    const collectible = members.filter(
+      (member) => !isGiftCollectionExcluded(member),
+    );
+    let amount = 0;
+    let latest: Date | string | null | undefined = null;
+    for (const member of recorded) {
+      amount += Number(member.weddingGift?.amount ?? 0);
+      const createdAt = member.weddingGift?.createdAt;
+      if (
+        createdAt &&
+        (!latest || new Date(createdAt).getTime() > new Date(latest).getTime())
+      ) {
+        latest = createdAt;
+      }
+    }
+    return {
+      key,
+      name: members.map((member) => member.name).join("、"),
+      members,
+      primary: recorded[0] ?? collectible[0] ?? members[0],
+      recorded,
+      collectible,
+      weddingGift:
+        recorded.length > 0 ? { amount, createdAt: latest } : null,
+    };
+  });
+}
+
+function giftSummary(rows: readonly GiftLedgerRow[]) {
   let totalAmount = BigInt(0);
   let registeredGroups = 0;
   let unregisteredGeneralGroups = 0;
 
-  for (const guest of guests) {
-    if (guest.weddingGift) {
-      totalAmount += BigInt(guest.weddingGift.amount);
+  for (const row of rows) {
+    for (const member of row.recorded) {
+      totalAmount += BigInt(member.weddingGift?.amount ?? 0);
+    }
+    if (row.recorded.length > 0) {
       registeredGroups += 1;
-    } else if (guest.category === "GUEST" && !isGiftCollectionExcluded(guest)) {
+    } else if (row.collectible.some((member) => member.category === "GUEST")) {
       unregisteredGeneralGroups += 1;
     }
   }
@@ -736,6 +791,109 @@ function GiftExemptionForm({ workspaceId, guest, onSaved }: {
   </form>;
 }
 
+function GiftEntryActions({
+  workspaceId,
+  holder,
+  label,
+  onEdit,
+  onDelete,
+  onReturnSaved,
+}: {
+  workspaceId: string;
+  holder: WeddingGiftBookGuest;
+  label: string;
+  onEdit: (guestId: string, guest: WeddingGiftBookGuest, gift: WeddingGiftMutationSnapshot) => void;
+  onDelete: (guestId: string, guest: WeddingGiftBookGuest, gift: WeddingGiftMutationSnapshot) => void;
+  onReturnSaved: (guestId: string, gift: WeddingGiftMutationSnapshot, message: string) => void;
+}) {
+  const gift = holder.weddingGift;
+  if (!gift) return null;
+  const dialogGuest = { ...holder, name: label };
+  const withoutAttendance = isWeddingGiftWithoutAttendance({
+    attendanceStatus: holder.attendanceStatus,
+    weddingGift: gift,
+    checkIn: holder.checkIn ?? null,
+  });
+  return (
+    <>
+      <Button
+        id={`gift-edit-${holder.id}`}
+        variant="ghost"
+        size="sm"
+        className="min-h-11 sm:min-h-9"
+        aria-label={`編輯 ${label} 的禮金`}
+        onClick={() => onEdit(holder.id, dialogGuest, gift)}
+      >
+        編輯
+      </Button>
+      <Button
+        id={`gift-delete-${holder.id}`}
+        variant="danger"
+        size="sm"
+        className="min-h-11 sm:min-h-9"
+        aria-label={`移除 ${label} 的禮金`}
+        onClick={() => onDelete(holder.id, dialogGuest, gift)}
+      >
+        移除
+      </Button>
+      {withoutAttendance ? (
+        <ToggleGiftReturnForm
+          workspaceId={workspaceId}
+          guest={dialogGuest}
+          gift={gift}
+          onSaved={onReturnSaved}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** 同一家人的不收禮金要一起切換，不然會剩半戶留在禮金簿上。 */
+function HouseholdExemptionForm({ workspaceId, members, label, onSaved }: {
+  workspaceId: string;
+  members: readonly WeddingGiftBookGuest[];
+  label: string;
+  onSaved: (id: string, snapshot: GuestGiftExemptionSnapshot) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<WeddingGiftMutationState | null>(null);
+  const exempt = members.every((member) => member.giftExemptWithCake);
+  const targets = members.filter(
+    (member) => Boolean(member.giftExemptWithCake) === exempt,
+  );
+
+  function submit() {
+    startTransition(async () => {
+      for (const member of targets) {
+        const formData = new FormData();
+        formData.set("expectedVersion", String(member.version ?? 0));
+        formData.set("giftExemptWithCake", exempt ? "off" : "on");
+        const state = await setGuestGiftExemptionAction(
+          workspaceId,
+          member.id,
+          initialState,
+          formData,
+        );
+        if (state.status !== "success" || !state.guest) {
+          setError(state);
+          return;
+        }
+        onSaved(member.id, state.guest);
+      }
+      setError(null);
+    });
+  }
+
+  return <div>
+    <Button type="button" variant="ghost" size="sm" className="min-h-11 sm:min-h-9" disabled={isPending} onClick={submit}
+      title={exempt ? "整戶恢復收禮金，會重新列入紙本禮金簿" : "整戶標記不收禮金、會送餅：紙本禮金簿不列入，發餅名單仍保留"}
+      aria-label={exempt ? `取消 ${label} 的不收禮金、會送餅標記` : `標記 ${label} 不收禮金、會送餅`}>
+      {exempt ? "恢復收禮金" : "不收禮金"}
+    </Button>
+    {error ? <ActionFeedback state={error} /> : null}
+  </div>;
+}
+
 export function WeddingGiftBook({
   workspaceId,
   guests,
@@ -890,7 +1048,8 @@ export function WeddingGiftBook({
       })),
     [giftByGuestId, guests, exemptions],
   );
-  const summary = useMemo(() => giftSummary(ledgerGuests), [ledgerGuests]);
+  const ledgerRows = useMemo(() => giftLedgerRows(ledgerGuests), [ledgerGuests]);
+  const summary = useMemo(() => giftSummary(ledgerRows), [ledgerRows]);
   const returnPendingCount = useMemo(
     () =>
       ledgerGuests.filter((guest) =>
@@ -902,40 +1061,51 @@ export function WeddingGiftBook({
       ).length,
     [ledgerGuests],
   );
-  const filteredGuests = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("zh-TW");
-    const matched = ledgerGuests.filter((guest) => {
+    const matched = ledgerRows.filter((row) => {
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        guest.name.toLocaleLowerCase("zh-TW").includes(normalizedSearch);
+        row.members.some((member) =>
+          member.name.toLocaleLowerCase("zh-TW").includes(normalizedSearch),
+        );
       if (!matchesSearch) return false;
-      if (sideFilter !== "ALL" && guest.side !== sideFilter) return false;
-      if (filter === "EXEMPT_WITH_CAKE") return !!guest.giftExemptWithCake;
+      if (
+        sideFilter !== "ALL" &&
+        !row.members.some((member) => member.side === sideFilter)
+      ) {
+        return false;
+      }
+      if (filter === "EXEMPT_WITH_CAKE") {
+        return row.members.some((member) => member.giftExemptWithCake);
+      }
       // 不收禮金的人不該佔著禮金簿；但已經登記過的紀錄仍要看得到，
       // 想改回收禮金就切到「不收禮金、會送餅」那個篩選。
-      if (isGiftCollectionExcluded(guest) && guest.weddingGift === null) return false;
+      if (row.recorded.length === 0 && row.collectible.length === 0) return false;
       if (filter === "ALL") return true;
-      if (filter === "RECORDED") return guest.weddingGift !== null;
+      if (filter === "RECORDED") return row.recorded.length > 0;
       if (filter === "WITHOUT_ATTENDANCE") {
-        return isWeddingGiftWithoutAttendance({
-          attendanceStatus: guest.attendanceStatus,
-          weddingGift: guest.weddingGift,
-          checkIn: guest.checkIn ?? null,
-        });
+        return row.recorded.some((member) =>
+          isWeddingGiftWithoutAttendance({
+            attendanceStatus: member.attendanceStatus,
+            weddingGift: member.weddingGift,
+            checkIn: member.checkIn ?? null,
+          }),
+        );
       }
       // 走到這裡已經濾掉不收禮金的人，剩下就是還能登記卻還沒登記的。
-      return guest.weddingGift === null;
+      return row.recorded.length === 0;
     });
     return sortWeddingGiftEntries(matched, sort);
-  }, [filter, ledgerGuests, search, sideFilter, sort]);
+  }, [filter, ledgerRows, search, sideFilter, sort]);
   const hasActiveFilter =
     search.trim().length > 0 ||
     filter !== DEFAULT_GIFT_FILTER ||
     sideFilter !== "ALL" ||
     sort !== "ROSTER";
   const resultLabel = hasActiveFilter
-    ? `符合 ${filteredGuests.length} / ${ledgerGuests.length} 組`
-    : `顯示 ${filteredGuests.length} / ${ledgerGuests.length} 組`;
+    ? `符合 ${filteredRows.length} / ${ledgerRows.length} 組`
+    : `顯示 ${filteredRows.length} / ${ledgerRows.length} 組`;
   const selectedEditorGuest = editorSelection?.guest ?? null;
   const selectedDeleteGuest = deleteSelection?.guest ?? null;
   const editorGuestIsMissing =
@@ -987,6 +1157,50 @@ export function WeddingGiftBook({
       message,
       revision: (current?.revision ?? 0) + 1,
     }));
+  }
+
+  function ownUnconfirmedCreate(guestId: string, gift: WeddingGiftMutationSnapshot) {
+    const pending = pendingMutations.current.get(guestId);
+    return pending?.kind === "CREATE" && sameGift(pending.gift, gift);
+  }
+
+  function openGiftEditor(
+    guestId: string,
+    guest: WeddingGiftBookGuest,
+    gift: WeddingGiftMutationSnapshot,
+  ) {
+    setEditorSelection({
+      guestId,
+      mode: "EDIT",
+      guest,
+      gift,
+      allowMissingLatest: ownUnconfirmedCreate(guestId, gift),
+    });
+  }
+
+  function openGiftDelete(
+    guestId: string,
+    guest: WeddingGiftBookGuest,
+    gift: WeddingGiftMutationSnapshot,
+  ) {
+    setDeleteSelection({
+      guestId,
+      guest,
+      gift,
+      allowMissingLatest: ownUnconfirmedCreate(guestId, gift),
+    });
+  }
+
+  function recordUpdatedGift(
+    guestId: string,
+    gift: WeddingGiftMutationSnapshot,
+    message: string,
+  ) {
+    recordSavedGift("UPDATE", guestId, gift, message);
+  }
+
+  function recordExemption(id: string, snapshot: GuestGiftExemptionSnapshot) {
+    setExemptions((current) => ({ ...current, [id]: snapshot }));
   }
 
   function acceptLatestGift(
@@ -1060,7 +1274,7 @@ export function WeddingGiftBook({
               label="已登記組數"
               value={summary.registeredGroups}
               unit="組"
-              hint={`全部 ${ledgerGuests.length} 組名單`}
+              hint={`全部 ${ledgerRows.length} 組名單`}
               tone="positive"
             />
             <Stat
@@ -1149,7 +1363,7 @@ export function WeddingGiftBook({
                 >
                   {resultLabel}
                 </p>
-                {hasActiveFilter && filteredGuests.length > 0 ? (
+                {hasActiveFilter && filteredRows.length > 0 ? (
                   <Button variant="ghost" size="sm" onClick={clearFilters}>
                     清除禮金簿篩選
                   </Button>
@@ -1162,7 +1376,7 @@ export function WeddingGiftBook({
                 title="禮金簿目前沒有邀請群組。"
                 description="先新增名單後即可登記禮金。"
               />
-            ) : filteredGuests.length === 0 ? (
+            ) : filteredRows.length === 0 ? (
               hasActiveFilter ? (
                 <EmptyState
                   title="找不到符合條件的邀請群組。"
@@ -1183,141 +1397,137 @@ export function WeddingGiftBook({
             ) : (
               <div className="overflow-hidden rounded-card border border-line">
                 <ul className="min-w-0 divide-y divide-line bg-surface">
-                  {filteredGuests.map((guest) => {
-                    const gift = guest.weddingGift;
-                    const withoutAttendance = isWeddingGiftWithoutAttendance({
-                      attendanceStatus: guest.attendanceStatus,
-                      weddingGift: gift,
-                      checkIn: guest.checkIn ?? null,
-                    });
+                  {filteredRows.map((row) => {
+                    const { primary, members, recorded } = row;
+                    const displayName = row.name;
+                    const isHousehold = members.length > 1;
+                    const uniformAttendance = members.every(
+                      (member) =>
+                        member.attendanceStatus === primary.attendanceStatus,
+                    );
+                    const attendingCount = members.filter(
+                      (member) => member.attendanceStatus === "ATTENDING",
+                    ).length;
+                    const singleHolder = recorded.length === 1 ? recorded[0] : null;
+                    const giftNotes = (holder: WeddingGiftBookGuest) => {
+                      const gift = holder.weddingGift;
+                      if (!gift) return null;
+                      const withoutAttendance = isWeddingGiftWithoutAttendance({
+                        attendanceStatus: holder.attendanceStatus,
+                        weddingGift: gift,
+                        checkIn: holder.checkIn ?? null,
+                      });
+                      return (
+                        <>
+                          {gift.notes ? (
+                            <p className="mt-1 text-caption leading-6 whitespace-pre-wrap break-words text-ink-soft">
+                              {gift.notes}
+                            </p>
+                          ) : null}
+                          {withoutAttendance ? (
+                            <p className="mt-1 text-caption font-semibold text-caution">
+                              {gift.returnGiftSentAt
+                                ? `禮到人不到・已回禮${
+                                    gift.returnGiftNote
+                                      ? `（${gift.returnGiftNote}）`
+                                      : ""
+                                  }`
+                                : "禮到人不到・待回禮回喜餅"}
+                            </p>
+                          ) : null}
+                        </>
+                      );
+                    };
                     return (
-                      <li key={guest.id} className="min-w-0">
+                      <li key={row.key} className="min-w-0">
                         <article className="grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(6rem,auto)_auto] sm:items-center sm:px-5">
                           <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <h3 className="min-w-0 font-serif text-body font-semibold break-words text-ink">
-                                {guest.name}
+                                {displayName}
                               </h3>
-                              <Badge tone={attendanceTones[guest.attendanceStatus]}>
-                                <BadgeDot />
-                                {attendanceLabels[guest.attendanceStatus]}
-                              </Badge>
-                              {guest.giftExemptWithCake ? <Badge tone="sage">不收禮金・會送餅</Badge> : null}
-                              {guest.category !== "GUEST" ? (
-                                <Badge tone={guest.category === "COUPLE" ? "brand" : "sage"}>
-                                  {GUEST_CATEGORY_LABELS[guest.category]}
+                              {uniformAttendance ? (
+                                <Badge tone={attendanceTones[primary.attendanceStatus]}>
+                                  <BadgeDot />
+                                  {attendanceLabels[primary.attendanceStatus]}
+                                </Badge>
+                              ) : (
+                                <Badge tone="neutral">
+                                  <BadgeDot />
+                                  出席 {attendingCount}／{members.length}
+                                </Badge>
+                              )}
+                              {isHousehold ? (
+                                <Badge tone="neutral">同一家・{members.length} 位</Badge>
+                              ) : null}
+                              {members.every((member) => member.giftExemptWithCake) ? <Badge tone="sage">不收禮金・會送餅</Badge> : null}
+                              {primary.category !== "GUEST" ? (
+                                <Badge tone={primary.category === "COUPLE" ? "brand" : "sage"}>
+                                  {GUEST_CATEGORY_LABELS[primary.category]}
                                 </Badge>
                               ) : null}
                             </div>
                             <p className="mt-1 text-caption text-ink-soft">
-                              {guestIdentityLabel(guest.category, guest.side)}
+                              {guestIdentityLabel(primary.category, primary.side)}
                             </p>
-                            {gift?.notes ? (
-                              <p className="mt-1 text-caption leading-6 whitespace-pre-wrap break-words text-ink-soft">
-                                {gift.notes}
-                              </p>
-                            ) : null}
-                            {withoutAttendance ? (
-                              <p className="mt-1 text-caption font-semibold text-caution">
-                                {gift?.returnGiftSentAt
-                                  ? `禮到人不到・已回禮${
-                                      gift.returnGiftNote
-                                        ? `（${gift.returnGiftNote}）`
-                                        : ""
-                                    }`
-                                  : "禮到人不到・待回禮回喜餅"}
-                              </p>
+                            {singleHolder ? giftNotes(singleHolder) : null}
+                            {recorded.length > 1 ? (
+                              <ul className="mt-2 space-y-1.5 border-l-2 border-line pl-3">
+                                {recorded.map((holder) => (
+                                  <li key={holder.id} className="min-w-0">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                                      <span className="text-caption font-semibold text-ink">
+                                        {holder.name}
+                                      </span>
+                                      <span className="text-caption tabular-nums text-ink-soft">
+                                        {formatTwdAmount(String(holder.weddingGift?.amount ?? 0))}
+                                      </span>
+                                      {canEdit ? (
+                                        <span className="flex flex-wrap gap-1">
+                                          <GiftEntryActions workspaceId={workspaceId} holder={holder} label={holder.name} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {giftNotes(holder)}
+                                  </li>
+                                ))}
+                              </ul>
                             ) : null}
                           </div>
 
                           <div className="min-w-0 sm:text-right">
-                            {gift ? (
+                            {row.weddingGift ? (
                               <p className="font-serif text-xl font-semibold break-words tabular-nums text-clay-strong">
-                                {formatTwdAmount(String(gift.amount))}
+                                {formatTwdAmount(String(row.weddingGift.amount))}
                               </p>
                             ) : (
                               <p className="text-caption font-semibold text-ink-faint">
-                                {isGiftCollectionExcluded(guest) ? "不收禮金" : "未登記"}
+                                {row.collectible.length === 0 ? "不收禮金" : "未登記"}
                               </p>
                             )}
                           </div>
 
                           {canEdit ? (
                             <div className="flex min-w-0 flex-wrap gap-1 sm:justify-end">
-                              <GiftExemptionForm workspaceId={workspaceId} guest={guest} onSaved={(id, snapshot) => setExemptions((current) => ({ ...current, [id]: snapshot }))} />
-                              {gift ? (
-                                <>
-                                  <Button
-                                    id={`gift-edit-${guest.id}`}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="min-h-11 sm:min-h-9"
-                                    aria-label={`編輯 ${guest.name} 的禮金`}
-                                    onClick={() => {
-                                      const pending =
-                                        pendingMutations.current.get(guest.id);
-                                      setEditorSelection({
-                                        guestId: guest.id,
-                                        mode: "EDIT",
-                                        guest,
-                                        gift,
-                                        allowMissingLatest:
-                                          pending?.kind === "CREATE" &&
-                                          sameGift(pending.gift, gift),
-                                      });
-                                    }}
-                                  >
-                                    編輯
-                                  </Button>
-                                  <Button
-                                    id={`gift-delete-${guest.id}`}
-                                    variant="danger"
-                                    size="sm"
-                                    className="min-h-11 sm:min-h-9"
-                                    aria-label={`移除 ${guest.name} 的禮金`}
-                                    onClick={() => {
-                                      const pending =
-                                        pendingMutations.current.get(guest.id);
-                                      setDeleteSelection({
-                                        guestId: guest.id,
-                                        guest,
-                                        gift,
-                                        allowMissingLatest:
-                                          pending?.kind === "CREATE" &&
-                                          sameGift(pending.gift, gift),
-                                      });
-                                    }}
-                                  >
-                                    移除
-                                  </Button>
-                                  {withoutAttendance ? (
-                                    <ToggleGiftReturnForm
-                                      workspaceId={workspaceId}
-                                      guest={guest}
-                                      gift={gift}
-                                      onSaved={(guestId, nextGift, message) =>
-                                        recordSavedGift(
-                                          "UPDATE",
-                                          guestId,
-                                          nextGift,
-                                          message,
-                                        )
-                                      }
-                                    />
-                                  ) : null}
-                                </>
-                              ) : !isGiftCollectionExcluded(guest) ? (
+                              {isHousehold ? (
+                                <HouseholdExemptionForm workspaceId={workspaceId} members={members} label={displayName} onSaved={recordExemption} />
+                              ) : (
+                                <GiftExemptionForm workspaceId={workspaceId} guest={primary} onSaved={recordExemption} />
+                              )}
+                              {singleHolder ? (
+                                <GiftEntryActions workspaceId={workspaceId} holder={singleHolder} label={displayName} onEdit={openGiftEditor} onDelete={openGiftDelete} onReturnSaved={recordUpdatedGift} />
+                              ) : recorded.length === 0 && row.collectible.length > 0 ? (
                                 <Button
-                                  id={`gift-create-${guest.id}`}
+                                  id={`gift-create-${row.collectible[0].id}`}
                                   variant="secondary"
                                   size="sm"
                                   className="min-h-11 sm:min-h-9"
-                                  aria-label={`登記 ${guest.name} 的禮金`}
+                                  aria-label={`登記 ${displayName} 的禮金`}
                                   onClick={() =>
                                     setEditorSelection({
-                                      guestId: guest.id,
+                                      guestId: row.collectible[0].id,
                                       mode: "CREATE",
-                                      guest,
+                                      guest: { ...row.collectible[0], name: displayName },
                                     })
                                   }
                                 >

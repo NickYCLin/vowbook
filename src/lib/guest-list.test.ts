@@ -151,6 +151,7 @@ describe("listGuestsForWorkspace", () => {
       select: {
         id: true,
         giftExemptWithCake: true,
+        cakeHouseholdId: true,
         version: true,
         name: true,
         category: true,

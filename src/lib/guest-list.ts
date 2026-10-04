@@ -87,6 +87,7 @@ export type GuestCheckInEntryDto = {
 
 export type GuestListItemDto = {
   giftExemptWithCake?: boolean;
+  cakeHouseholdId?: string | null;
   id: string;
   version: number;
   name: string;
@@ -106,6 +107,7 @@ export type GuestListItemDto = {
 
 const baseGuestSelect = {
   giftExemptWithCake: true,
+  cakeHouseholdId: true,
   id: true,
   version: true,
   name: true,
