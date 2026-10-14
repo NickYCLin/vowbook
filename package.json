@@ -35,7 +35,7 @@
     "react-dom": "19.2.8",
     "read-excel-file": "^9.3.10",
     "server-only": "0.0.1",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
@@ -65,6 +65,6 @@
     "postcss": "8.5.26",
     "js-yaml": "4.3.2",
     "undici": "7.29.0",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
   }
 }
