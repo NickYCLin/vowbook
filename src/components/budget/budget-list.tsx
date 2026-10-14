@@ -539,13 +539,13 @@ function BudgetSummaryView({
       <dl
         data-card-surface="raised"
         data-budget-summary-layout="responsive"
-        data-mobile-layout="two-plus-one"
+        data-mobile-layout="single-then-two-plus-one"
         data-desktop-layout="three-columns"
-        className="grid min-w-0 grid-cols-2 overflow-hidden rounded-card border border-line bg-surface shadow-card sm:grid-cols-3"
+        className="grid min-w-0 grid-cols-1 overflow-hidden rounded-card border border-line bg-surface shadow-card min-[480px]:grid-cols-2 sm:grid-cols-3"
       >
         <div
           data-budget-summary-cell="planned"
-          className="min-w-0 border-r border-line px-3 py-2.5 sm:px-5 sm:py-4"
+          className="min-w-0 border-b border-line px-3 py-2.5 min-[480px]:border-r min-[480px]:border-b-0 sm:px-5 sm:py-4"
         >
           <dt className="text-xs text-ink-faint">預計總花費</dt>
           <dd className="mt-1 min-w-0">
@@ -608,7 +608,7 @@ function BudgetSummaryView({
         </div>
         <div
           data-budget-summary-cell="balance-due"
-          className="col-span-2 min-w-0 border-t border-line px-3 py-2.5 sm:col-span-1 sm:border-t-0 sm:border-l sm:px-5 sm:py-4"
+          className="min-w-0 border-t border-line px-3 py-2.5 min-[480px]:col-span-2 sm:col-span-1 sm:border-t-0 sm:border-l sm:px-5 sm:py-4"
         >
           <dt className="text-xs text-ink-faint">待付尾款</dt>
           <dd className="mt-1 min-w-0">
@@ -1155,7 +1155,7 @@ function BudgetItemRow({
       onClick={onToggleGroup}
       className={
         isFixedStage || isFixedItem
-          ? "inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-full text-clay-strong transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay motion-reduce:transition-none disabled:cursor-not-allowed disabled:text-ink-faint"
+          ? "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-clay-strong transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay motion-reduce:transition-none disabled:cursor-not-allowed disabled:text-ink-faint"
           : "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface text-clay-strong transition hover:border-line-strong hover:bg-clay-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-2 motion-reduce:transition-none disabled:cursor-not-allowed disabled:border-line-strong disabled:bg-surface-sunken disabled:text-ink-faint"
       }
     >
@@ -1203,7 +1203,7 @@ function BudgetItemRow({
       onClick={(event) => openDialog(event.currentTarget, "details")}
       className={
         isFixedStage || isFixedItem
-          ? "inline-flex min-h-10 max-w-full items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold text-ink-soft transition hover:bg-surface hover:text-clay-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
+          ? "inline-flex min-h-11 max-w-full items-center justify-center gap-1.5 rounded-full px-3 text-xs font-semibold text-ink-soft transition hover:bg-surface hover:text-clay-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay"
           : expenseActionClassName
       }
     >
@@ -3885,7 +3885,7 @@ export function BudgetList({
                               setTaxonomySelection({ workspaceId, itemId: null });
                             }}
                             className={[
-                              "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-1",
+                              "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-clay focus-visible:ring-offset-1",
                               selected
                                 ? "border-clay-strong bg-clay-strong text-white"
                                 : "border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink",

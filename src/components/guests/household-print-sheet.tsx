@@ -44,10 +44,10 @@ export function HouseholdPrintSheet({workspaceName,rows,kind,workspaceId}:{works
     <h3 className="font-serif text-lg font-semibold print:hidden">{group.label} · {countLabel(group.rows)}{collectedLabel(group.rows)}</h3>
     {group.rows.length?<div className="household-table-wrap mt-3 overflow-x-auto rounded-card border border-line">
      <table className="w-full table-fixed text-left text-sm">
-      <colgroup>{(cake?[70,12,18]:[64,24,12]).map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup>
+      <colgroup>{cake?<><col className="w-[60%] sm:w-[70%] print:w-[70%]"/><col className="w-[12%]"/><col className="w-[28%] sm:w-[18%] print:w-[18%]"/></>:[64,24,12].map((width,index)=><col key={index} style={{width:`${width}%`}}/>)}</colgroup>
       <thead className="bg-surface">
        <tr className="hidden print:table-row"><th colSpan={3} className="p-3 text-base">{group.label} · {countLabel(group.rows)}</th></tr>
-       <tr><th className={cake?"w-[70%] p-3":"w-[60%] p-3"}>姓名（稱謂）</th><th className={cake?"w-[12%] p-3":"w-1/5 p-3"}>{cake?"盒數":"禮金金額（元）"}</th><th className={cake?"w-[18%] p-3":"w-1/5 p-3"}>{cake?"領取勾選":"備註"}</th></tr>
+       <tr><th className={cake?"w-[60%] p-3 sm:w-[70%] print:w-[70%]":"w-[60%] p-3"}>姓名（稱謂）</th><th className={cake?"w-[12%] p-3":"w-1/5 p-3"}>{cake?"盒數":"禮金金額（元）"}</th><th className={cake?"w-[28%] p-3 sm:w-[18%] print:w-[18%]":"w-1/5 p-3"}>{cake?"領取勾選":"備註"}</th></tr>
       </thead>
       <tbody>{group.rows.map(row=><tr key={row.key} className="border-t border-line">
        <td className="break-words p-3">{householdLabel(row)}</td>

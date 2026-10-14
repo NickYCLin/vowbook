@@ -141,6 +141,23 @@ describeDatabase.sequential("PostgreSQL BudgetAttachment invariants", () => {
     await prisma.$disconnect();
   });
 
+  it("reuses concurrent identical mobile retries without reusing another uploader's receipt", async () => {
+    const owner = await createUser("retry");
+    const partner = await createUser("retry-partner");
+    const workspace = await createWorkspace(owner.id, "附件重試測試");
+    const expense = await createBudgetItem(workspace.id);
+    const input = { ...uploadInput(workspace.id, expense.id, owner.id), reuseIdentical: true };
+    const [first, second] = await Promise.all([createBudgetAttachment(input), createBudgetAttachment(input)]);
+    expect(first.id).toBe(second.id);
+    expect(await prisma.budgetAttachment.count({ where: { workspaceId: workspace.id } })).toBe(1);
+    await prisma.membership.create({ data: { workspaceId: workspace.id, userId: partner.id, role: "PARTNER" } });
+    const other = await createBudgetAttachment({ ...input, currentUserId: partner.id });
+    expect(other.id).not.toBe(first.id);
+    await prisma.membership.update({ where: { workspaceId_userId: { workspaceId: workspace.id, userId: partner.id } }, data: { role: "VIEWER" } });
+    await expect(createBudgetAttachment({ ...input, currentUserId: partner.id })).rejects.toThrow(BudgetAttachmentPermissionError);
+    expect(await prisma.budgetAttachment.count({ where: { workspaceId: workspace.id } })).toBe(2);
+  });
+
   it("enforces bytea, tenant/uploader FKs, signatures, hash, size, EXPENSE-only, and cascade", async () => {
     const owner = await createUser("constraints");
     const workspace = await createWorkspace(owner.id, "附件 constraint");

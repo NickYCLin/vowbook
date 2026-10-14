@@ -15,9 +15,9 @@ export function CakeCollectedCheckbox({workspaceId,guestIds,names,collected}:{wo
   });
  };
  return <>
-  <label className="inline-flex cursor-pointer items-center gap-2 print:hidden">
+  <label className="inline-flex min-h-11 min-w-11 cursor-pointer flex-col items-center justify-center gap-1 sm:flex-row sm:gap-2 print:hidden">
    <input type="checkbox" className="h-6 w-6 shrink-0 cursor-pointer" checked={checked} disabled={pending} onChange={event=>toggle(event.currentTarget.checked)} aria-label={`標記 ${names} 已領取喜餅`}/>
-   <span className={`text-xs ${checked?"text-ink":"text-ink-soft"}`}>{checked?"已領":"未領"}</span>
+   <span className={`whitespace-nowrap text-xs ${checked?"text-ink":"text-ink-soft"}`}>{checked?"已領":"未領"}</span>
   </label>
   <span aria-hidden className="cake-check-box hidden h-6 w-6 border border-ink align-middle print:inline-block"/>
   {error?<p role="alert" className="mt-1 text-xs text-red-700 print:hidden">{error}</p>:null}

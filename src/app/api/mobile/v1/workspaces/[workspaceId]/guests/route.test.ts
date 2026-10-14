@@ -29,6 +29,12 @@ describe("手機新增賓客 API", () => {
     expect(mocks.create).toHaveBeenCalledWith("workspace_1", "server-user", guest);
   });
 
+  it("新增可帶身份與自由稱謂，不把稱謂當身份", async () => {
+    const fields = { ...guest, category: "FAMILY", relationshipLabel: "姊姊" };
+    expect((await POST(post(fields), context)).status).toBe(201);
+    expect(mocks.create).toHaveBeenCalledWith("workspace_1", "server-user", fields);
+  });
+
   it("拒絕白名單以外的欄位", async () => {
     for (const field of ["userId", "workspaceId", "role", "seatingTableId", "version"]) {
       expect((await POST(post({ ...guest, [field]: "x" }), context)).status).toBe(400);

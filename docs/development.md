@@ -91,6 +91,20 @@ Compose 會在檔案存在時把 `.env.admin` 只載入 app container；沒有�
 
 ## 驗證
 
+### 行動 API 與公開說明頁
+
+本 repository 包含行動 API，不包含原生 App、Xcode 專案或原生 UI 驗收工具。Apple 身分驗證的 audience 以 `src/lib/mobile/apple-sign-in.ts` 為準；自架者須使用相符的 client 設定，不可把別人的識別碼或金鑰當成自己的。
+
+Apple 刪帳需 `APPLE_SIGN_IN_TEAM_ID`、`APPLE_SIGN_IN_KEY_ID`、`APPLE_SIGN_IN_PRIVATE_KEY` 與既有 `AUTH_SECRET`。前述值僅留在部署環境；範例檔中的 Apple 欄位預設註解，不影響只使用 Google 的網站。私人金鑰須為 PKCS#8 PEM。刪帳會重新確認 Apple 身分、交換授權、加密保存待撤銷 token，撤銷成功後才刪除；失敗保留帳號供重試，共享婚宴仍受交接與成員保護。開發測試使用 mock，不應以真實帳號測撤銷或刪除。
+
+使用本 repository 的 Compose 時，三個選用 Apple 變數須放在被 git 忽略的 `.env.admin`，由既有 app `env_file` 載入；只在 `.env` 取消註解不會轉送這三個變數。不要把實際金鑰放進範例檔，也不要輸出展開後的 Compose 環境設定。
+
+`/privacy`／`/support` 不要求登入。文案依產品功能整理，包含原生 client 的使用說明，但公開測試只讀本 repository 內的服務端證據，不代表原生裝置已驗收。自架者必須另核對維運政策與客服資料，不可直接視為正式合規文件。
+
+行動 API 建立賓客接受選用 `relationshipLabel`；舊 client 不提供時仍可使用。行動收據重試只重用同工作區、同花費、同上傳者及相同檔名／格式／內容的既有附件，仍先驗證成員權限；不是永久的 idempotency key。
+
+### 必要檢查
+
     npm run lint
     npm run typecheck
     npm test

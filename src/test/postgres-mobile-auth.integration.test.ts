@@ -4,6 +4,8 @@ import { issueLoginGrant, exchangeGrant, requireMobileUser, revokeMobileSession 
 import { pkceChallenge, digest } from "@/lib/mobile/protocol";
 import { listWorkspaceOverviewsForUser } from "@/lib/workspace-overview";
 import { createWorkspaceForUser } from "@/lib/create-workspace";
+import { AccountDeletionReauthenticationError, deleteOwnAccount } from "@/lib/account-deletion";
+import { prepareAppleAccountDeletion } from "@/lib/mobile/apple-account-deletion";
 const suite = process.env.VOWBOOK_DB_INTEGRATION === "1" ? describe : describe.skip;
 const prefix = `mobile-it-${process.pid}-`;
 let sequence = 0;
@@ -31,6 +33,20 @@ suite("mobile authorization against PostgreSQL", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].tokenHash).toBe(digest(winner.value.token));
     expect(await prisma.mobileLoginGrant.count({ where: { codeHash: digest(code) } })).toBe(0);
+  });
+
+  it("guards Apple deletion in the database and preserves resumable revocation until deletion", async () => {
+    const identity = await user();
+    await prisma.user.update({ where: { id: identity.id }, data: { appleSubject: `${prefix}apple` } });
+    const challenge = await prepareAppleAccountDeletion(identity.id, true);
+    const stored = await prisma.user.findUniqueOrThrow({ where: { id: identity.id } });
+    expect(stored.appleDeletionNonceHash).toBe(digest(challenge.nonce!));
+    expect(stored.appleDeletionNonceHash).not.toBe(challenge.nonce);
+    await expect(deleteOwnAccount(identity.id, identity.email)).rejects.toBeInstanceOf(AccountDeletionReauthenticationError);
+    await prisma.user.update({ where: { id: identity.id }, data: { appleDeletionRevokedAt: new Date() } });
+    expect(await prepareAppleAccountDeletion(identity.id, true)).toEqual({ nonce: null, resume: true });
+    await expect(deleteOwnAccount(identity.id, identity.email)).resolves.toMatchObject({ deletedWorkspaceCount: 0 });
+    expect(await prisma.user.findUnique({ where: { id: identity.id } })).toBeNull();
   });
   it("rejects wrong PKCE without consuming the legitimate grant, expired codes and blocked users", async () => {
     const identity = await user();

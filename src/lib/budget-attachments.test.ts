@@ -71,6 +71,37 @@ describe("budget attachment service", () => {
     });
   });
 
+  it("reuses an identical mobile retry only after checking membership and expense", async () => {
+    tx.budgetAttachment.findFirst.mockResolvedValueOnce({
+      id: "attachment_1", originalName: "場地合約.pdf", mediaType: "application/pdf",
+      byteSize: pdf.byteLength, createdAt,
+    });
+    const result = await createBudgetAttachment({
+      workspaceId: "workspace_1", budgetItemId: "expense_1", currentUserId: "user_1",
+      originalName: "場地合約.pdf", mediaType: "application/pdf", data: pdf, reuseIdentical: true,
+    });
+    expect(result.id).toBe("attachment_1");
+    expect(tx.budgetAttachment.findFirst).toHaveBeenCalledWith({
+      where: { workspaceId: "workspace_1", budgetItemId: "expense_1", uploadedByUserId: "user_1",
+        originalName: "場地合約.pdf", mediaType: "application/pdf", sha256: createHash("sha256").update(pdf).digest("hex") },
+      select: { id: true, originalName: true, mediaType: true, byteSize: true, createdAt: true },
+    });
+    expect(tx.$executeRaw).toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(tx.budgetItem.findUnique).toHaveBeenCalled();
+    expect(tx.budgetAttachment.create).not.toHaveBeenCalled();
+    expect(tx.budgetAttachment.count).not.toHaveBeenCalled();
+  });
+
+  it("does not look for a reusable receipt when editor access was removed", async () => {
+    tx.$queryRaw.mockResolvedValueOnce([{ role: "VIEWER" }]);
+    await expect(createBudgetAttachment({
+      workspaceId: "workspace_1", budgetItemId: "expense_1", currentUserId: "user_1",
+      originalName: "場地合約.pdf", mediaType: "application/pdf", data: pdf, reuseIdentical: true,
+    })).rejects.toThrow(BudgetAttachmentPermissionError);
+    expect(tx.budgetAttachment.findFirst).not.toHaveBeenCalled();
+  });
+
   it("preflights editor membership and the composite EXPENSE target before multipart parsing", async () => {
     await assertBudgetAttachmentUploadAccess({
       workspaceId: "workspace_1",

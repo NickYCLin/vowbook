@@ -225,6 +225,7 @@ export async function createBudgetAttachment(
     originalName: string;
     mediaType: string;
     data: Uint8Array;
+    reuseIdentical?: boolean;
   },
   limits: BudgetAttachmentLimits = DEFAULT_LIMITS,
 ): Promise<BudgetAttachmentMetadata> {
@@ -250,6 +251,20 @@ export async function createBudgetAttachment(
       input.workspaceId,
       input.budgetItemId,
     );
+
+    if (input.reuseIdentical) {
+      const existing = await transaction.budgetAttachment.findFirst<{
+        id: string; originalName: string; mediaType: string; byteSize: number; createdAt: Date;
+      }>({
+        where: {
+          workspaceId: input.workspaceId, budgetItemId: input.budgetItemId,
+          uploadedByUserId: input.currentUserId, originalName: validated.originalName,
+          mediaType: validated.mediaType, sha256: validated.sha256,
+        },
+        select: { id: true, originalName: true, mediaType: true, byteSize: true, createdAt: true },
+      });
+      if (existing) return metadata(existing);
+    }
 
     const itemAttachmentCount = await transaction.budgetAttachment.count({
       where: {

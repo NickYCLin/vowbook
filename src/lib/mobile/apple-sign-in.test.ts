@@ -81,6 +81,16 @@ describe("Sign in with Apple", () => {
     expect(m.update.mock.calls[0][0].data).not.toHaveProperty("name");
   });
 
+  it("撤銷後重新登入不沿用舊刪帳證明，正在撤銷時不能再發登入憑證", async () => {
+    m.findUnique.mockResolvedValue({ id: "u1", accessStatus: "ACTIVE", appleDeletionRevokedAt: new Date() });
+    await signInWithApple(body(), verified());
+    expect(m.update.mock.calls[0][0].data).toMatchObject({ appleDeletionRevokedAt: null, appleDeletionNonceHash: null });
+    m.sessionCreate.mockClear();
+    m.findUnique.mockResolvedValue({ id: "u1", accessStatus: "ACTIVE", appleDeletionLeaseUntil: new Date(Date.now() + 60_000) });
+    await expect(signInWithApple(body(), verified())).rejects.toMatchObject({ code: "DELETION_PENDING" });
+    expect(m.sessionCreate).not.toHaveBeenCalled();
+  });
+
   it("多送欄位或 nonce 太短就擋下", async () => {
     await expect(signInWithApple(body({ userId: "evil" }), verified())).rejects.toMatchObject({ status: 400 });
     await expect(signInWithApple(body({ nonce: "short" }), verified())).rejects.toMatchObject({ status: 400 });

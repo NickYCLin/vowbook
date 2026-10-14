@@ -5,7 +5,7 @@ import { mobileCreateGuest, mobileGuestList } from "@/lib/mobile/workspace-data"
 
 export const runtime = "nodejs";
 
-const GUEST_FIELDS = ["name", "category", "seniority", "side", "attendanceStatus", "partySize", "notes"];
+const GUEST_FIELDS = ["name", "category", "seniority", "side", "attendanceStatus", "partySize", "notes", "relationshipLabel"];
 
 export async function GET(
   request: Request,

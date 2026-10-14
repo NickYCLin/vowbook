@@ -62,6 +62,10 @@ A wedding planning app for couples and planners to manage guests, seating, budge
 
 婚禮當天常用的功能另有原生 App，透過 `src/app/api/mobile/v1/` 讀寫同一份資料；本 repository 只包含服務端，不含 App 專案。
 
+服務端包含 Apple 帳號重新確認、授權撤銷及刪帳保護，以及行動 API 收據重試時的相同附件重用；這不表示本 repository 提供可安裝的 App 或已完成裝置驗收。Apple 刪帳需要部署者設定對應金鑰，未設定時會拒絕刪除並保留帳號。
+
+`/privacy` 與 `/support` 可匿名閱讀目前功能的資料使用與操作說明，頁面明示待維運確認；不是可直接套用的正式隱私政策。自架者需確認自己的資料流、保存方式與聯絡管道。
+
 ## 誰可以查看與修改
 
 每場婚宴有自己的工作區，只有加入該工作區的成員才能存取。成員以各自的帳號協作。
