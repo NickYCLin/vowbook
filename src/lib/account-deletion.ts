@@ -25,7 +25,7 @@ export class AccountDeletionConfirmationError extends Error {
 export class AccountDeletionBlockedError extends Error {
   constructor(public readonly workspaceNames: string[]) {
     super(
-      `「${workspaceNames.join("」「")}」還有其他協作者，但沒有伴侶可以接手。請先到網站移除協作者或刪掉這場婚宴，再刪除帳號。`,
+      `「${workspaceNames.join("」「")}」還有其他協作者，但沒有伴侶可以接手。請先管理協作者，再刪除帳號。`,
     );
     this.name = "AccountDeletionBlockedError";
   }
@@ -35,6 +35,13 @@ export class AccountDeletionMissingError extends Error {
   constructor() {
     super("找不到這個帳號，可能已經刪除。");
     this.name = "AccountDeletionMissingError";
+  }
+}
+
+export class AccountDeletionReauthenticationError extends Error {
+  constructor() {
+    super("請先完成 Apple 帳號確認與撤銷，再刪除帳號。");
+    this.name = "AccountDeletionReauthenticationError";
   }
 }
 
@@ -59,7 +66,7 @@ export type AccountDeletionPlan = {
 };
 
 async function planFor(tx: Tx, userId: string): Promise<AccountDeletionPlan> {
-  const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true, appleSubject: true, appleDeletionRevokedAt: true } });
   if (!user) throw new AccountDeletionMissingError();
 
   const workspaces = await tx.weddingWorkspace.findMany({
@@ -114,6 +121,7 @@ export async function previewAccountDeletion(
     left: plan.left.map((item) => item.name),
     handedOver: plan.handedOver.map((item) => item.name),
     blocked: plan.blocked.map((item) => item.name),
+    blockedWorkspaces: plan.blocked,
   };
 }
 
@@ -123,6 +131,8 @@ export async function deleteOwnAccount(
   client: Pick<PrismaClient, "$transaction"> = prisma,
 ) {
   return runSerializableTransaction(async (tx) => {
+    const identity = await tx.user.findUnique({ where: { id: userId }, select: { appleSubject: true, appleDeletionRevokedAt: true } });
+    if (identity?.appleSubject && !identity.appleDeletionRevokedAt) throw new AccountDeletionReauthenticationError();
     const plan = await planFor(tx, userId);
     let typed: string;
     try {

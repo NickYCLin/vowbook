@@ -59,6 +59,9 @@ function offlineStubs() {
       }
 
       const normalized = id.replace(/\\/g, "/");
+      if (normalized.endsWith("/src/auth.ts")) {
+        return "export const authOptions = {};";
+      }
       if (normalized.includes("/src/actions/")) {
         const source = await readFile(id.split("?")[0], "utf8");
         const names = new Set();
@@ -187,7 +190,15 @@ async function main() {
 
   const stylesheet = await findBuiltStylesheet();
   const css = await readFile(stylesheet, "utf8");
-  const surfaces = await bundleFixtures();
+  const allSurfaces = await bundleFixtures();
+  const requested = process.argv.slice(2).map((argument) => {
+    if (!argument.startsWith("--surface=")) throw new Error("Unknown RWD audit argument");
+    return argument.slice("--surface=".length);
+  });
+  if (requested.some((name) => !allSurfaces.some((surface) => surface.name === name))) {
+    throw new Error("Unknown RWD audit surface");
+  }
+  const surfaces = requested.length ? allSurfaces.filter((surface) => requested.includes(surface.name)) : allSurfaces;
 
   for (const surface of surfaces) {
     const html = `<!doctype html>

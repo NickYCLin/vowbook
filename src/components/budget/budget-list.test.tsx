@@ -2035,9 +2035,9 @@ describe("BudgetList", () => {
     expect(
       summaryRegion?.querySelectorAll("[data-budget-summary-cell]"),
     ).toHaveLength(3);
-    expect(layout).toHaveAttribute("data-mobile-layout", "two-plus-one");
+    expect(layout).toHaveAttribute("data-mobile-layout", "single-then-two-plus-one");
     expect(layout).toHaveAttribute("data-desktop-layout", "three-columns");
-    expect(layout).toHaveClass("grid-cols-2", "sm:grid-cols-3");
+    expect(layout).toHaveClass("grid-cols-1", "min-[480px]:grid-cols-2", "sm:grid-cols-3");
 
     const plannedCell = container.querySelector(
       '[data-budget-summary-cell="planned"]',
@@ -2055,7 +2055,7 @@ describe("BudgetList", () => {
     expect(balanceDueCell).toHaveTextContent("已逾期 1 筆");
     expect(balanceDueCell).toHaveTextContent("1 筆花費未填金額");
     expect(balanceDueCell).toHaveClass(
-      "col-span-2",
+      "min-[480px]:col-span-2",
       "sm:col-span-1",
       "sm:border-l",
     );

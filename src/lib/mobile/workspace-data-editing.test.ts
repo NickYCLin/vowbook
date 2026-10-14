@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   taskCreate: vi.fn(),
   taskUpdateMany: vi.fn(),
   taskDeleteMany: vi.fn(),
+  records: vi.fn(),
+  upsert: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -22,6 +24,7 @@ import {
 } from "./workspace-data";
 
 const client = {
+  guestImportRecord: { findMany: mocks.records, upsert: mocks.upsert },
   guest: { create: mocks.guestCreate },
   weddingTask: {
     create: mocks.taskCreate,
@@ -42,6 +45,7 @@ describe("手機新增賓客", () => {
     vi.clearAllMocks();
     mocks.locked.mockResolvedValue("PARTNER");
     mocks.guestCreate.mockResolvedValue({ id: "guest_9", version: 0 });
+    mocks.records.mockResolvedValue([]);
     mocks.transaction.mockImplementation(async (callback: (value: unknown) => unknown) => callback(client));
   });
 
@@ -70,6 +74,22 @@ describe("手機新增賓客", () => {
     await expect(mobileCreateGuest("workspace_1", "user_1", { ...guest, name: " " }))
       .rejects.toMatchObject({ status: 400 });
     expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
+  it("過長關係輸入不開交易、不新增半筆賓客", async () => {
+    await expect(mobileCreateGuest("workspace_1", "user_1", { ...guest, relationshipLabel: "姊".repeat(1000) }))
+      .rejects.toMatchObject({ status: 400 });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.guestCreate).not.toHaveBeenCalled();
+  });
+
+  it("新增身份與關係分開保存，舊 client 不建立空的細項紀錄", async () => {
+    await mobileCreateGuest("workspace_1", "user_1", guest);
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    await mobileCreateGuest("workspace_1", "user_1", { ...guest, category: "FAMILY", relationshipLabel: " 姊姊 " });
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ workspaceId: "workspace_1", guestId: "guest_9", relationshipLabel: "姊姊", sourceManaged: false }),
+    }));
   });
 
   it("新郎已經存在時講清楚，不回成系統錯誤", async () => {

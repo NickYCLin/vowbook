@@ -314,6 +314,7 @@ export async function mobileCreateGuest(
   fields: Record<string, unknown>,
 ) {
   let input: NormalizedGuestInput;
+  let details: ReturnType<typeof guestDetailsFromFields>;
   try {
     input = normalizeGuestInput({
       name: fields.name,
@@ -324,6 +325,7 @@ export async function mobileCreateGuest(
       partySize: fields.partySize,
       notes: fields.notes,
     });
+    details = guestDetailsFromFields(fields, input.partySize);
   } catch (error) {
     if (error instanceof GuestValidationError) {
       throw new MobileRequestError(400, "VALIDATION", error.message);
@@ -341,6 +343,9 @@ export async function mobileCreateGuest(
         data: { workspaceId, ...input, seniority: effectiveGuestSeniority(input.seniority) },
         select: { id: true, version: true },
       });
+      if (details) {
+        await upsertManualGuestDetails(transaction as unknown as Prisma.TransactionClient, workspaceId, guest.id, details);
+      }
       return { id: guest.id, name: input.name, version: guest.version };
     });
   } catch (error) {

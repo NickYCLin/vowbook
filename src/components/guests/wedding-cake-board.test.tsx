@@ -66,6 +66,7 @@ it("provides a print action and one blank marking box per household",()=>{
  const print=vi.spyOn(window,"print").mockImplementation(()=>{});
  render(<WeddingCakeBoard workspaceId="w" data={data}/>);
  expect(screen.getAllByRole("checkbox",{name:/已領取喜餅$/})).toHaveLength(1);
+ for(const checkbox of screen.getAllByRole("checkbox",{name:/已領取喜餅$/})) expect(checkbox.closest("label")).toHaveClass("min-h-11");
  expect(screen.getByRole("columnheader",{name:"領取勾選"})).toBeInTheDocument();
  fireEvent.click(screen.getByRole("button",{name:"列印發餅名單／另存 PDF"}));
  expect(print).toHaveBeenCalledOnce();print.mockRestore();

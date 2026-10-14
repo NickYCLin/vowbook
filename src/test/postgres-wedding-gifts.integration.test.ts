@@ -104,7 +104,7 @@ describeDatabase.sequential("PostgreSQL wedding gift invariants", () => {
     expect(await prisma.guest.findUnique({ where: { id: guest.id } })).toMatchObject({ giftExemptWithCake: false, version: 2 });
   });
 
-  it("reads the effective relationship from tenant-scoped detail records", async () => {
+  it("allows a family member's actual gift without changing the relationship default", async () => {
     const owner = await createUser("relationship");
     authState.userId = owner.id;
     const workspace = await createWorkspace(owner.id, "親屬規則測試");
@@ -114,8 +114,10 @@ describeDatabase.sequential("PostgreSQL wedding gift invariants", () => {
       source: "MANUAL", sourceInstance: "guest-details", sourceLabel: "人工明細",
       sourceManaged: false, managedFields: [], externalId: guest.id, relationshipLabel: "父親",
     } });
-    await expect(createWeddingGiftAction(workspace.id, guest.id, idleState, giftForm())).resolves.toMatchObject({ status: "error", code: "VALIDATION" });
-    expect(await prisma.weddingGift.count({ where: { guestId: guest.id } })).toBe(0);
+    await expect(createWeddingGiftAction(workspace.id, guest.id, idleState, giftForm())).resolves.toMatchObject({ status: "success" });
+    expect(await prisma.weddingGift.count({ where: { guestId: guest.id } })).toBe(1);
+    expect(await prisma.guestImportRecord.findUnique({ where: { id: detail.id } })).toMatchObject({ relationshipLabel: "父親" });
+    await prisma.weddingGift.deleteMany({ where: { guestId: guest.id, workspaceId: workspace.id } });
     await prisma.guestImportRecord.update({ where: { id: detail.id }, data: { relationshipLabel: null } });
     await expect(createWeddingGiftAction(workspace.id, guest.id, idleState, giftForm())).resolves.toMatchObject({ status: "success" });
   });

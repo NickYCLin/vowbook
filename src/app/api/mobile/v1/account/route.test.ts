@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), preview: vi.fn(), remove: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), preview: vi.fn(), remove: vi.fn(), appleRemove: vi.fn(), prepare: vi.fn() }));
+vi.mock("@/lib/mobile/apple-account-deletion", () => ({ deleteAppleAccount: mocks.appleRemove, prepareAppleAccountDeletion: mocks.prepare }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/mobile/session", () => ({ requireMobileUser: mocks.user }));
 vi.mock("@/lib/account-deletion", async (original) => ({
@@ -11,7 +12,7 @@ vi.mock("@/lib/account-deletion", async (original) => ({
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
 import { AccountDeletionBlockedError, AccountDeletionConfirmationError } from "@/lib/account-deletion";
-import { DELETE, GET } from "./route";
+import { DELETE, GET, POST } from "./route";
 
 const send = (method: string, value?: unknown) =>
   new Request("https://example.test", {
@@ -53,5 +54,18 @@ describe("手機刪除帳號 API", () => {
     const { MobileRequestError } = await import("@/lib/mobile/protocol");
     mocks.user.mockRejectedValueOnce(new MobileRequestError(401, "UNAUTHORIZED", "登入已失效"));
     expect((await DELETE(send("DELETE", { confirmationEmail: "a@b.c" }))).status).toBe(401);
+  });
+
+  it("Apple 不能繞過重新驗證與撤銷，body 也不能換帳號", async () => {
+    mocks.user.mockResolvedValue({ id: "server-user", appleSubject: "apple" });
+    mocks.prepare.mockResolvedValue({ nonce: "server-nonce", resume: false });
+    expect((await POST(send("POST"))).status).toBe(200);
+    expect(mocks.prepare).toHaveBeenCalledWith("server-user");
+    mocks.appleRemove.mockResolvedValue({ deletedWorkspaceCount: 0, leftWorkspaceCount: 0 });
+    const body = { confirmationEmail: "a@b.c", identityToken: "token", authorizationCode: "code", nonce: "server-nonce" };
+    expect((await DELETE(send("DELETE", body))).status).toBe(200);
+    expect(mocks.appleRemove).toHaveBeenCalledWith("server-user", body);
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect((await DELETE(send("DELETE", { ...body, userId: "other" }))).status).toBe(400);
   });
 });

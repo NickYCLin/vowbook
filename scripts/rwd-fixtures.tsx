@@ -20,14 +20,16 @@ import { WeddingCakeBoard } from "@/components/guests/wedding-cake-board";
 import { HandoffBoard } from "@/components/handoffs/handoff-board";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import HomePage from "@/app/page";
+import { HomeLanding } from "@/app/page";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { SystemUserList } from "@/components/admin/system-user-list";
 import { BudgetList } from "@/components/budget/budget-list";
+import { BudgetAttachments } from "@/components/budget/budget-attachments";
 import SignInPage from "@/app/signin/page";
 import { CreateWorkspaceForm } from "@/components/workspaces/create-workspace-form";
 import { GuestCheckInBoard } from "@/components/check-in/guest-check-in-board";
 import { GuestList } from "@/components/guests/guest-list";
+import { CreateGuestDialog } from "@/components/guests/guest-forms";
 import { WeddingGiftBook } from "@/components/guests/wedding-gift-book";
 import { SeatingChart } from "@/components/tables/seating-chart";
 import { SeatingChartStage } from "@/components/tables/seating-chart-stage";
@@ -387,6 +389,15 @@ const budgetSummary = {
 };
 
 const surfaces: { name: string; element: ReactNode }[] = [
+  {
+    name: "guest-form-ui-reference",
+    element: <AppShell><CreateGuestDialog workspaceId="workspace_rwd" /></AppShell>,
+  },
+  {
+    name: "receipts-ui-reference",
+    element: <AppShell><BudgetAttachments workspaceId="workspace_rwd" budgetItemId="expense_rwd" canEdit={true}
+      initialAttachments={[{id: "receipt_rwd", originalName: "合成收據.pdf", mediaType: "application/pdf", byteSize: 1200, createdAt: "2026-10-14T00:00:00.000Z"}]}/></AppShell>,
+  },
   {name:"seating-print",element:<AppShell><SeatingPrintSheet workspaceName={LONG_NAME} data={seatingPrintData([{id:"t",number:5,name:LONG_NAME,capacity:12,guests:[{id:"g",name:LONG_NAME,partySize:3,vegetarianCount:1,childSeatCount:1}]}],[{id:"u",name:LONG_NAME,partySize:2}],{relationships:new Map([["g",LONG_NAME]]),households:new Map()})}/></AppShell>},
   {name:"staff-print",element:<AppShell><OperationsPrintSheet workspaceName={LONG_NAME} title="工作人員便當發放清單" instructions="當天發便當逐人勾選。" data={staffPrintData([{id:"a",roleName:LONG_NAME,personName:LONG_NAME,notes:LONG_NAME,mealCount:3,vegetarianMealCount:1,redEnvelopeAmount:3600},{id:"b",roleName:"主持",personName:"工作人員乙",notes:null,mealCount:2,vegetarianMealCount:null,redEnvelopeAmount:1200}])}/></AppShell>},
   {name:"balance-print",element:<AppShell><BalancePrintSheet workspaceName={LONG_NAME} data={balanceSheetData([{id:"a",name:LONG_NAME,kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:LONG_NAME,vendorContact:LONG_NAME,balanceAmount:12000,dueDate:"2026-10-01",notes:LONG_NAME,additionalAmount:1000,balancePaymentMethod:"BANK_TRANSFER"},{id:"mua",name:"新娘秘書",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:"新秘工作室",vendorContact:null,balanceAmount:8000,dueDate:"2026-10-03",notes:"尾款以紅包方式當天交付",additionalAmount:null,balancePaymentMethod:"RED_ENVELOPE"},{id:"b",name:"待確認廠商",kind:"EXPENSE",preparationStatus:"NEEDS_ACTION",bookingStatus:"BOOKED_BALANCE_DUE",paid:false,confirmedVendor:null,vendorContact:null,balanceAmount:null,dueDate:null,notes:null,additionalAmount:null}],[{id:"s1",personName:LONG_NAME,roleName:"主持",contactPhone:null,notes:null,redEnvelopeAmount:2000,redEnvelopeSentAt:null}])}/></AppShell>},
@@ -1548,7 +1559,7 @@ export async function renderSurfaces(): Promise<
   { name: string; body: string }[]
 > {
   const publicPages: { name: string; element: ReactNode }[] = [
-    { name: "home", element: <HomePage /> },
+    { name: "home", element: <HomeLanding /> },
     {
       name: "signin",
       element: await SignInPage({

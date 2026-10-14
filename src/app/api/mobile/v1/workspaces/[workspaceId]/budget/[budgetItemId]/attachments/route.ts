@@ -48,6 +48,7 @@ export async function POST(
       originalName: file.name,
       mediaType: file.type,
       data: new Uint8Array(await file.arrayBuffer()),
+      reuseIdentical: true,
     });
     return mobileJSON({ attachment }, 201);
   } catch (error) {

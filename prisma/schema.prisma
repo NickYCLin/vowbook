@@ -164,6 +164,11 @@ model User {
   /// Google 與 Apple 各自是獨立帳號，不依 Email 合併；至少要有一個（見 migration 的 CHECK）。
   googleSubject             String?            @unique @map("google_subject")
   appleSubject              String?            @unique @map("apple_subject")
+  appleDeletionNonceHash    String?            @db.VarChar(64) @map("apple_deletion_nonce_hash")
+  appleDeletionExpiresAt    DateTime?          @db.Timestamptz(3) @map("apple_deletion_expires_at")
+  appleDeletionToken        String?            @map("apple_deletion_token")
+  appleDeletionRevokedAt    DateTime?          @db.Timestamptz(3) @map("apple_deletion_revoked_at")
+  appleDeletionLeaseUntil   DateTime?          @db.Timestamptz(3) @map("apple_deletion_lease_until")
   email                     String
   name                      String?
   image                     String?

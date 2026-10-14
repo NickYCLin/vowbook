@@ -6,6 +6,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 import {
   AccountDeletionBlockedError,
   AccountDeletionConfirmationError,
+  AccountDeletionReauthenticationError,
   deleteOwnAccount,
   previewAccountDeletion,
 } from "./account-deletion";
@@ -59,6 +60,7 @@ describe("刪除自己的帳號", () => {
       left: ["有另一位擁有者"],
       handedOver: ["伴侶接手"],
       blocked: ["只剩婚顧"],
+      blockedWorkspaces: [{ id: "w4", name: "只剩婚顧" }],
     });
   });
 
@@ -68,6 +70,13 @@ describe("刪除自己的帳號", () => {
       AccountDeletionConfirmationError,
     );
     await expect(deleteOwnAccount("me", 42, client)).rejects.toBeInstanceOf(AccountDeletionConfirmationError);
+    expect(tx.user.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("Apple 尚未撤銷時，直接呼叫本地刪帳也會擋下", async () => {
+    const { tx, client } = fakeClient([solo]);
+    tx.user.findUnique.mockResolvedValue({ email: "me@example.com", appleSubject: "apple" } as never);
+    await expect(deleteOwnAccount("me", "me@example.com", client)).rejects.toBeInstanceOf(AccountDeletionReauthenticationError);
     expect(tx.user.deleteMany).not.toHaveBeenCalled();
   });
 

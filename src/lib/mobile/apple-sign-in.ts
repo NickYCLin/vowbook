@@ -77,12 +77,18 @@ export async function signInWithApple(body: unknown, verify: Verify = verifyWith
     if (existing && existing.accessStatus !== "ACTIVE") {
       throw new MobileRequestError(403, "BLOCKED", "這個帳號目前無法登入。");
     }
+    if (existing?.appleDeletionLeaseUntil && existing.appleDeletionLeaseUntil.getTime() > Date.now()) {
+      throw new MobileRequestError(409, "DELETION_PENDING", "刪帳確認正在處理，請稍後重試。");
+    }
     // Apple 之後登入不會再給名字，只在第一次或原本沒有名字時寫入。
     const user = existing
       ? await tx.user.update({
           where: { id: existing.id },
           data: {
             lastLoginAt: new Date(),
+            ...(existing.appleDeletionRevokedAt ? {
+              appleDeletionRevokedAt: null, appleDeletionNonceHash: null, appleDeletionExpiresAt: null,
+            } : {}),
             ...(identity.email ? { email: identity.email } : {}),
             ...(!existing.name && input.name ? { name: input.name } : {}),
           },

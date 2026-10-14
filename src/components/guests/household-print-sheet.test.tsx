@@ -12,6 +12,7 @@ it("keeps zero-box households for reference without a collection checkbox",()=>{
  expect(within(noCollection).getByText("當日不領取")).toBeInTheDocument();
  expect(within(noCollection).queryByRole("img",{name:"領取勾選框"})).not.toBeInTheDocument();
  expect(screen.getAllByRole("img",{name:"領取勾選框"})).toHaveLength(1);
+ expect(document.querySelector("colgroup col:last-child")).toHaveClass("w-[28%]", "print:w-[18%]");
  expect(screen.getByRole("heading",{level:2})).toHaveTextContent("共 1 盒");
 });
 it("prints gift households with a blank amount column and exemption notes",()=>{

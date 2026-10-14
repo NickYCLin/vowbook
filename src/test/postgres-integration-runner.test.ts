@@ -11,30 +11,11 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("freshSchemaName");
     expect(runner).toContain("upgradeSchemaName");
     expect(runner).toContain("productionDriftSchemaName");
+    expect(runner).not.toMatch(/migrationEntries\.at\(/);
+    expect(runner).not.toContain("migrationEntries.length !== 63");
+    expect(runner).toContain('migrationEntries.find((entry) => entry === "20261001160000_packing_item_category")');
     expect(runner).toContain("runPriorHeadUpgrade");
     expect(runner).toContain("runProductionDriftRepair");
-    expect(runner).toMatch(/migrationEntries\.at\(-1\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-2\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-3\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-4\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-5\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-6\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-7\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-8\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-9\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-10\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-11\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-12\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-13\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-14\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-15\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-16\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-17\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-18\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-19\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-20\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-21\)/);
-    expect(runner).toMatch(/migrationEntries\.at\(-22\)/);
     expect(runner).toContain("budgetBalancePaymentMethodMigration");
     expect(runner).toContain("seatingScenarioMigration");
     expect(runner).toContain("mealUnitPricesMigration");
@@ -208,7 +189,7 @@ describe("PostgreSQL canonical integration runner", () => {
     expect(runner).toContain("usersEmailUniqueIndex");
     expect(runner).toContain("usersEmailIndexes");
     expect(runner).toContain("prior-${runId}@example.test");
-    expect(runner).toContain("migrationEntries.length !== 63");
+    expect(runner).toContain("migrationEntries.length < 63");
     expect(runner).toContain(
       'packingCategoryMigration !== "20261001160000_packing_item_category"',
     );
