@@ -150,6 +150,16 @@ describe("budget attachment sanitized preview", () => {
     },
   );
 
+  it("rejects SVG content disguised as an accepted raster receipt", async () => {
+    const data = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="5"><rect width="8" height="5" fill="brown"/></svg>',
+    );
+    for (const mediaType of ["image/png", "image/jpeg", "image/webp"] as const) {
+      await expect(sanitizeBudgetAttachmentPreviewUncachedForTests({ data, mediaType }))
+        .rejects.toBeInstanceOf(BudgetAttachmentPreviewUnavailableError);
+    }
+  });
+
   it("turns animated WEBP input into one static safe frame", async () => {
     const source = await makeAnimatedWebp();
     expect((await sharp(source, { animated: true }).metadata()).pages).toBe(2);

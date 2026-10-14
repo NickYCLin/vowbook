@@ -55,6 +55,16 @@ describe("profile avatar", () => {
     ).rejects.toThrow("頭像圖片不可超過 5 MiB");
   });
 
+  it("rejects SVG content disguised as an accepted raster upload", async () => {
+    const data = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="5"><rect width="8" height="5" fill="brown"/></svg>',
+    );
+    for (const mediaType of ["image/png", "image/jpeg", "image/webp"]) {
+      await expect(normalizeProfileAvatar({ data, mediaType }))
+        .rejects.toBeInstanceOf(ProfileAvatarValidationError);
+    }
+  });
+
   it("only accepts HTTPS Google-hosted account pictures", () => {
     expect(
       safeGoogleAvatarUrl("https://lh3.googleusercontent.com/a/photo"),
