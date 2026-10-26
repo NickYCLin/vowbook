@@ -67,7 +67,12 @@ test("切換功能保留搜尋和位置，編輯及列印預覽不離開原頁",
   const preview = page.getByRole("dialog");
   await expect(preview.getByRole("button", { name: "列印／另存 PDF" })).toBeEnabled();
   await expect(page.frameLocator('iframe[title="列印帶位名單預覽"]').locator("[data-app-header]")).toBeHidden();
-  await expect(page.frameLocator('iframe[title="列印帶位名單預覽"]').locator("[data-operations-print]")).toBeVisible();
+  const printDocument = page.frameLocator('iframe[title="列印帶位名單預覽"]').getByRole("region", { name: "招待帶位名單", exact: true });
+  await expect(printDocument).toBeVisible();
+  await expect(printDocument).toHaveAttribute("data-print-document", "true");
+  await expect(printDocument.getByRole("heading", { name: `${fixture.workspaceName}｜招待帶位名單`, exact: true })).toBeVisible();
+  await expect(printDocument.getByText("0 桌 · 0 位", { exact: true })).toBeVisible();
+  await expect(printDocument.getByText("目前沒有已排桌的賓客。", { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("workspace-print-preview.png"), fullPage: false });
   await preview.getByRole("button", { name: "關閉列印預覽" }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${fixture.workspaceId}/tables$`));
@@ -94,7 +99,8 @@ test("切換功能保留搜尋和位置，編輯及列印預覽不離開原頁",
   await switcher.locator("summary").click();
   await switcher.getByRole("link").filter({ hasText: fixture.workspaceName }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${fixture.workspaceId}/overview$`));
-  await expect(page.getByRole("heading", { name: "繼續籌備", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "需要處理", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "籌備", exact: true }).getByRole("link", { name: "賓客名單 出席回覆、喜帖與喜餅", exact: true })).toHaveAttribute("href", `${basePath}/workspaces/${fixture.workspaceId}/guests`);
   await expect(page.locator("[data-workspace-loading]")).toHaveCount(0);
   await page.screenshot({ path: `output/wedding-home-${testInfo.project.name}.png`, fullPage: false });
   expect(errors).toEqual([]);
