@@ -250,7 +250,8 @@ export function compareGuestsBySeniorityThenSurnameStroke(
     left.name.normalize("NFKC").trim(),
     right.name.normalize("NFKC").trim(),
   );
-  return nameDifference !== 0 ? nameDifference : left.id.localeCompare(right.id);
+  if (nameDifference !== 0) return nameDifference;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
 /** 雙方家人各自以與新人的關係排序；未辨識稱謂沿用輩份、姓名排序。 */

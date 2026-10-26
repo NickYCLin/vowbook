@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { cakeRows, cakeRowGroups, normalizeCakeHousehold } from "./wedding-cake";
+import { cakeMemberSnapshot, cakeRows, cakeRowGroups, normalizeCakeHousehold } from "./wedding-cake";
 const guest = (id: string, extra = {}) => ({ id, category: "GUEST" as const, name: id, seniority: "PEER" as const, side: "PARTNER_A" as const, attendanceStatus: "ATTENDING", checkedIn: false, relationshipLabel: "表姊", cakeHouseholdId: null as string | null, ...extra });
 describe("cake distribution", () => {
+  it("orders member snapshot IDs by UTF-16 code units without changing the input", () => {
+    const members = [
+      { id: "王爸", version: 0 },
+      { id: "a", version: 2 },
+      { id: "王媽", version: 1 },
+      { id: "A", version: 3 },
+    ];
+    const expected = '[["A",3],["a",2],["王媽",1],["王爸",0]]';
+
+    expect(cakeMemberSnapshot(members)).toBe(expected);
+    expect(cakeMemberSnapshot([...members].reverse())).toBe(expected);
+    expect(members.map(member => member.id)).toEqual(["王爸", "a", "王媽", "A"]);
+  });
+
   it("counts a household once, excludes absent members and never multiplies party size", () => {
     const rows = cakeRows([guest("a", { cakeHouseholdId: "h", partySize: 4 }), guest("b", { cakeHouseholdId: "h" }), guest("c", { cakeHouseholdId: "h", attendanceStatus: "DECLINED" }), guest("d", { partySize: 3 }), guest("e", { attendanceStatus: "UNDECIDED" })], [{id:"h", boxes:1}]);
     expect(rows.map(r => [r.names, r.boxes])).toEqual([["a、b",1],["d",1]]);
