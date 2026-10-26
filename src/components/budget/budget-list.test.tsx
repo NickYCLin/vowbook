@@ -1660,37 +1660,66 @@ describe("BudgetList", () => {
     ).toBeVisible();
   });
 
-  it("uploads from the edit dialog and hides the attachment action until a file exists", () => {
-    const expense = { ...items[0], attachments: [] };
-    render(
-      <BudgetList
-        workspaceId="workspace_internal"
-        items={[expense]}
-        summary={{ ...summary, itemCount: 1 }}
-        canEdit
-      />,
-    );
-
-    const expenseRow = screen
-      .getByRole("heading", { name: expense.name })
-      .closest<HTMLElement>("[data-budget-ledger-row]");
-    expect(
-      within(expenseRow!).queryByRole("button", {
-        name: `查看附件：${expense.name}`,
-      }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(
-      within(expenseRow!).getByRole("button", {
-        name: `編輯花費：${expense.name}`,
+  it("uploads from the edit dialog and retains focused feedback when the attachment action appears", async () => {
+    const attachment = {
+      id: "attachment_uploaded",
+      originalName: "收據.png",
+      mediaType: "image/png",
+      byteSize: 100,
+      createdAt: "2026-10-26T08:00:00.000Z",
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ attachment }), {
+        headers: { "content-type": "application/json" },
       }),
     );
-    const dialog = within(expenseRow!).getByRole("dialog", {
-      name: expense.name,
-    });
-    expect(
-      within(dialog).getByRole("form", { name: "上傳花費附件" }),
-    ).toBeVisible();
+    try {
+      const expense = { ...items[0], attachments: [] };
+      render(
+        <BudgetList
+          workspaceId="workspace_internal"
+          items={[expense]}
+          summary={{ ...summary, itemCount: 1 }}
+          canEdit
+        />,
+      );
+
+      const expenseRow = screen
+        .getByRole("heading", { name: expense.name })
+        .closest<HTMLElement>("[data-budget-ledger-row]");
+      expect(
+        within(expenseRow!).queryByRole("button", {
+          name: `查看附件：${expense.name}`,
+        }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(
+        within(expenseRow!).getByRole("button", {
+          name: `編輯花費：${expense.name}`,
+        }),
+      );
+      const dialog = within(expenseRow!).getByRole("dialog", {
+        name: expense.name,
+      });
+      expect(
+        within(dialog).getByRole("form", { name: "上傳花費附件" }),
+      ).toBeVisible();
+      fireEvent.change(within(dialog).getByLabelText("選擇附件"), {
+        target: {
+          files: [new File(["fixture"], attachment.originalName, { type: "image/png" })],
+        },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: "上傳附件" }));
+      const feedback = await within(dialog).findByRole("status");
+      expect(feedback).toHaveTextContent("已上傳附件「收據.png」。");
+      await waitFor(() => expect(feedback).toHaveFocus());
+      expect(
+        within(expenseRow!).getByRole("button", { name: `查看附件：${expense.name}` }),
+      ).toHaveTextContent("查看附件 · 1");
+      expect(within(dialog).getByText("收據.png", { exact: true })).toBeVisible();
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
   it("mentions attachments for read-only EXPENSE rows without exposing upload controls", () => {
@@ -3121,6 +3150,9 @@ describe("BudgetList", () => {
     ).not.toBeNull();
     expect(line).not.toHaveTextContent("訂金");
     expect(line).not.toHaveTextContent("尾款");
+    expect(line?.querySelector('[data-budget-mobile-row="primary"]')).toHaveClass("basis-full", "sm:basis-0");
+    expect(line?.querySelector('[data-budget-mobile-row="metadata"]')).toHaveClass("sr-only");
+    expect(line?.querySelector('[data-budget-category-label="true"]')).toHaveTextContent("分類狀態：待重新分類");
     expect(within(line!).queryByText("已付清", { selector: ":not(.sr-only)" })).toBeNull();
     expect(
       within(line!).getByRole("button", { name: "編輯花費：粉色太陽花" }),
