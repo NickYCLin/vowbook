@@ -258,6 +258,7 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   context,
   page,
 }, testInfo) => {
+  test.setTimeout(120_000);
   const fixtureWorkspaceId = requireFixture(
     workspaceId,
     "VOWBOOK_ATTACHMENT_E2E_WORKSPACE_ID",
@@ -301,12 +302,14 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   ]);
 
   await page.goto(`./workspaces/${fixtureWorkspaceId}/budget`);
-  await expect(page.getByRole("heading", { name: "婚禮花費" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "婚禮花費", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("navigation", { name: "工作區功能" }).getByRole("link", { name: "花費", exact: true })).toHaveAttribute("aria-current", "page");
 
   await expect(
     page.getByRole("group", { name: "花費檢視方式" }),
   ).toHaveCount(0);
   const budgetLedger = page.locator('ul[data-budget-view="group"]');
+  await expect(budgetLedger).toBeVisible();
   // 花費帳本只顯示此工作區已使用的固定分類；本附件 fixture 只使用婚宴場地。
   // 全 6 階段／20 品項的完整 taxonomy 覆蓋由 CRUD E2E 驗證。
   await expect(
@@ -373,16 +376,16 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   });
 
   const expenseTrigger = expenseRow.getByRole("button", {
-    name: "開啟花費明細與附件：E2E 場地費用",
+    name: "編輯花費：E2E 場地費用",
   });
   await expect(expenseTrigger).toHaveAccessibleName(
-    "開啟花費明細與附件：E2E 場地費用",
+    "編輯花費：E2E 場地費用",
   );
-  await expect(expenseTrigger).toHaveText("明細與附件");
-  await expect(expenseTrigger).toHaveAccessibleDescription("尚無附件");
+  await expect(expenseTrigger).toHaveText("編輯");
+  await expect(expenseRow.getByText("尚無附件", { exact: true })).toHaveCount(1);
   await expect(
     expenseRow.locator('[data-budget-attachment-affordance="true"]'),
-  ).toHaveCount(1);
+  ).toHaveCount(0);
 
   const toolbar = page.locator('[data-budget-toolbar="true"]');
   const statusFilters = page.getByRole("group", {
@@ -399,19 +402,17 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
     await page.getByLabel("搜尋花費項目").fill("E2E 場地費用");
     await expect(expenseRow).toBeVisible();
     await expectNoHorizontalOverflow(toolbar, "768px Budget toolbar");
-    await expectNoHorizontalOverflow(statusFilters, "768px status filters");
-    expect(
-      await statusFilters.evaluate((group) => {
-        const bounds = group.getBoundingClientRect();
-        return Array.from(group.querySelectorAll("button")).every((button) => {
-          const buttonBounds = button.getBoundingClientRect();
-          return (
-            buttonBounds.left >= bounds.left - 0.5 &&
-            buttonBounds.right <= bounds.right + 0.5
-          );
-        });
-      }),
-    ).toBe(true);
+    await expect(statusFilters).toHaveCSS("overflow-x", "auto");
+    for (const filterButton of await statusFilters.getByRole("button").all()) {
+      await filterButton.scrollIntoViewIfNeeded();
+      const groupBounds = await statusFilters.boundingBox();
+      const buttonBounds = await filterButton.boundingBox();
+      expect(buttonBounds!.x).toBeGreaterThanOrEqual(groupBounds!.x - 0.5);
+      expect(buttonBounds!.x + buttonBounds!.width).toBeLessThanOrEqual(groupBounds!.x + groupBounds!.width + 0.5);
+      await filterButton.click();
+      await expect(filterButton).toHaveAttribute("aria-pressed", "true");
+    }
+    await statusFilters.getByRole("button", { name: "全部", exact: true }).click();
     await page.getByLabel("搜尋花費項目").fill("");
     await page.setViewportSize(desktopViewport!);
   }
@@ -429,7 +430,9 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
     const semanticMetadata = expenseRow
       .locator('[data-budget-mobile-row="metadata"]')
       .first();
-    await expect(semanticMetadata).toBeHidden();
+    await expect(semanticMetadata).toHaveClass("sr-only");
+    await expect(semanticMetadata).toHaveCSS("width", "1px");
+    await expect(semanticMetadata).toHaveCSS("height", "1px");
     await expect(semanticMetadata).toContainText("籌備第1-2月");
     await expect(semanticMetadata).toContainText("品項分類：婚宴場地");
 
@@ -507,9 +510,12 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   await expect(uploadStatus).toBeFocused();
   await expect(expenseDialog.getByText(filename, { exact: true })).toBeVisible();
   await expect(expenseDialog.getByText("1 / 20", { exact: true })).toBeVisible();
-  await expect(expenseTrigger).toHaveText("明細與附件 · 1");
+  await expect(expenseTrigger).toHaveText("編輯");
+  const attachmentTrigger = expenseRow.getByRole("button", { name: "查看附件：E2E 場地費用", exact: true });
+  await expect(attachmentTrigger).toHaveText("查看附件 · 1");
+  await expect(attachmentTrigger).toHaveAccessibleDescription("附件 1 份");
   await expect(expenseTrigger).toHaveAccessibleName(
-    "開啟花費明細與附件：E2E 場地費用",
+    "編輯花費：E2E 場地費用",
   );
 
   const downloadLink = expenseDialog.getByRole("link", {
@@ -653,9 +659,10 @@ test("登入使用者可在真實花費頁上傳、下載並刪除私有附件",
   ).toBeVisible();
   await expect(expenseDialog.getByText("尚未上傳附件。")).toBeVisible();
   await expect(expenseDialog.getByText("0 / 20", { exact: true })).toBeVisible();
-  await expect(expenseTrigger).toHaveText("明細與附件");
+  await expect(expenseTrigger).toHaveText("編輯");
+  await expect(attachmentTrigger).toHaveCount(0);
   await expect(expenseTrigger).toHaveAccessibleName(
-    "開啟花費明細與附件：E2E 場地費用",
+    "編輯花費：E2E 場地費用",
   );
 
   const pdfDocument = await PDFDocument.create();

@@ -419,6 +419,9 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     );
     await expect(giftDialog).toBeHidden();
 
+    await expect(ledger.getByLabel("禮金登記狀態篩選")).toHaveValue("UNRECORDED");
+    await expect(ledger.getByRole("heading", { name: fixture.manualGuestName, exact: true })).toHaveCount(0);
+    await ledger.getByLabel("禮金登記狀態篩選").selectOption("RECORDED");
     let giftRow = ledger
       .getByRole("heading", { name: fixture.manualGuestName })
       .locator("xpath=ancestor::li[1]");
@@ -460,6 +463,8 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     await page.reload();
     const reloadedLedger = page.getByRole("region", { name: "禮金簿" });
     await expect(reloadedLedger.getByLabel("搜尋禮金簿名單")).toBeVisible();
+    await expect(reloadedLedger.getByLabel("禮金登記狀態篩選")).toHaveValue("UNRECORDED");
+    await reloadedLedger.getByLabel("禮金登記狀態篩選").selectOption("RECORDED");
     giftRow = reloadedLedger
       .getByRole("heading", { name: fixture.manualGuestName })
       .locator("xpath=ancestor::li[1]");
@@ -662,7 +667,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     await expect(preservedChildRow).toHaveAttribute("data-budget-depth", "2");
     await preservedChildRow
       .getByRole("button", {
-        name: `開啟花費明細與附件：${fixture.dissolveChildName}`,
+        name: `編輯花費：${fixture.dissolveChildName}`,
       })
       .click();
     const childDialog = page.getByRole("dialog", {
@@ -774,7 +779,7 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     ).toHaveCount(0);
     await smallShoesRow
       .getByRole("button", {
-        name: `開啟花費明細與附件：${fixture.budgetSmallShoesExpenseName}`,
+        name: `編輯花費：${fixture.budgetSmallShoesExpenseName}`,
       })
       .click();
     const smallShoesDialog = page.getByRole("dialog", {
@@ -978,14 +983,19 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
       sameCategoryChildRow.getByLabel("本項預計花費：NT$62,800"),
     ).toBeVisible();
     await expect(
-      sameCategoryChildRow.getByLabel("本項實付：NT$62,800"),
+      sameCategoryChildRow.getByRole("button", { name: `編輯花費：${fixture.budgetRollupChildName}`, exact: true }),
     ).toBeVisible();
+    await sameCategoryChildRow.getByRole("button", { name: `編輯花費：${fixture.budgetRollupChildName}`, exact: true }).click();
+    const paidChildDialog = page.getByRole("dialog", { name: fixture.budgetRollupChildName, exact: true });
+    await expect(paidChildDialog.getByText("本項直接實付", { exact: true }).locator("..").locator("dd")).toHaveText("NT$62,800");
+    await paidChildDialog.getByRole("button", { name: `關閉管理：${fixture.budgetRollupChildName}` }).click();
     await expect(
       crossCategoryChildRow.getByLabel("本項預計花費：NT$17,200"),
     ).toBeVisible();
-    await expect(
-      crossCategoryChildRow.getByLabel("本項實付：NT$5,200"),
-    ).toBeVisible();
+    await crossCategoryChildRow.getByRole("button", { name: `編輯花費：${fixture.budgetCrossCategoryChildName}`, exact: true }).click();
+    const bookedChildDialog = page.getByRole("dialog", { name: fixture.budgetCrossCategoryChildName, exact: true });
+    await expect(bookedChildDialog.getByText("本項直接實付", { exact: true }).locator("..").locator("dd")).toHaveText("NT$5,200");
+    await bookedChildDialog.getByRole("button", { name: `關閉管理：${fixture.budgetCrossCategoryChildName}` }).click();
     await expect(
       rollupParentRow.locator('[data-budget-category-label="true"]'),
     ).toHaveText("品項分類：婚宴場地");
@@ -1256,6 +1266,11 @@ test("OWNER 可從真實介面完成工作區、成員、禮金與花費群組�
     ).toBeVisible();
     await expectFloorPlanCardsDoNotOverlap(floorPlan);
     await createdFloorCard.getByRole("button").click();
+    const tablePeek = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: new RegExp(fixture.editedSecondTableName, "u") }) });
+    await expect(tablePeek).toBeVisible();
+    await expect(tablePeek).toContainText("0 / 10 位");
+    await tablePeek.getByRole("button", { name: "關閉桌次卡片" }).click();
+    await expect(tablePeek).toHaveCount(0);
     const tableDetails = page.getByRole("region", { name: "桌次明細" });
 
     const maleUnassignedSection = page.getByRole("region", {
