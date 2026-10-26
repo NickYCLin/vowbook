@@ -15,6 +15,7 @@ describe("patched dependency compatibility", () => {
       packages: Record<string, { version?: string }>;
     };
     for (const [name, version] of Object.entries({
+      next: "16.4.3",
       sharp: "0.35.5",
       "source-map-js": "1.2.2",
       undici: "7.29.1",
