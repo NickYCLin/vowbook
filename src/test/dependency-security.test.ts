@@ -18,7 +18,7 @@ describe("patched dependency compatibility", () => {
       next: "16.4.3",
       sharp: "0.35.5",
       "source-map-js": "1.2.2",
-      undici: "7.29.1",
+      undici: "7.30.1",
       "brace-expansion": "5.0.12",
     })) {
       const installed = Object.entries(lock.packages).filter(([location]) =>
