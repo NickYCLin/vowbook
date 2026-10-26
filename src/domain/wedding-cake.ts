@@ -73,5 +73,9 @@ export function normalizeCakeHousehold(data: FormData) {
   return { name: name.trim(), boxes: Number(rawBoxes), guestIds: ids as string[] };
 }
 export function cakeMemberSnapshot(members: readonly { id: string; version: number }[]) {
-  return JSON.stringify(members.map(m => [m.id, m.version]).sort((a,b) => String(a[0]).localeCompare(String(b[0]))));
+  return JSON.stringify(
+    [...members]
+      .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+      .map(member => [member.id, member.version]),
+  );
 }

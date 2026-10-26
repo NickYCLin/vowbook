@@ -37,6 +37,20 @@ describe("guest domain contract", () => {
       .toEqual(["elder-wang", "elder-chen", "unset", "peer-lin", "junior"]);
   });
 
+  it("breaks identical-name ties by UTF-16 ID order instead of the default locale", () => {
+    const guests = ["王爸", "a", "王媽", "A"].map(id => ({
+      id,
+      name: "測試親友",
+      seniority: "PEER" as const,
+    }));
+
+    expect([...guests].sort(compareGuestsBySeniorityThenSurnameStroke).map(guest => guest.id))
+      .toEqual(["A", "a", "王媽", "王爸"]);
+    expect([...guests].reverse().sort(compareGuestsBySeniorityThenSurnameStroke).map(guest => guest.id))
+      .toEqual(["A", "a", "王媽", "王爸"]);
+    expect(compareGuestsBySeniorityThenSurnameStroke(guests[0], guests[0])).toBe(0);
+  });
+
   it("treats legacy unspecified seniority as peers", () => {
     expect(GUEST_SENIORITY_LABELS).toEqual({
       ELDER: "長輩",
