@@ -1397,7 +1397,7 @@ function BudgetItemRow({
               <div
                 data-budget-mobile-row="primary"
                 data-budget-ledger-content-name="true"
-                className="flex min-w-0 flex-1 items-baseline gap-2"
+                className="flex min-w-0 flex-1 basis-full items-baseline gap-2 sm:basis-0"
               >
                 <span aria-hidden="true" className="shrink-0 text-line-strong">
                   └
@@ -1421,8 +1421,15 @@ function BudgetItemRow({
                     {ledgerBrand}
                   </span>
                 ) : null}
-                <span data-budget-hierarchy-breadcrumb="true" className="sr-only">
-                  {breadcrumb.join(" › ")}
+                <span data-budget-mobile-row="metadata" className="sr-only">
+                  <span data-budget-hierarchy-breadcrumb="true">
+                    {breadcrumb.join(" › ")}
+                  </span>
+                  <span data-budget-category-label="true">
+                    {needsReclassification
+                      ? "分類狀態：待重新分類"
+                      : `品項分類：${taxonomyItemLabel}`}
+                  </span>
                 </span>
               </div>
               {!tracksCost ? (
@@ -1982,9 +1989,7 @@ function BudgetItemRow({
 
             {showsAttachmentsOnly && (
               <BudgetAttachments
-                key={`${item.id}:${currentAttachments
-                  .map((attachment) => attachment.id)
-                  .join(",")}`}
+                key={`${item.id}:${attachmentSourceKey}`}
                 workspaceId={workspaceId}
                 budgetItemId={item.id}
                 initialAttachments={currentAttachments}
@@ -2362,9 +2367,7 @@ function BudgetItemRow({
                 )}
                 {!isGroup && !showsAttachmentsOnly && (
                   <BudgetAttachments
-                    key={`${item.id}:${currentAttachments
-                      .map((attachment) => attachment.id)
-                      .join(",")}`}
+                    key={`${item.id}:${attachmentSourceKey}`}
                     workspaceId={workspaceId}
                     budgetItemId={item.id}
                     initialAttachments={currentAttachments}

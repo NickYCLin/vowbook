@@ -249,8 +249,16 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
   ).toBeVisible();
   await expect(
     itemRow.locator('[data-budget-hierarchy-connector="true"]'),
-  ).toBeVisible();
-
+  ).toHaveClass("hidden");
+  await expect(itemSurface.getByRole("heading", { name: "婚宴場地", exact: true })).toBeVisible();
+  const stageHeading = stageSurface.getByRole("heading", { name: "籌備第1-2月", exact: true });
+  await expect(stageHeading).toBeVisible();
+  await expect(itemSurface.locator('[data-budget-scan-layout="taxonomy-header"]')).toHaveClass(/border-b.*bg-white/u);
+  if (!testInfo.project.name.startsWith("mobile")) {
+    const stageBounds = await stageHeading.boundingBox();
+    const itemBounds = await itemSurface.getByRole("heading", { name: "婚宴場地", exact: true }).boundingBox();
+    expect(itemBounds!.x).toBeGreaterThan(stageBounds!.x);
+  }
 
   const sourceGroupRow = ledger
     .locator("[data-budget-item-id]")
@@ -319,7 +327,7 @@ test("花費頁在桌面與手機都清楚區分固定分類、來源群組與�
   ).toHaveCount(0);
   await smallShoesRow
     .getByRole("button", {
-      name: `開啟花費明細與附件：${fixture.budgetSmallShoesExpenseName}`,
+      name: `編輯花費：${fixture.budgetSmallShoesExpenseName}`,
     })
     .click();
   const smallShoesDialog = page.getByRole("dialog", {
