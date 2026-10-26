@@ -19,6 +19,7 @@ describe("patched dependency compatibility", () => {
       sharp: "0.35.5",
       "source-map-js": "1.2.2",
       undici: "7.30.1",
+      zod: "4.6.6",
       "brace-expansion": "5.0.12",
     })) {
       const installed = Object.entries(lock.packages).filter(([location]) =>
@@ -31,6 +32,43 @@ describe("patched dependency compatibility", () => {
     }
     expect(sharp.versions.sharp).toBe("0.35.5");
   });
+
+  it.each(["array", "set", "map"] as const)(
+    "rejects an oversized %s before parsing its elements",
+    (kind) => {
+      const zod = requireDependency("zod") as typeof import("zod");
+      let parsedElements = 0;
+      const element = zod.string().transform((value) => {
+        parsedElements += 1;
+        return value;
+      });
+      const schema = kind === "array"
+        ? zod.array(element).max(1)
+        : kind === "set"
+          ? zod.set(element).max(1)
+          : zod.map(zod.string(), element).max(1);
+      const oversized = kind === "array"
+        ? ["first", "second"]
+        : kind === "set"
+          ? new Set(["first", "second"])
+          : new Map([["first", "value"], ["second", "value"]]);
+      const accepted = kind === "array"
+        ? ["first"]
+        : kind === "set"
+          ? new Set(["first"])
+          : new Map([["first", "value"]]);
+      const result = schema.safeParse(oversized);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toEqual([
+          expect.objectContaining({ code: "too_big", maximum: 1 }),
+        ]);
+      }
+      expect(parsedElements).toBe(0);
+      expect(schema.safeParse(accepted).success).toBe(true);
+      expect(parsedElements).toBe(1);
+    },
+  );
 
   it("preserves indexed source-map offsets and original source lookup", () => {
     const generator = new SourceMapGenerator({ file: "receipt.css" });
