@@ -120,7 +120,10 @@ export async function mobileCheckInGuest(
 ) {
   const details = (() => {
     try {
-      return normalizeGuestCheckInDetails(input);
+      // App JSON 使用整數，網頁領域驗證器使用表單字串；只轉換安全整數，
+      // 仍由同一規則限制 1 至 20 人，不接受小數、布林或隱式字串轉型。
+      return normalizeGuestCheckInDetails({ ...input, headcount:
+        typeof input.headcount === "number" && Number.isSafeInteger(input.headcount) ? String(input.headcount) : input.headcount });
     } catch (error) {
       return asMobileError(error);
     }
