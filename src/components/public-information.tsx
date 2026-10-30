@@ -10,7 +10,7 @@ export function PublicInformation({ title, sections, status = informationStatus 
     <main className="mx-auto min-h-screen w-full max-w-3xl px-5 py-10 text-ink sm:px-8">
       <nav aria-label="公開說明導覽" className="mb-8 flex flex-wrap gap-5 text-sm text-clay">
         <Link href="/" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">誓約簿首頁</Link>
-        <Link href="/privacy" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">資料使用說明</Link>
+        <Link href="/privacy" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">隱私政策</Link>
         <Link href="/support" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">使用說明與支援</Link>
       </nav>
       <h1 className="font-serif text-3xl font-semibold leading-snug">{title}</h1>

@@ -9,11 +9,19 @@ vi.mock("@/lib/prisma", () => ({ prisma: new Proxy({}, { get() { throw new Error
 vi.mock("next-auth", () => ({ getServerSession() { throw new Error("公開說明不得要求登入"); } }));
 
 describe("匿名資料說明與支援頁", () => {
-  it("明示待確認政策與不確定保存資訊，不捏造聯絡地址", () => {
+  it("正式隱私政策載明營運主體、生效日期與保存規則，只以 GitHub Issues 聯絡", () => {
     render(<PrivacyPage />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("資料使用說明");
-    expect(screen.getByText(/不是已核定的正式隱私政策/)).toBeVisible();
-    expect(screen.getByText(/備份保存期限/)).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("隱私政策");
+    expect(screen.getByRole("note")).toHaveTextContent("營運主體：個人「林洋琛」");
+    expect(screen.getByRole("note")).toHaveTextContent("生效日期：2026 年 10 月 30 日");
+    for (const required of ["台灣", "Docker", "Caddy", "Google OAuth", "Sign in with Apple", "不使用分析、廣告或追蹤", "12 小時", "最新 2 份", "刪除帳號", "密碼", "驗證碼", "token"]) {
+      expect(document.body).toHaveTextContent(required);
+    }
+    const issues = screen.getByRole("link", { name: /前往 GitHub Issues 聯絡/ });
+    expect(issues).toHaveAttribute("href", "https://github.com/NickYCLin/vowbook/issues");
+    expect(issues).toHaveAttribute("rel", "noopener noreferrer");
+    expect(document.body.textContent).not.toMatch(/待維運確認|不是已核定的正式隱私政策|尚待確認/);
+    expect(document.body.textContent).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
     expect(document.querySelector('a[href^="mailto:"]')).toBeNull();
     for (const link of screen.getAllByRole("link")) expect(link).toHaveClass("min-h-11");
   });

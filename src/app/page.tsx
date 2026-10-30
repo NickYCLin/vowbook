@@ -118,7 +118,7 @@ export function HomeLanding() {
       <footer className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
         <span>誓約簿 VowBook</span>
         <nav aria-label="資料與支援" className="flex flex-wrap gap-4">
-          <Link href="/privacy" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">資料使用說明</Link>
+          <Link href="/privacy" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">隱私政策</Link>
           <Link href="/support" className="inline-flex min-h-11 items-center rounded px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-clay">使用說明與支援</Link>
         </nav>
         <span>把重要的事，留在彼此都找得到的地方。</span>
