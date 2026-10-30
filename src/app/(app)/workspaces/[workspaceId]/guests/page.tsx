@@ -67,6 +67,7 @@ export default async function GuestsPage({ params }: GuestsPageProps) {
       {canEdit && <WorkspaceSectionTabs label="賓客分頁" items={[
         {label:"婚宴名單",href:`/workspaces/${workspaceId}/guests`,active:true},
         {label:"發餅名單",href:`/workspaces/${workspaceId}/guests/cakes`,active:false},
+        {label:"邀請與回覆",href:`/workspaces/${workspaceId}/guests/invitations`,active:false},
       ]}/>}
       <GuestList
         workspaceId={workspaceId}

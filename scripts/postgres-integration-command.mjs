@@ -569,6 +569,7 @@ function runFreshChain() {
     "src/test/postgres-mobile-auth.integration.test.ts",
     "src/test/postgres-mobile-staff.integration.test.ts",
     "src/test/postgres-task-templates.integration.test.ts",
+    "src/test/postgres-guest-invitations.integration.test.ts",
     "src/test/postgres-account-links.integration.test.ts",
     "src/test/postgres-wedding-gifts.integration.test.ts",
     "src/test/postgres-coordinator-handoffs.integration.test.ts",

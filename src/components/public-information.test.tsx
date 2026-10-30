@@ -13,7 +13,10 @@ describe("匿名資料說明與支援頁", () => {
     render(<PrivacyPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("隱私政策");
     expect(screen.getByRole("note")).toHaveTextContent("營運主體：個人「林洋琛」");
-    expect(screen.getByRole("note")).toHaveTextContent("生效日期：2026 年 10 月 30 日");
+    // 新增專屬邀請與報到的資料用途，政策生效日隨內容一併更新。
+    expect(screen.getByRole("note")).toHaveTextContent("生效日期：2026 年 10 月 31 日");
+    expect(screen.getByRole("heading", { level: 2, name: "賓客專屬邀請與報到碼" })).toBeVisible();
+    for (const detail of ["最長 180 天", "不含其他賓客名單", "重發、撤銷或到期", "不會自動覆蓋既有名單或座位", "相機掃碼在裝置上辨識"]) expect(document.body).toHaveTextContent(detail);
     for (const required of ["台灣", "Docker", "Caddy", "Google OAuth", "Sign in with Apple", "不使用分析、廣告或追蹤", "12 小時", "最新 2 份", "刪除帳號", "密碼", "驗證碼", "token"]) {
       expect(document.body).toHaveTextContent(required);
     }

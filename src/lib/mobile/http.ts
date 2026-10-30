@@ -15,7 +15,7 @@ export function mobileError(error: unknown) {
   return mobileJSON({ error: "UNAVAILABLE", message: "服務暫時無法使用，請稍後再試。" }, 503);
 }
 
-export async function readMobileJSON(request: Request): Promise<unknown> {
+export async function readMobileJSON(request: Request, maximumBytes = 4096): Promise<unknown> {
   if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
     throw new MobileRequestError(415, "CONTENT_TYPE", "請使用 JSON 格式。");
   }
@@ -29,7 +29,7 @@ export async function readMobileJSON(request: Request): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > 4096) {
+      if (length > maximumBytes) {
         await reader.cancel();
         throw new MobileRequestError(413, "TOO_LARGE", "輸入內容過長。");
       }

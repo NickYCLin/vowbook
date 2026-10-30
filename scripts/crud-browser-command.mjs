@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { createBudgetTaxonomyFixture } from "./budget-taxonomy-fixture.mjs";
@@ -26,6 +27,8 @@ const authSecret = "vowbook-e2e-local-secret-not-for-production";
 const ownerId = `crud_e2e_owner_${runId}`;
 const googleSubject = `crud-e2e-owner-subject-${runId}`;
 const ownerEmail = `crud-e2e-owner-${runId}@example.test`;
+// 僅在 localhost 隔離 schema 建立測試工作人員憑證，不提供正式登入繞過。
+const mobileToken = randomBytes(32).toString("base64url");
 const fixtures = {
   desktop: {
     workspaceId: `crud_e2e_desktop_workspace_${runId}`,
@@ -166,6 +169,7 @@ async function seedFixture() {
       },
     });
 
+    await client.mobileSession.create({ data: { tokenHash: createHash("sha256").update(mobileToken).digest("hex"), userId: ownerId, expiresAt: new Date(Date.now() + 3_600_000) } });
     for (const fixture of Object.values(fixtures)) {
       await client.user.create({
         data: {
@@ -768,7 +772,8 @@ async function verifyFixture() {
         guest.notes !== fixture.editedGuestNotes ||
         guest.seatingTableId !== null ||
         // 手機只驗證呈現；桌面另加人數調整與兩輪安排／移出。
-        guest.version !== (viewport === "mobile" ? 1 : 6)
+        // 邀請案例另以正式 API 安排及移出一次，兩次 CAS 各增加一版。
+        guest.version !== (viewport === "mobile" ? 3 : 8)
       ) {
         throw new Error("CRUD browser verification found an unexpected final guest state.");
       }
@@ -903,6 +908,7 @@ const environment = {
   VOWBOOK_CRUD_E2E: "1",
   VOWBOOK_CRUD_E2E_EMAIL: ownerEmail,
   VOWBOOK_CRUD_E2E_GOOGLE_SUBJECT: googleSubject,
+  VOWBOOK_CRUD_E2E_MOBILE_TOKEN: mobileToken,
   VOWBOOK_CRUD_E2E_FIXTURES: JSON.stringify(fixtures),
 };
 
@@ -922,6 +928,7 @@ try {
         "e2e/timeline-template.spec.ts",
         "e2e/workspace-interactions.spec.ts",
         "e2e/task-templates-budget-chart.spec.ts",
+        "e2e/guest-invitations.spec.ts",
         "--output=test-results/crud-main",
         "--workers=1",
       ],

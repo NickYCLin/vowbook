@@ -8,7 +8,10 @@ for (const [route, title] of [["privacy", "隱私政策"], ["support", "使用�
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
     const issuesLink = route === "privacy" ? /前往 GitHub Issues 聯絡/ : /前往 GitHub Issues 回報問題/;
     await expect(page.getByRole("link", { name: issuesLink })).toHaveAttribute("href", "https://github.com/NickYCLin/vowbook/issues");
-    if (route === "privacy") await expect(page.getByText(/生效日期：2026 年 10 月 30 日/)).toBeVisible();
+    if (route === "privacy") {
+      await expect(page.getByText(/生效日期：2026 年 10 月 31 日/)).toBeVisible();
+      await expect(page.getByRole("heading", { name: "賓客專屬邀請與報到碼", exact: true })).toBeVisible();
+    }
     await expect(page.getByText(/待維運確認|尚未確認正式對外聯絡方式/)).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.screenshot({ path: test.info().outputPath(`${route}.png`), fullPage: true });

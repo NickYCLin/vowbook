@@ -209,6 +209,8 @@ model UserAvatar {
 }
 
 model WeddingWorkspace {
+  guestInvitationSettings GuestInvitationSettings?
+  guestInvitations GuestInvitation[]
   cakeHouseholds WeddingCakeHousehold[]
   gameParticipants WeddingGameParticipant[]
   speeches WeddingSpeech[]
@@ -254,6 +256,7 @@ model WeddingWorkspace {
 }
 
 model Guest {
+  invitation GuestInvitation?
   cakeHouseholdId String? @map("cake_household_id")
   cakeHousehold WeddingCakeHousehold? @relation(fields: [cakeHouseholdId, workspaceId], references: [id, workspaceId], onDelete: NoAction)
   /// 長輩請客等不收禮金、仍會送喜餅的安排；不代表已送餅。
@@ -287,6 +290,38 @@ model Guest {
   @@index([workspaceId, seniority])
   @@index([workspaceId, seatingTableId])
   @@map("guests")
+}
+
+model GuestInvitationSettings {
+  workspaceId String @id @map("workspace_id")
+  version Int @default(0)
+  questions Json @default("[]")
+  venueName String? @db.VarChar(100) @map("venue_name")
+  venueAddress String? @db.VarChar(200) @map("venue_address")
+  mapBytes Bytes? @map("map_bytes")
+  mapMime String? @map("map_mime")
+  workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@map("guest_invitation_settings")
+}
+
+model GuestInvitation {
+  id String @id @default(cuid())
+  workspaceId String @map("workspace_id")
+  guestId String @map("guest_id")
+  tokenHash String @unique @db.Char(64) @map("token_hash")
+  checkInTokenHash String @unique @db.Char(64) @map("check_in_token_hash")
+  expiresAt DateTime @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  version Int @default(0)
+  responseVersion Int @default(0) @map("response_version")
+  response Json?
+  submittedAt DateTime? @map("submitted_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  guest Guest @relation(fields: [guestId, workspaceId], references: [id, workspaceId], onDelete: Cascade, onUpdate: Cascade)
+  @@unique([guestId, workspaceId])
+  @@index([workspaceId])
+  @@map("guest_invitations")
 }
 
 model WeddingGift {
