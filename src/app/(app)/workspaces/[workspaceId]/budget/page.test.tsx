@@ -51,6 +51,7 @@ describe("BudgetPage", () => {
       canEdit: true,
       items: [],
       summary: emptySummary,
+      derivedCosts: [],
     });
 
     const { container } = render(
@@ -135,6 +136,7 @@ describe("BudgetPage", () => {
       canEdit: false,
       items: [],
       summary: emptySummary,
+      derivedCosts: [],
     });
 
     render(

@@ -2,6 +2,8 @@ import { PrintPreviewLink } from "@/components/print/print-preview-link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BudgetList } from "@/components/budget/budget-list";
+import { BudgetVisualization } from "@/components/budget/budget-visualization";
+import { buildBudgetVisualization } from "@/domain/budget-visualization";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
 import { WorkspaceAccessDeniedError } from "@/domain/workspace";
@@ -56,6 +58,7 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
       />
 
       <div className="mb-5 flex justify-end"><PrintPreviewLink href={`/workspaces/${workspaceId}/budget/print`}>列印尾款待付清單</PrintPreviewLink></div>
+      <BudgetVisualization data={buildBudgetVisualization(data.items, data.derivedCosts)} />
       <BudgetList
         workspaceId={workspaceId}
         workspaceName={data.workspaceName}

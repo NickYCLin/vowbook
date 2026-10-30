@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@prisma/client";
+import { buildBudgetVisualization } from "@/domain/budget-visualization";
 import type { Sql } from "@prisma/client/runtime/library";
 
 import {
@@ -874,6 +875,7 @@ export async function mobileBudget(workspaceId: string, userId: string) {
   return {
     canEdit: data.canEdit,
     workspaceToday: data.workspaceToday,
+    visualization: buildBudgetVisualization(data.items, data.derivedCosts),
     // 這兩組設定會決定花費頁列出哪些分類、以及衍生費用怎麼算。
     ceremony: {
       hasEngagementCeremony: data.hasEngagementCeremony,
