@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞私密回報
+    url: https://github.com/NickYCLin/vowbook/security/advisories/new
+    about: 安全問題請勿公開張貼，請使用 GitHub 私密漏洞回報。
+  - name: 使用說明與支援
+    url: https://ycspace.myvnc.com/VowBook/support
+    about: 常見操作的處理方式與回報問題的說明。

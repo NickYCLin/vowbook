@@ -18,11 +18,20 @@ describe("匿名資料說明與支援頁", () => {
     for (const link of screen.getAllByRole("link")) expect(link).toHaveClass("min-h-11");
   });
 
-  it("支援頁提供可逆處理步驟，不假稱有正式客服管道", () => {
+  it("支援頁以 GitHub Issues 作為回報管道，不提供 Email 也不保留待確認字樣", () => {
     render(<SupportPage />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("使用說明與支援狀態");
-    expect(screen.getByText(/尚未確認正式對外聯絡方式/)).toBeVisible();
-    expect(screen.getByText(/不要提供密碼/)).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("使用說明與支援");
+    expect(screen.getByRole("heading", { level: 2, name: "回報問題與測試回饋" })).toBeVisible();
+    const issues = screen.getByRole("link", { name: /前往 GitHub Issues 回報問題/ });
+    expect(issues).toHaveAttribute("href", "https://github.com/NickYCLin/vowbook/issues");
+    expect(issues).toHaveAttribute("rel", "noopener noreferrer");
+    for (const required of ["App 版本", "iOS 版本", "裝置型號", "重現步驟", "錯誤訊息", "密碼", "驗證碼", "token", "婚宴賓客", "傳送 Beta 版回饋"]) {
+      expect(document.body).toHaveTextContent(required);
+    }
+    expect(document.body.textContent).not.toMatch(/待維運確認|尚未確認正式對外聯絡方式/);
+    expect(document.body.textContent).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+    expect(document.querySelector('a[href^="mailto:"]')).toBeNull();
+    for (const link of screen.getAllByRole("link")) expect(link).toHaveClass("min-h-11");
   });
 
   it("列出的資料與用途具有可查核的程式依據", () => {
