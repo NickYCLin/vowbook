@@ -504,6 +504,7 @@ model WeddingTask {
   id          String            @id @default(cuid())
   workspaceId String            @map("workspace_id")
   title       String
+  templateKey String?           @db.VarChar(100) @map("template_key")
   description String?
   dueDate     DateTime?         @db.Date @map("due_date")
   status      WeddingTaskStatus @default(TODO)
@@ -515,6 +516,7 @@ model WeddingTask {
   workspace   WeddingWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([id, workspaceId])
+  @@unique([workspaceId, templateKey])
   @@index([workspaceId, status, dueDate, createdAt, id], map: "wedding_tasks_ws_status_due_created_id_idx")
   @@map("wedding_tasks")
 }

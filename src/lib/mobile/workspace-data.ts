@@ -2,6 +2,7 @@ import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { buildBudgetVisualization } from "@/domain/budget-visualization";
+import { WEDDING_TASK_TEMPLATES } from "@/domain/wedding-task-templates";
 import type { Sql } from "@prisma/client/runtime/library";
 
 import {
@@ -169,6 +170,7 @@ export async function mobileTaskList(workspaceId: string, userId: string) {
     canEdit: EDITOR_ROLES.has(data.role),
     workspaceToday: data.workspaceToday,
     tasks: data.tasks,
+    templates: WEDDING_TASK_TEMPLATES,
   };
 }
 

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suitcase } from "@phosphor-icons/react/dist/ssr";
 import { buttonClassName } from "@/components/ui/button";
 import { CreateWeddingTaskDialog } from "@/components/tasks/task-forms";
+import { TaskTemplateDialog } from "@/components/tasks/task-template-dialog";
 import { WeddingTaskList } from "@/components/tasks/task-list";
 import { WorkspaceDataError } from "@/components/workspaces/workspace-data-error";
 import { WorkspacePageHeader } from "@/components/workspaces/workspace-shell";
@@ -73,7 +74,7 @@ export default async function TasksPage({ params }: TasksPageProps) {
               入住打包清單
             </Link>
             {canEdit ? (
-              <CreateWeddingTaskDialog workspaceId={workspaceId} />
+              <><TaskTemplateDialog workspaceId={workspaceId} /><CreateWeddingTaskDialog workspaceId={workspaceId} /></>
             ) : null}
           </>
         }
