@@ -1028,6 +1028,8 @@ export async function mobileStaffList(workspaceId: string, userId: string) {
       roleName: person.roleName,
       personName: person.personName,
       contactPhone: person.contactPhone,
+      notes: person.notes,
+      timelineAssignmentFingerprint: person.timelineAssignmentFingerprint,
       mealCount: person.mealCount,
       vegetarianMealCount: person.vegetarianMealCount,
       redEnvelopeAmount: person.redEnvelopeAmount,
@@ -1070,7 +1072,7 @@ export async function mobileSetRedEnvelopeSent(
       }
       // 沒有金額就沒有東西可發，資料庫也有同樣的約束。
       if (sent && current.redEnvelopeAmount === null) {
-        throw new MobileRequestError(400, "VALIDATION", "請先在網站填寫紅包金額，再標記為已發放。");
+        throw new MobileRequestError(400, "VALIDATION", "請先編輯工作人員並填寫紅包金額，再標記為已發放。");
       }
       const result = await client.weddingStaffAssignment.updateMany({
         where: { id: staffId, workspaceId, version: expectedVersion },

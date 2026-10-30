@@ -2,8 +2,25 @@ import { requireMobileUser } from "@/lib/mobile/session";
 import { mobileError, mobileJSON, readMobileJSON } from "@/lib/mobile/http";
 import { MobileRequestError } from "@/lib/mobile/protocol";
 import { mobileSetRedEnvelopeSent } from "@/lib/mobile/workspace-data";
+import { mobileUpdateStaff, mobileDeleteStaff } from "@/lib/mobile/wedding-staff";
 
 export const runtime = "nodejs";
+
+export async function PUT(request: Request, context: { params: Promise<{ workspaceId: string; staffId: string }> }) {
+  try {
+    const user = await requireMobileUser(request);
+    const { workspaceId, staffId } = await context.params;
+    return mobileJSON({ staff: await mobileUpdateStaff(workspaceId, user.id, staffId, await readMobileJSON(request)) });
+  } catch (error) { return mobileError(error); }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ workspaceId: string; staffId: string }> }) {
+  try {
+    const user = await requireMobileUser(request);
+    const { workspaceId, staffId } = await context.params;
+    return mobileJSON(await mobileDeleteStaff(workspaceId, user.id, staffId, await readMobileJSON(request)));
+  } catch (error) { return mobileError(error); }
+}
 
 export async function PATCH(
   request: Request,
