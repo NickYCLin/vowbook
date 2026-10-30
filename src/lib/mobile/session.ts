@@ -35,18 +35,18 @@ export async function exchangeGrant(body: unknown) {
   }, { maxWait: 5000, timeout: 5000 });
 }
 
-function bearerDigest(request: Request) {
+export function mobileSessionHash(request: Request) {
   const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.headers.get("authorization") ?? "");
   if (!match) throw unauthorized();
   return digest(match[1]);
 }
 
 export async function requireMobileUser(request: Request) {
-  const session = await prisma.mobileSession.findUnique({ where: { tokenHash: bearerDigest(request) }, include: { user: true } });
+  const session = await prisma.mobileSession.findUnique({ where: { tokenHash: mobileSessionHash(request) }, include: { user: true } });
   if (!session || session.expiresAt.getTime() <= Date.now() || session.user.accessStatus !== "ACTIVE") throw unauthorized();
   return session.user;
 }
 
 export async function revokeMobileSession(request: Request) {
-  await prisma.mobileSession.deleteMany({ where: { tokenHash: bearerDigest(request) } });
+  await prisma.mobileSession.deleteMany({ where: { tokenHash: mobileSessionHash(request) } });
 }

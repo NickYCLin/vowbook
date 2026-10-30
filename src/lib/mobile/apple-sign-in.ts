@@ -63,7 +63,7 @@ function parseBody(body: unknown) {
 }
 
 /**
- * Apple 登入換 App 登入憑證。Apple 帳號是獨立帳號，不會依 Email 併到 Google 帳號；
+ * Apple 登入換 App 登入憑證。未明確連結時是獨立帳號，不會依 Email 併到 Google 帳號；
  * Email 經 Apple 驗證時，才像 Google 一樣接受寄給這個 Email 的婚宴邀請。
  */
 export async function signInWithApple(body: unknown, verify: Verify = verifyWithApple) {

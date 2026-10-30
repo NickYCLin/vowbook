@@ -15,7 +15,7 @@ export const privacySections: InformationSection[] = [
   },
   {
     title: "登入與帳號",
-    text: "網站使用 Google 登入；原生 App 另提供 Apple 登入。登入服務提供的帳號識別碼、Email、姓名與頭像資訊用於辨識帳號與處理婚宴邀請。Google 與 Apple 帳號不依 Email 自動合併。原生登入憑證存於裝置的 Keychain；伺服器只保存憑證雜湊與到期時間，原生 session 有效期為 12 小時。",
+    text: "網站使用 Google 登入；原生 App 另提供 Apple 登入。登入服務提供的帳號識別碼、Email、姓名與頭像資訊用於辨識帳號與處理婚宴邀請。Google 與 Apple 帳號不依 Email 自動合併；你可在 App 設定驗證並確認連結另一種登入方式，之後使用同一帳號與婚宴資料。連結驗證要求有效期為五分鐘，不能用來合併其他既有帳號。原生登入憑證存於裝置的 Keychain；伺服器只保存憑證雜湊與到期時間，原生 session 有效期為 12 小時。",
   },
   {
     title: "使用目的與協作存取",
@@ -53,7 +53,7 @@ export const supportStatus = "本頁說明常見操作的處理方式與回報�
 export const supportSections: InformationSection[] = [
   {
     title: "登入與工作區",
-    text: "登入失敗時先確認網路，再重新開啟登入流程；取消登入不需繼續操作。原生登入過期請重新登入。Google 與 Apple 是獨立帳號，請使用原本的登入方式；工作區不見時先確認登入帳號與邀請狀態，不要重新建立同名婚宴取代原資料。",
+    text: "登入失敗時先確認網路，再重新開啟登入流程；取消登入不需繼續操作。原生登入過期請重新登入。未連結的 Google 與 Apple 是獨立帳號，請先使用原本的登入方式，再到 App 設定連結另一種登入；如果對方登入已屬於另一個帳號，系統會阻擋而不合併資料。工作區不見時先確認登入帳號與邀請狀態，不要重新建立同名婚宴取代原資料。",
   },
   {
     title: "收據與相機",
