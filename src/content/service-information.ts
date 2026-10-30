@@ -23,7 +23,11 @@ export const privacySections = [
   },
 ];
 
-export const supportSections = [
+export const supportStatus = "本頁說明常見操作的處理方式與回報問題的管道；資料處理方式請見「資料使用說明」。";
+
+export type InformationSection = { title: string; text: string; link?: { href: string; label: string } };
+
+export const supportSections: InformationSection[] = [
   {
     title: "登入與工作區",
     text: "登入失敗時先確認網路，再重新開啟登入流程；取消登入不需繼續操作。原生登入過期請重新登入。Google 與 Apple 是獨立帳號，請使用原本的登入方式；工作區不見時先確認登入帳號與邀請狀態，不要重新建立同名婚宴取代原資料。",
@@ -37,8 +41,9 @@ export const supportSections = [
     text: "無法編輯時請確認角色與成員資格；資料衝突時先重新載入。刪帳請從 App 設定進入並閱讀預覽；共享婚宴需要先處理交接或協作者，不能跳過保護。Apple 撤銷尚未完成時請保留帳號並稍後續辦，不要把錯誤訊息當成已刪帳成功。",
   },
   {
-    title: "測試回饋與正式聯絡方式",
-    text: "若你使用 TestFlight 測試版，可使用 TestFlight 的「傳送 Beta 版回饋」。目前尚未確認正式對外聯絡方式，也尚未建立可在此頁提供的客服 Email 或表單；這是正式上架前必須補齊的項目。請記錄 App 版本、裝置與系統版本、操作步驟及錯誤文字；截圖前遮蔽姓名、Email、電話、地址、收據與禮金。不要提供密碼、驗證碼、登入 token 或 Apple 私鑰。",
+    title: "回報問題與測試回饋",
+    text: "遇到問題或有建議時，請到 VowBook 的 GitHub Issues 建立新的 Issue。回報時請提供：App 版本、iOS 版本、裝置型號、重現步驟，以及畫面上的錯誤訊息。Issue 內容會公開，請勿貼上密碼、驗證碼、登入 token，或婚宴賓客的姓名、電話、地址等個人資料；附截圖前請先遮蔽。若你使用 TestFlight 測試版，也可以在 TestFlight 使用「傳送 Beta 版回饋」作為補充管道。",
+    link: { href: "https://github.com/NickYCLin/vowbook/issues", label: "前往 GitHub Issues 回報問題" },
   },
 ];
 

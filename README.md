@@ -1,5 +1,11 @@
 # 誓約簿 VowBook
 
+> **給 App 使用者的支援說明**
+>
+> - **如何回報**：使用 VowBook App 遇到問題或想提出建議，請到 [GitHub Issues](https://github.com/NickYCLin/vowbook/issues/new/choose) 選擇「問題回報」範本，填寫 App 版本、iOS 版本、裝置型號、重現步驟、預期與實際結果。
+> - **勿貼個資**：Issue 內容會公開，請勿貼上密碼、驗證碼、登入 token，或婚宴賓客的姓名、電話、地址等個人資料；附截圖前請先遮蔽。安全漏洞請依 [SECURITY.md](SECURITY.md) 私下回報。
+> - **隱私與測試回饋**：資料的使用方式請見[資料使用說明](https://ycspace.myvnc.com/VowBook/privacy)，常見操作請見[使用說明與支援](https://ycspace.myvnc.com/VowBook/support)。使用 TestFlight 測試版時，也可以在 TestFlight 使用「傳送 Beta 版回饋」作為補充管道。
+
 **把賓客、桌次和花費整理好，和伴侶一起準備婚宴。**
 
 VowBook 是給新人、伴侶與婚顧使用的婚宴規劃網站。從確認誰會來、安排坐哪桌，到記錄訂金、待辦與當天流程，都能放在同一個婚宴工作區，讓一起籌備的人查看與更新。
@@ -64,7 +70,7 @@ A wedding planning app for couples and planners to manage guests, seating, budge
 
 服務端包含 Apple 帳號重新確認、授權撤銷及刪帳保護，以及行動 API 收據重試時的相同附件重用；這不表示本 repository 提供可安裝的 App 或已完成裝置驗收。Apple 刪帳需要部署者設定對應金鑰，未設定時會拒絕刪除並保留帳號。
 
-`/privacy` 與 `/support` 可匿名閱讀目前功能的資料使用與操作說明，頁面明示待維運確認；不是可直接套用的正式隱私政策。自架者需確認自己的資料流、保存方式與聯絡管道。
+`/privacy` 與 `/support` 可匿名閱讀目前功能的資料使用與操作說明。`/privacy` 明示待維運確認，不是可直接套用的正式隱私政策；`/support` 以本 repository 的 [GitHub Issues](https://github.com/NickYCLin/vowbook/issues) 作為回報問題的管道，不提供 Email。自架者需確認自己的資料流、保存方式與聯絡管道。
 
 ## 誰可以查看與修改
 

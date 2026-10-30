@@ -1,0 +1,71 @@
+name: 問題回報
+description: 回報 VowBook App 或網站使用時遇到的問題
+title: "[問題回報] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!WARNING]
+        > **Issue 內容會公開，任何人都看得到**。請勿貼上密碼、驗證碼、登入 token，或婚宴賓客的姓名、電話、地址、Email 等個人資料；附截圖或錯誤訊息前請先遮蔽。
+        >
+        > 安全漏洞請不要在這裡回報，請依 SECURITY.md 使用私密漏洞回報。
+  - type: input
+    id: app-version
+    attributes:
+      label: App 版本
+      description: 可在 App 設定頁或 TestFlight 查看，例如 1.0 (12)。若在網站上遇到問題請填「網站」。
+      placeholder: 例如 1.0 (12)
+    validations:
+      required: true
+  - type: input
+    id: ios-version
+    attributes:
+      label: iOS 版本
+      placeholder: 例如 iOS 26.1
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 裝置型號
+      placeholder: 例如 iPhone 16
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      description: 請依序列出操作步驟，讓我們可以重現問題。
+      placeholder: |
+        1. 開啟……
+        2. 點選……
+        3. 看到……
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期結果
+      description: 你原本預期會發生什麼？
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 實際結果
+      description: 實際發生了什麼？若有錯誤訊息，請貼上遮蔽個資後的文字。
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截圖或補充說明（選填）
+      description: 附截圖前請先遮蔽姓名、電話、地址、收據與禮金等資料。
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 個資確認
+      options:
+        - label: 我確認內容沒有密碼、驗證碼、token 或賓客個人資料。
+          required: true
