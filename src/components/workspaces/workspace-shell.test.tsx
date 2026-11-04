@@ -18,6 +18,12 @@ const links = [
 ] as const;
 
 describe("WorkspacePageHeader", () => {
+  it("精簡頁首保留可見的範例入口，只隱藏重複說明", () => {
+    render(<WorkspacePageHeader workspaceId="workspace_synthetic" workspaceName="合成婚宴" sectionTitle="花費" description="花費說明" activeSection="budget" compactIntro />);
+    const trigger = screen.getByRole("button", { name: "看完成範例" });
+    expect(trigger.closest(".sr-only")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).closest(".sr-only")).not.toBeNull();
+  });
   it("renders the shared basePath-safe workspace navigation with a non-color current state", () => {
     render(
       <WorkspacePageHeader

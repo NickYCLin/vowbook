@@ -85,6 +85,7 @@ export function Dialog({
   size = "md",
   onClose,
   onRestoreFocus,
+  fullScreenOnMobile = false,
   children,
 }: {
   dialogRef: RefObject<HTMLDialogElement | null>;
@@ -97,6 +98,7 @@ export function Dialog({
   size?: keyof typeof sizes;
   onClose: () => void;
   onRestoreFocus?: () => void;
+  fullScreenOnMobile?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -112,6 +114,7 @@ export function Dialog({
         "m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-x-hidden overflow-y-auto overscroll-contain",
         "rounded-card border border-line bg-surface p-0 text-left text-ink shadow-overlay",
         sizes[size],
+        fullScreenOnMobile && "max-sm:m-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none",
       )}
     >
       <div className="sticky top-0 z-10 flex min-w-0 items-start justify-between gap-4 border-b border-line bg-surface/95 px-5 py-4 backdrop-blur sm:px-6">

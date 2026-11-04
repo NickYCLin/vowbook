@@ -71,7 +71,9 @@ describe("BudgetPage", () => {
       "/dashboard?view=all",
     );
     expect(container.querySelector("main")).toHaveClass("max-w-6xl");
-    expect(container.querySelector("header")).toHaveClass("sr-only");
+    expect(container.querySelector("header")).not.toHaveClass("sr-only");
+    expect(container.querySelector("header > div:first-child")).toHaveClass("sr-only");
+    expect(screen.getByRole("button", { name: "看完成範例" }).closest(".sr-only")).toBeNull();
     // compact 模式仍保留共享標題結構，內層文字欄維持易讀行寬。
     expect(container.querySelector("header > div:first-child")).toHaveClass(
       "max-w-3xl",

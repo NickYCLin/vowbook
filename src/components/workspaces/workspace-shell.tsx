@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/class-names";
 import { WorkspaceFrameContext } from "./workspace-view-state";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
+import { WorkspaceExamplePreview } from "./workspace-example-preview";
 import {
   workspaceGroupNavOrder,
   workspaceNavOrder,
@@ -327,11 +328,11 @@ export function WorkspacePageHeader({
         data-workspace-header="compact"
         className={
           compactIntro
-            ? "sr-only"
+            ? "mb-4 flex min-w-0 justify-end"
             : "workspace-page-heading mb-6 flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row sm:gap-6"
         }
       >
-        <div className="min-w-0 max-w-3xl flex-1">
+        <div className={cn("min-w-0 max-w-3xl flex-1", compactIntro && "sr-only")}>
           {/* 工作區名稱是脈絡而不是頁面標題：放成小標，H1 只留功能名，手機才不會被長名稱吃掉整個首屏。 */}
           <p
             data-workspace-name
@@ -355,9 +356,10 @@ export function WorkspacePageHeader({
             </p>
           )}
         </div>
-        {actions && (
-          <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:max-w-[50%]">{actions}</div>
-        )}
+        <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto sm:max-w-[50%]">
+          <WorkspaceExamplePreview section={activeSection} sectionTitle={sectionTitle} />
+          {actions}
+        </div>
       </header>
       {compactIntro && readOnlyNotice && (
         <p className="rounded-control border border-line bg-surface-sunken px-3.5 py-2.5 text-caption leading-6 text-ink-soft">
