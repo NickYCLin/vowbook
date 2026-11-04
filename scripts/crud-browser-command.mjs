@@ -929,6 +929,7 @@ try {
         "e2e/workspace-interactions.spec.ts",
         "e2e/task-templates-budget-chart.spec.ts",
         "e2e/guest-invitations.spec.ts",
+        "e2e/workspace-help.spec.ts",
         "--output=test-results/crud-main",
         "--workers=1",
       ],

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { SystemUserList } from "@/components/admin/system-user-list";
 import {
   listSystemUsers,
@@ -64,6 +65,7 @@ export default async function AdminUsersPage() {
         </div>
       </section>
 
+      <Link href="/admin/feedback" className="mt-6 inline-flex min-h-11 items-center rounded-control border border-line px-4 text-sm font-semibold text-clay-strong">查看意見回饋</Link>
       <SystemUserList
         users={users.map((user) => ({
           ...user,

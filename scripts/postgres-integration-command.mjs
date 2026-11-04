@@ -556,6 +556,7 @@ function runFreshChain() {
   }
 
   const integrationFiles = [
+    "src/test/postgres-product-feedback.integration.test.ts",
     "src/test/postgres-seating.integration.test.ts",
     "src/test/postgres-seating-scenarios.integration.test.ts",
     "src/test/postgres-wedding-tasks.integration.test.ts",

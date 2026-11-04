@@ -160,6 +160,7 @@ enum BudgetCostCategory {
 }
 
 model User {
+  productFeedback ProductFeedback[]
   id                        String             @id @default(cuid())
   /// 不依 Email 合併；使用者完成明確連結後可同時持有兩種登入，至少保留一個。
   googleSubject             String?            @unique @map("google_subject")
@@ -209,6 +210,7 @@ model UserAvatar {
 }
 
 model WeddingWorkspace {
+  productFeedback ProductFeedback[]
   guestInvitationSettings GuestInvitationSettings?
   guestInvitations GuestInvitation[]
   cakeHouseholds WeddingCakeHousehold[]
@@ -253,6 +255,23 @@ model WeddingWorkspace {
 
   @@index([createdById])
   @@map("wedding_workspaces")
+}
+
+model ProductFeedback {
+  id String @id @db.Uuid
+  workspaceId String @map("workspace_id")
+  authorId String @map("author_id")
+  section String @db.VarChar(40)
+  category String @db.VarChar(20)
+  message String @db.VarChar(3000)
+  contact String? @db.VarChar(254)
+  createdAt DateTime @default(now()) @map("created_at")
+  workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId, createdAt])
+  @@index([createdAt, id])
+  @@map("product_feedback")
 }
 
 model Guest {

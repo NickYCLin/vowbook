@@ -33,6 +33,7 @@ describe("匿名資料說明與支援頁", () => {
     render(<SupportPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("使用說明與支援");
     expect(screen.getByRole("heading", { level: 2, name: "回報問題與測試回饋" })).toBeVisible();
+    expect(screen.getByText(/網站使用者可在婚宴功能列點「意見回饋」/)).toBeVisible();
     const issues = screen.getByRole("link", { name: /前往 GitHub Issues 回報問題/ });
     expect(issues).toHaveAttribute("href", "https://github.com/NickYCLin/vowbook/issues");
     expect(issues).toHaveAttribute("rel", "noopener noreferrer");

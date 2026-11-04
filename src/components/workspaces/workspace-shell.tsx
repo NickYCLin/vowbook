@@ -18,6 +18,7 @@ import { cn } from "@/lib/class-names";
 import { WorkspaceFrameContext } from "./workspace-view-state";
 import { revealActiveWorkspaceNavigationItem } from "@/lib/workspace-navigation";
 import { WorkspaceExamplePreview } from "./workspace-example-preview";
+import { ProductFeedbackDialog } from "./product-feedback-dialog";
 import {
   workspaceGroupNavOrder,
   workspaceNavOrder,
@@ -279,6 +280,7 @@ export function WorkspaceNavigation({
             {secondarySections.map(section => <Fragment key={section.key}>
               {renderLink(section, "panel")}
             </Fragment>)}
+            <ProductFeedbackDialog key={`${workspaceId}:${activeSection}`} workspaceId={workspaceId} section={activeSection} />
           </div>
         </div>
       </div>
