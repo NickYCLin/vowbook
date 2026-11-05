@@ -37,8 +37,9 @@ test("功能列可送出回饋，暫時關閉保留內容，保存後顯示編�
   if (info.project.name.startsWith("mobile")) await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("button", { name: "意見回饋", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "意見回饋", exact: true });
-  await expect(dialog.getByRole("combobox", { name: "相關功能" })).toHaveValue("timeline");
-  const message = "這是隔離瀏覽器測試，希望能記住常用的流程顯示方式。";
+  await expect(dialog.getByRole("combobox", { name: "相關功能（選填）" })).toHaveValue("");
+  await expect(dialog.getByRole("combobox", { name: "回饋類型（選填）" })).toHaveValue("");
+  const message = "想法";
   await dialog.getByRole("textbox", { name: "回饋內容" }).fill(message);
   await dialog.getByRole("button", { name: "暫時關閉，保留內容" }).click();
   await page.getByRole("button", { name: "意見回饋", exact: true }).click();
@@ -49,7 +50,7 @@ test("功能列可送出回饋，暫時關閉保留內容，保存後顯示編�
   await expect(page).toHaveURL(/\/budget$/u);
   if (info.project.name.startsWith("mobile")) await page.getByRole("button", { name: "更多", exact: true }).click();
   await page.getByRole("button", { name: "意見回饋", exact: true }).click();
-  await expect(dialog.getByRole("combobox", { name: "相關功能" })).toHaveValue("budget");
+  await expect(dialog.getByRole("combobox", { name: "相關功能（選填）" })).toHaveValue("");
   await expect(dialog.getByRole("textbox", { name: "回饋內容" })).toHaveValue("");
   await dialog.getByRole("textbox", { name: "回饋內容" }).fill(message);
   await page.screenshot({ path: info.outputPath("feedback-form.png") });
@@ -57,4 +58,8 @@ test("功能列可送出回饋，暫時關閉保留內容，保存後顯示編�
   await expect(dialog.getByRole("status")).toContainText("你的回饋已保存");
   await expect(dialog.getByRole("status")).toContainText(/回饋編號：[0-9a-f-]{36}/u);
   await page.screenshot({ path: info.outputPath("feedback-saved.png") });
+  await dialog.getByRole("button", { name: "再寫一則回饋" }).click();
+  await dialog.getByRole("textbox", { name: "回饋內容" }).fill("合成想法".repeat(1000));
+  await dialog.getByRole("button", { name: "送出回饋", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("你的回饋已保存");
 });

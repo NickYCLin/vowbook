@@ -34,6 +34,14 @@ function submit(workspaceId: string, id = requestId) {
     expect(await db.productFeedback.count()).toBe(1);
     expect(await db.productFeedback.findUnique({ where: { id: requestId } })).toMatchObject({ authorId: auth.id, workspaceId: workspace.id, contact: null });
   });
+  it("不填分類與功能也能保存長篇一般想法", async () => {
+    const workspace = await seed();
+    const form = new FormData();
+    form.set("requestId", requestId);
+    form.set("message", "想法".repeat(2500));
+    expect((await submitProductFeedbackAction(workspace.id, { status: "idle" }, form)).status).toBe("success");
+    expect(await db.productFeedback.findUnique({ where: { id: requestId } })).toMatchObject({ section: "general", category: "other", message: "想法".repeat(2500) });
+  });
   it("移除成員後不能重送或讀取既有回饋結果", async () => {
     const workspace = await seed();
     await submit(workspace.id);

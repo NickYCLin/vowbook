@@ -22,10 +22,17 @@ describe("意見回饋輸入契約", () => {
   });
   it.each([
     ["section", "private/path"], ["category", "unknown"], ["message", "  "],
-    ["message", "字".repeat(3001)], ["contact", "不是電子郵件"], ["requestId", "invalid"],
+    ["contact", "不是電子郵件"], ["requestId", "invalid"],
   ])("拒絕無效欄位 %s", (field, value) => {
     const data = form();
     data.set(field, value);
     expect(() => normalizeProductFeedback(data)).toThrow();
+  });
+  it.each(["讚", "字".repeat(5000)])("接受簡短或長篇想法，分類與功能可不填", (message) => {
+    const data = form();
+    data.delete("section");
+    data.set("category", "");
+    data.set("message", message);
+    expect(normalizeProductFeedback(data)).toMatchObject({ section: "general", category: "other", message, contact: null });
   });
 });

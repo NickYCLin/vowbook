@@ -263,7 +263,7 @@ model ProductFeedback {
   authorId String @map("author_id")
   section String @db.VarChar(40)
   category String @db.VarChar(20)
-  message String @db.VarChar(3000)
+  message String @db.Text
   contact String? @db.VarChar(254)
   createdAt DateTime @default(now()) @map("created_at")
   workspace WeddingWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
