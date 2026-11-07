@@ -59,6 +59,10 @@ const users: SystemUserRow[] = [
 ];
 
 describe("SystemUserList", () => {
+  it("帳號卡片顯示使用者頭貼", () => {
+    render(<SystemUserList users={[{ ...users[0], avatarUpdatedAt: "2026-11-07T00:00:00.000Z" }]} />);
+    expect(screen.getByRole("img", { name: "站台管理者的頭貼" })).toHaveAttribute("src", expect.stringContaining("/api/admin/users/user_admin/avatar?v="));
+  });
   it("shows account state, activity, and workspace membership in responsive cards", () => {
     render(<SystemUserList users={users} />);
 

@@ -8,6 +8,7 @@ import type {
   UserAccessStatus,
 } from "@prisma/client";
 import { normalizeInvitationEmail } from "@/domain/workspace-invitation";
+import { safeGoogleAvatarUrl } from "@/domain/profile-avatar";
 import { requireCurrentUser } from "@/lib/current-user";
 import { prisma } from "@/lib/prisma";
 
@@ -97,6 +98,7 @@ export type SystemUserSummary = {
   email: string;
   name: string | null;
   image: string | null;
+  avatarUpdatedAt: string | null;
   accessStatus: UserAccessStatus;
   accessStatusChangedAt: Date | null;
   lastLoginAt: Date | null;
@@ -135,6 +137,7 @@ export async function listSystemUsersForAdmin(
       email: true,
       name: true,
       image: true,
+      avatar: { select: { updatedAt: true } },
       accessStatus: true,
       accessStatusChangedAt: true,
       lastLoginAt: true,
@@ -158,8 +161,10 @@ export async function listSystemUsersForAdmin(
     },
   });
 
-  return users.map(({ createdWorkspaces, ...user }) => ({
+  return users.map(({ createdWorkspaces, avatar, ...user }) => ({
     ...user,
+    image: safeGoogleAvatarUrl(user.image),
+    avatarUpdatedAt: avatar?.updatedAt.toISOString() ?? null,
     createdWorkspaces: createdWorkspaces.map((workspace) => ({
       id: workspace.id,
       name: workspace.name,

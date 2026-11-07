@@ -8,12 +8,14 @@ import {
   updateSystemUserAccessAction,
 } from "@/actions/admin-users";
 import { cn } from "@/lib/class-names";
+import { UserAvatar } from "./user-avatar";
 
 export type SystemUserRow = {
   id: string;
   email: string;
   name: string | null;
   image: string | null;
+  avatarUpdatedAt?: string | null;
   accessStatus: UserAccessStatus;
   accessStatusChangedAt: string | null;
   lastLoginAt: string | null;
@@ -229,6 +231,7 @@ function UserCard({ user }: { user: SystemUserRow }) {
       <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(14rem,0.8fr)] lg:items-start lg:gap-6">
         <section className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <UserAvatar userId={user.id} name={user.name} image={user.image} avatarUpdatedAt={user.avatarUpdatedAt} />
             <h2 className="min-w-0 break-words font-serif text-xl font-semibold text-ink">
               {displayName}
             </h2>

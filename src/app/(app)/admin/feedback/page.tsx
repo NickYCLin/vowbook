@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { UserAvatar } from "@/components/admin/user-avatar";
 import { feedbackCategories, feedbackSections } from "@/domain/product-feedback";
 import { listProductFeedback } from "@/lib/product-feedback";
 import { SystemAdminAccessDeniedError } from "@/lib/system-admin";
@@ -21,6 +22,10 @@ export default async function FeedbackAdminPage({ searchParams }: { searchParams
     <p className="text-sm text-ink-soft">僅系統管理者可查看。內容由使用者提供，請避免轉貼聯絡資訊或其他個資。</p>
     {visible.length === 0 && <p>目前沒有回饋。</p>}
     {visible.map(item => <article key={item.id} className="space-y-3 rounded-card border border-line bg-surface p-5">
+      <div className="flex items-center gap-3">
+        <UserAvatar userId={item.author.id} name={item.author.name} image={item.author.image} avatarUpdatedAt={item.author.avatarUpdatedAt} />
+        <span className="min-w-0 break-words text-sm font-semibold">{item.author.name?.trim() || "未設定姓名"}</span>
+      </div>
       <h2 className="font-semibold">{feedbackSections[item.section as keyof typeof feedbackSections] ?? "其他功能"}・{feedbackCategories[item.category as keyof typeof feedbackCategories] ?? "其他"}</h2>
       <time className="text-sm text-ink-soft" dateTime={item.createdAt.toISOString()}>{item.createdAt.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}</time>
       <p className="whitespace-pre-wrap break-words text-sm leading-7">{item.message}</p>

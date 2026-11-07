@@ -82,6 +82,7 @@ describe("system admin allowlist", () => {
         email: "guest@example.com",
         name: "一般使用者",
         image: null,
+        avatar: { updatedAt: new Date("2026-11-07T00:00:00Z") },
         accessStatus: "ACTIVE",
         accessStatusChangedAt: null,
         lastLoginAt: null,
@@ -105,6 +106,7 @@ describe("system admin allowlist", () => {
 
     await expect(listSystemUsers()).resolves.toMatchObject([
       {
+        avatarUpdatedAt: "2026-11-07T00:00:00.000Z",
         createdWorkspaces: [
           { id: "workspace_2", name: "自己開的婚宴", memberCount: 2, guestCount: 74 },
         ],

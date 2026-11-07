@@ -28,10 +28,12 @@ describe("意見回饋管理頁", () => {
     mocks.list.mockResolvedValueOnce([{
       id: "00000000-0000-4000-8000-000000000001", section: "timeline", category: "habit",
       message: "<script>不應執行</script>", contact: null, createdAt: new Date("2026-11-05T00:00:00Z"),
+      author: { id: "user_test", name: "測試帳號", image: null, avatarUpdatedAt: "2026-11-07T00:00:00Z" },
     }]);
     const { container } = render(await FeedbackAdminPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByText("總流程・使用習慣")).toBeVisible();
     expect(screen.getByText("<script>不應執行</script>")).toBeVisible();
     expect(container.querySelector("script")).toBeNull();
+    expect(screen.getByRole("img", { name: "測試帳號的頭貼" })).toHaveAttribute("src", expect.stringContaining("/api/admin/users/user_test/avatar?v="));
   });
 });
